@@ -1,0 +1,27 @@
+{
+  "name": "claude-playwright-walkthrough",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Point Claude + Playwright at a feature, get an interactive D3 screenshot walkthrough for free.",
+  "scripts": {
+    "dev:server": "node server/index.js",
+    "dev:web": "vite",
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "capture": "node walkthrough/capture.mjs",
+    "present": "node walkthrough/serve.mjs",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "playwright": "^1.47.2",
+    "vite": "^5.4.8"
+  }
+}

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Feature Walkthrough — captured by Claude + Playwright</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%230b1120'/%3E%3Cpath d='M8 3l4 7H4z' fill='%2322d3ee'/%3E%3C/svg%3E">
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css">
+<script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+<style>
+  :root {
+    --bg:#0b1120; --panel:#0a1226; --card:#152037; --card-hover:#1d2c4a;
+    --border:#243352; --text:#e7edf7; --muted:#93a4c3; --accent:#22d3ee; --accent2:#6366f1;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:32px 24px 64px; background:
+      radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, var(--bg) 55%);
+    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  }
+  header { max-width:760px; margin:0 auto 8px; }
+  h1 { margin:0 0 6px; font-size:26px; letter-spacing:-0.02em; }
+  .subtitle { color:var(--muted); font-size:14px; line-height:1.6; }
+  .subtitle code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); font-size:.9em; }
+  #diagram { max-width:760px; margin:24px auto 0; }
+  svg { display:block; width:100%; height:auto; }
+  .node-link { cursor:pointer; }
+  .node-rect { fill:var(--card); stroke:var(--border); stroke-width:1.5; transition:all .15s; }
+  .node-link:hover .node-rect { fill:var(--card-hover); stroke:var(--accent); }
+  .node-link:hover .thumb-border { stroke:var(--accent); }
+  .thumb-border { fill:none; stroke:var(--border); stroke-width:1; transition:stroke .15s; }
+  .step-num { fill:var(--accent); font-size:11px; font-weight:700; letter-spacing:.08em; }
+  .caption { fill:var(--text); font-size:15px; font-weight:600; }
+  .subcaption { fill:var(--muted); font-size:12px; }
+  .connector { stroke:var(--accent2); stroke-width:2; fill:none; opacity:.6; }
+  footer { max-width:760px; margin:40px auto 0; color:var(--muted); font-size:12px; text-align:center; }
+  footer code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); }
+  .gslide-description { background:rgba(10,18,38,.96)!important; }
+  .gslide-title { color:var(--accent)!important; font-weight:600; }
+  .gslide-desc { color:var(--text)!important; line-height:1.6; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Feature Walkthrough</h1>
+  <div class="subtitle">
+    Every screenshot below was captured by <strong>Claude driving Playwright</strong>
+    through the live app — see <code>walkthrough/capture.mjs</code>. This page renders
+    <code>steps.json</code> with D3; click any step for the full-resolution shot.
+  </div>
+</header>
+
+<div id="diagram"></div>
+
+<footer>
+  Regenerate any time with <code>npm run capture</code> — the script emits the
+  screenshots <em>and</em> this manifest, so the story never drifts from the UI.
+</footer>
+
+<script>
+const NODE_W = 712, NODE_H = 132, GAP = 44, PAD = 16;
+const THUMB_W = 168, THUMB_H = 104;
+
+let lightbox = null;
+
+function render(data) {
+  document.getElementById('title').textContent = data.title || 'Feature Walkthrough';
+  const steps = data.steps || [];
+  const H = PAD * 2 + steps.length * NODE_H + (steps.length - 1) * GAP;
+
+  const svg = d3.select('#diagram').append('svg')
+    .attr('viewBox', `0 0 ${NODE_W + 2} ${H}`);
+
+  const defs = svg.append('defs');
+  defs.append('marker')
+    .attr('id', 'arrow').attr('viewBox', '0 -5 10 10')
+    .attr('refX', 8).attr('refY', 0)
+    .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto')
+    .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', 'var(--accent2)');
+
+  const yOf = i => PAD + i * (NODE_H + GAP);
+
+  // Connectors between consecutive steps
+  for (let i = 1; i < steps.length; i++) {
+    const x = 1 + NODE_W / 2;
+    svg.append('path')
+      .attr('class', 'connector')
+      .attr('d', `M${x},${yOf(i - 1) + NODE_H} L${x},${yOf(i) - 2}`)
+      .attr('marker-end', 'url(#arrow)');
+  }
+
+  const g = svg.selectAll('g.node').data(steps).enter()
+    .append('g')
+    .attr('class', 'node-link')
+    .attr('transform', (d, i) => `translate(1, ${yOf(i)})`)
+    .on('click', (e, d) => lightbox.openAt(d.__i));
+
+  g.each(function (d, i) {
+    const n = d3.select(this);
+    d.__i = i;
+    n.append('rect').attr('class', 'node-rect')
+      .attr('width', NODE_W).attr('height', NODE_H).attr('rx', 14);
+
+    n.append('rect').attr('class', 'thumb-border')
+      .attr('x', 14).attr('y', (NODE_H - THUMB_H) / 2)
+      .attr('width', THUMB_W).attr('height', THUMB_H).attr('rx', 6);
+    n.append('image')
+      .attr('href', `shots/${d.file}`)
+      .attr('x', 14).attr('y', (NODE_H - THUMB_H) / 2)
+      .attr('width', THUMB_W).attr('height', THUMB_H)
+      .attr('preserveAspectRatio', 'xMidYMid slice')
+      .attr('clip-path', 'inset(0 round 6px)');
+
+    const tx = 14 + THUMB_W + 24;
+    n.append('text').attr('class', 'step-num').attr('x', tx).attr('y', 40)
+      .text(`STEP ${d.n}`);
+    n.append('text').attr('class', 'caption').attr('x', tx).attr('y', 66)
+      .text(d.caption);
+    n.append('text').attr('class', 'subcaption').attr('x', tx).attr('y', 92)
+      .text(d.sub);
+  });
+
+  const elements = steps.map(s => ({
+    href: `shots/${s.file}`, type: 'image',
+    title: `Step ${s.n} — ${s.caption}`, description: s.sub || '',
+  }));
+  if (lightbox) lightbox.destroy();
+  lightbox = GLightbox({ elements, loop: true, zoomable: true, skin: 'clean' });
+}
+
+fetch('steps.json')
+  .then(r => r.json())
+  .then(render)
+  .catch(() => {
+    document.getElementById('diagram').innerHTML =
+      '<p style="color:#93a4c3">No <code>steps.json</code> yet — run <code>npm run capture</code> first.</p>';
+  });
+</script>
+</body>
+</html>

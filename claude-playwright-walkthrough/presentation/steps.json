@@ -1,0 +1,41 @@
+{
+  "title": "Northwind — Contact a human",
+  "steps": [
+    {
+      "n": 1,
+      "file": "01-home.png",
+      "caption": "Landing page",
+      "sub": "The feature entry point — a visitor arrives at Northwind."
+    },
+    {
+      "n": 2,
+      "file": "02-contact-open.png",
+      "caption": "Contact form opened",
+      "sub": "Clicking “Get in touch” routes to the contact form."
+    },
+    {
+      "n": 3,
+      "file": "03-validation.png",
+      "caption": "Inline validation",
+      "sub": "Submitting empty surfaces field-level errors — no bad data reaches the API."
+    },
+    {
+      "n": 4,
+      "file": "04-filled.png",
+      "caption": "Form completed",
+      "sub": "A valid enquiry filled in and ready to send."
+    },
+    {
+      "n": 5,
+      "file": "05-success.png",
+      "caption": "Submission confirmed",
+      "sub": "POST /api/contact succeeds; the user lands on a confirmation with a ticket id."
+    },
+    {
+      "n": 6,
+      "file": "06-admin.png",
+      "caption": "Appears in submissions",
+      "sub": "The backend admin list shows the new submission — end-to-end proof."
+    }
+  ]
+}

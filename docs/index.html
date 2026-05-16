@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Levantar — Demos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%230b1120'/%3E%3Cpath d='M8 3l4 7H4z' fill='%2322d3ee'/%3E%3C/svg%3E">
+<style>
+  :root { --bg:#0b1120; --card:#152037; --border:#243352; --text:#e7edf7; --muted:#93a4c3; --accent:#22d3ee; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; padding:80px 24px; color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    background:radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, var(--bg) 55%); }
+  .wrap { max-width:720px; margin:0 auto; }
+  h1 { font-size:30px; margin:0 0 8px; letter-spacing:-0.02em; }
+  .sub { color:var(--muted); margin:0 0 40px; line-height:1.6; }
+  a.card { display:block; text-decoration:none; color:var(--text);
+    background:var(--card); border:1px solid var(--border); border-radius:16px;
+    padding:24px 26px; margin-bottom:16px; transition:border-color .15s, transform .08s; }
+  a.card:hover { border-color:var(--accent); transform:translateY(-2px); }
+  a.card h2 { margin:0 0 6px; font-size:19px; }
+  a.card p { margin:0; color:var(--muted); font-size:14px; line-height:1.6; }
+  .tag { display:inline-block; margin-top:14px; font-size:12px; color:var(--accent);
+    border:1px solid var(--border); border-radius:999px; padding:3px 12px; }
+  footer { color:var(--muted); font-size:12px; margin-top:48px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Levantar — Demos</h1>
+  <p class="sub">Small, self-contained demos. Each links to its live walkthrough.</p>
+
+  <a class="card" href="./claude-playwright-walkthrough/">
+    <h2>Claude + Playwright → interactive walkthrough</h2>
+    <p>Point Claude at a feature; it drives Playwright through the flow, captures a
+       screenshot per step, and renders an interactive D3 walkthrough — zero
+       screenshots taken by hand.</p>
+    <span class="tag">View walkthrough →</span>
+  </a>
+
+  <footer>levantar-ai/demos · GitHub Pages</footer>
+</div>
+</body>
+</html>
