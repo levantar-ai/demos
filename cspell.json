@@ -1,0 +1,33 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "Levantar",
+    "Northwind",
+    "Playwright",
+    "GLightbox",
+    "MegaLinter",
+    "lightbox",
+    "gslide",
+    "lede",
+    "nojekyll",
+    "repoint",
+    "subcaption",
+    "topbar",
+    "vite",
+    "zoomable",
+    "favicon",
+    "stylelint",
+    "htmlhint",
+    "djlint",
+    "cspell",
+    "mjs",
+    "jsx"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "megalinter-reports/**",
+    "**/*.png",
+    "package-lock.json"
+  ]
+}

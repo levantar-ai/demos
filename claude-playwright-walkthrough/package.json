@@ -22,6 +22,8 @@
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^9.0.1",
     "playwright": "^1.47.2",
+    "stylelint": "^16.10.0",
+    "stylelint-config-standard": "^36.0.1",
     "vite": "^5.4.8"
   }
 }
