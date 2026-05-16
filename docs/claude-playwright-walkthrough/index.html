@@ -36,12 +36,26 @@
   .connector { stroke:var(--accent2); stroke-width:2; fill:none; opacity:.6; }
   footer { max-width:760px; margin:40px auto 0; color:var(--muted); font-size:12px; text-align:center; }
   footer code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); }
+  footer a { color:var(--accent); text-decoration:none; }
+  footer a:hover { text-decoration:underline; }
+  .brandbar { max-width:760px; margin:0 auto 20px; }
+  .brandbar a { display:inline-flex; align-items:center; gap:11px; text-decoration:none;
+    color:var(--text); font-weight:600; font-size:15px; letter-spacing:-0.01em;
+    opacity:.92; transition:opacity .15s; }
+  .brandbar a:hover { opacity:1; }
+  .brandbar img { height:30px; width:auto; display:block; }
   .gslide-description { background:rgba(10,18,38,.96)!important; }
   .gslide-title { color:var(--accent)!important; font-weight:600; }
   .gslide-desc { color:var(--text)!important; line-height:1.6; }
 </style>
 </head>
 <body>
+<div class="brandbar">
+  <a href="https://levantar.ai" target="_blank" rel="noopener">
+    <img src="levantar-logo-white.png" alt="Levantar">
+    <span>Levantar</span>
+  </a>
+</div>
 <header>
   <h1 id="title">Feature Walkthrough</h1>
   <div class="subtitle">
@@ -56,6 +70,7 @@
 <footer>
   Regenerate any time with <code>npm run capture</code> — the script emits the
   screenshots <em>and</em> this manifest, so the story never drifts from the UI.
+  <br>Built by <a href="https://levantar.ai" target="_blank" rel="noopener">Levantar — levantar.ai</a>
 </footer>
 
 <script src="https://d3js.org/d3.v7.min.js"></script>
