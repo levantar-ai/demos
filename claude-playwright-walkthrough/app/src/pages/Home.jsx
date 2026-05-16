@@ -10,7 +10,7 @@ export default function Home() {
         <span className="accent">We answer fast.</span>
       </h1>
       <p className="lede">
-        Northwind is a tiny demo product. The point isn&rsquo;t the product — it&rsquo;s
+        Acme is a tiny demo product. The point isn&rsquo;t the product — it&rsquo;s
         that everything you click through here was screenshotted automatically by
         Claude driving Playwright, then turned into the interactive walkthrough.
       </p>

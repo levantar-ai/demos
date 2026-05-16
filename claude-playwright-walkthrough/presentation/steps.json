@@ -1,11 +1,11 @@
 {
-  "title": "Northwind — Contact a human",
+  "title": "Acme — Contact a human",
   "steps": [
     {
       "n": 1,
       "file": "01-home.png",
       "caption": "Landing page",
-      "sub": "The feature entry point — a visitor arrives at Northwind."
+      "sub": "The feature entry point — a visitor arrives at Acme."
     },
     {
       "n": 2,

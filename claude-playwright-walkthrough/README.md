@@ -6,7 +6,7 @@ A tiny demo of one idea:
 > screenshot per step, and renders an interactive D3 walkthrough — no screenshots
 > taken by hand, no slide deck to maintain.**
 
-The app itself (a contact form for a fake product, "Northwind") is deliberately
+The app itself (a contact form for a fake product, "Acme") is deliberately
 boring. The interesting part is the pipeline around it.
 
 ## How it fits together

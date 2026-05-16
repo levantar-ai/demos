@@ -24,7 +24,7 @@ const steps = [
   {
     name: 'home',
     caption: 'Landing page',
-    sub: 'The feature entry point — a visitor arrives at Northwind.',
+    sub: 'The feature entry point — a visitor arrives at Acme.',
     async run(page) {
       await page.goto(BASE, { waitUntil: 'networkidle' });
       await page.getByRole('heading', { name: /Talk to a human/i }).waitFor();
@@ -102,7 +102,7 @@ async function main() {
   }
 
   await browser.close();
-  await writeFile(MANIFEST, JSON.stringify({ title: 'Northwind — Contact a human', steps: manifest }, null, 2));
+  await writeFile(MANIFEST, JSON.stringify({ title: 'Acme — Contact a human', steps: manifest }, null, 2));
   console.log(`\n✓ ${manifest.length} steps → presentation/steps.json`);
 }
 

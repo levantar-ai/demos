@@ -9,7 +9,7 @@ export default function App() {
     <div className="shell">
       <header className="topbar">
         <Link to="/" className="brand">
-          <span className="brand-mark">▲</span> Northwind
+          <span className="brand-mark">▲</span> Acme
         </Link>
         <nav>
           <NavLink to="/" end>Home</NavLink>
