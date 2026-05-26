@@ -19,11 +19,11 @@
       radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, var(--bg) 55%);
     color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
   }
-  header { max-width:760px; margin:0 auto 8px; }
+  header { max-width:1000px; margin:0 auto 8px; }
   h1 { margin:0 0 6px; font-size:26px; letter-spacing:-0.02em; }
   .subtitle { color:var(--muted); font-size:14px; line-height:1.6; }
   .subtitle code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); font-size:.9em; }
-  #diagram { max-width:760px; margin:24px auto 0; }
+  #diagram { max-width:1000px; margin:24px auto 0; }
   svg { display:block; width:100%; height:auto; }
   .node-link { cursor:pointer; }
   .node-rect { fill:var(--card); stroke:var(--border); stroke-width:1.5; transition:all .15s; }
@@ -34,16 +34,21 @@
   .caption { fill:var(--text); font-size:15px; font-weight:600; }
   .subcaption { fill:var(--muted); font-size:12px; }
   .connector { stroke:var(--accent2); stroke-width:2; fill:none; opacity:.6; }
-  footer { max-width:760px; margin:40px auto 0; color:var(--muted); font-size:12px; text-align:center; }
+  footer { max-width:1000px; margin:40px auto 0; color:var(--muted); font-size:12px; text-align:center; }
   footer code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); }
   footer a { color:var(--accent); text-decoration:none; }
   footer a:hover { text-decoration:underline; }
-  .brandbar { max-width:760px; margin:0 auto 20px; }
-  .brandbar a { display:inline-flex; align-items:center; gap:11px; text-decoration:none;
+  .brandbar { max-width:1000px; margin:0 auto 20px;
+    display:flex; align-items:center; justify-content:space-between; }
+  .brandbar .brand { display:inline-flex; align-items:center; gap:11px; text-decoration:none;
     color:var(--text); font-weight:600; font-size:15px; letter-spacing:-0.01em;
     opacity:.92; transition:opacity .15s; }
-  .brandbar a:hover { opacity:1; }
+  .brandbar .brand:hover { opacity:1; }
   .brandbar img { height:30px; width:auto; display:block; }
+  .back-link { color:var(--muted); text-decoration:none; font-size:13px;
+    border:1px solid var(--border); border-radius:999px; padding:6px 14px;
+    transition:color .15s, border-color .15s; }
+  .back-link:hover { color:var(--accent); border-color:var(--accent); }
   .gslide-description { background:rgba(10,18,38,.96)!important; }
   .gslide-title { color:var(--accent)!important; font-weight:600; }
   .gslide-desc { color:var(--text)!important; line-height:1.6; }
@@ -51,10 +56,11 @@
 </head>
 <body>
 <div class="brandbar">
-  <a href="https://levantar.ai" target="_blank" rel="noopener">
+  <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
     <img src="levantar-logo-white.png" alt="Levantar">
     <span>Levantar</span>
   </a>
+  <a class="back-link" href="../">← All demos</a>
 </div>
 <header>
   <h1 id="title">Feature Walkthrough</h1>
