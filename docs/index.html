@@ -7,61 +7,66 @@
 <meta name="description" content="Levantar — small, self-contained demos with live interactive walkthroughs.">
 <meta name="keywords" content="levantar, demos, walkthrough, claude, playwright">
 <link rel="icon" type="image/png" href="favicon.png">
-<style>
-  :root { --bg:#0b1120; --card:#152037; --border:#243352; --text:#e7edf7; --muted:#93a4c3; --accent:#22d3ee; }
-  * { box-sizing:border-box; }
-  body { margin:0; min-height:100vh; padding:80px 24px; color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
-    background:radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, var(--bg) 55%); }
-  .wrap { max-width:1000px; margin:0 auto; }
-  h1 { font-size:30px; margin:0 0 8px; letter-spacing:-0.02em; }
-  .sub { color:var(--muted); margin:0 0 40px; line-height:1.6; }
-  a.card { display:block; text-decoration:none; color:var(--text);
-    background:var(--card); border:1px solid var(--border); border-radius:16px;
-    padding:24px 26px; margin-bottom:16px; transition:border-color .15s, transform .08s; }
-  a.card:hover { border-color:var(--accent); transform:translateY(-2px); }
-  a.card h2 { margin:0 0 6px; font-size:19px; }
-  a.card p { margin:0; color:var(--muted); font-size:14px; line-height:1.6; }
-  .tag { display:inline-block; margin-top:14px; font-size:12px; color:var(--accent);
-    border:1px solid var(--border); border-radius:999px; padding:3px 12px; }
-  footer { color:var(--muted); font-size:12px; margin-top:48px; text-align:center; }
-  footer a { color:var(--accent); text-decoration:none; }
-  footer a:hover { text-decoration:underline; }
-  .brandbar { max-width:1000px; margin:0 auto 28px; }
-  .brandbar a { display:inline-flex; align-items:center; gap:11px; text-decoration:none;
-    color:var(--text); font-weight:600; font-size:15px; opacity:.92; transition:opacity .15s; }
-  .brandbar a:hover { opacity:1; }
-  .brandbar img { height:32px; width:auto; display:block; }
-</style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#0b1120',
+          panel: '#0a1226',
+          card: '#152037',
+          'card-hover': '#1d2c4a',
+          line: '#243352',
+          fg: '#e7edf7',
+          muted: '#93a4c3',
+          accent: '#22d3ee',
+          accent2: '#6366f1',
+          hl: '#fbbf24',
+        },
+        fontFamily: {
+          sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Arial', 'sans-serif'],
+        },
+        backgroundImage: {
+          'page-grad': 'radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%)',
+        },
+      },
+    },
+  };
+</script>
 </head>
-<body>
-<div class="wrap">
-  <div class="brandbar">
-    <a href="https://levantar.ai" target="_blank" rel="noopener">
-      <img src="levantar-logo-white.png" alt="Levantar">
-      <span>Levantar</span>
+<body class="m-0 min-h-screen px-6 py-20 text-fg font-sans bg-bg bg-page-grad">
+  <div class="max-w-[1000px] mx-auto">
+
+    <div class="mb-7">
+      <a class="inline-flex items-center gap-[11px] no-underline text-fg font-semibold text-[15px] opacity-90 transition-opacity duration-150 hover:opacity-100" href="https://levantar.ai" target="_blank" rel="noopener">
+        <img class="h-8 w-auto block" src="levantar-logo-white.png" alt="Levantar">
+        <span>Levantar</span>
+      </a>
+    </div>
+
+    <h1 class="text-[30px] tracking-tight mb-2 font-bold">Levantar — Demos</h1>
+    <p class="text-muted mb-10 leading-relaxed">Small, self-contained demos. Each links to its live walkthrough.</p>
+
+    <a class="block no-underline text-fg bg-card border border-line rounded-2xl px-[26px] py-6 mb-4 transition-[border-color,transform] duration-150 hover:border-accent hover:-translate-y-0.5" href="./claude-playwright-walkthrough/">
+      <h2 class="text-[19px] font-bold mb-1.5">Claude + Playwright → interactive walkthrough</h2>
+      <p class="text-muted text-sm leading-relaxed">Point Claude at a feature; it drives Playwright through the flow, captures a
+         screenshot per step, and renders an interactive D3 walkthrough — zero
+         screenshots taken by hand.</p>
+      <span class="inline-block mt-3.5 text-xs text-accent border border-line rounded-full px-3 py-[3px]">View walkthrough →</span>
     </a>
+
+    <a class="block no-underline text-fg bg-card border border-line rounded-2xl px-[26px] py-6 mb-4 transition-[border-color,transform] duration-150 hover:border-accent hover:-translate-y-0.5" href="./claude-polly-video-walkthrough/">
+      <h2 class="text-[19px] font-bold mb-1.5">Claude + Playwright + AWS Polly → narrated MP4</h2>
+      <p class="text-muted text-sm leading-relaxed">Same flow, video output. Per-step CSS spotlights highlight what the narrator
+         is talking about; AWS Polly (Arthur, en-GB) reads each step; ffmpeg composites
+         title and caption bars in post and stitches it all into one MP4.</p>
+      <span class="inline-block mt-3.5 text-xs text-accent border border-line rounded-full px-3 py-[3px]">Watch video →</span>
+    </a>
+
+    <footer class="text-muted text-xs mt-12 text-center">
+      <a class="text-accent no-underline hover:underline" href="https://levantar.ai" target="_blank" rel="noopener">levantar.ai</a> · levantar-ai/demos · GitHub Pages
+    </footer>
   </div>
-  <h1>Levantar — Demos</h1>
-  <p class="sub">Small, self-contained demos. Each links to its live walkthrough.</p>
-
-  <a class="card" href="./claude-playwright-walkthrough/">
-    <h2>Claude + Playwright → interactive walkthrough</h2>
-    <p>Point Claude at a feature; it drives Playwright through the flow, captures a
-       screenshot per step, and renders an interactive D3 walkthrough — zero
-       screenshots taken by hand.</p>
-    <span class="tag">View walkthrough →</span>
-  </a>
-
-  <a class="card" href="./claude-polly-video-walkthrough/">
-    <h2>Claude + Playwright + AWS Polly → narrated MP4</h2>
-    <p>Same flow, video output. Per-step CSS spotlights highlight what the narrator
-       is talking about; AWS Polly (Arthur, en-GB) reads each step; ffmpeg composites
-       title and caption bars in post and stitches it all into one MP4.</p>
-    <span class="tag">Watch video →</span>
-  </a>
-
-  <footer><a href="https://levantar.ai" target="_blank" rel="noopener">levantar.ai</a> · levantar-ai/demos · GitHub Pages</footer>
-</div>
 </body>
 </html>

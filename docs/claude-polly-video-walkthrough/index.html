@@ -7,97 +7,87 @@
 <meta name="description" content="A narrated feature walkthrough — Claude+Playwright captures stills with on-page CSS spotlights, AWS Polly narrates each step in British English, ffmpeg stitches the result into a single MP4.">
 <meta name="keywords" content="claude, playwright, aws polly, ffmpeg, video walkthrough, demo">
 <link rel="icon" type="image/png" href="favicon.png">
-<style>
-  :root {
-    --bg:#0b1120; --panel:#0a1226; --card:#152037;
-    --border:#243352; --text:#e7edf7; --muted:#93a4c3; --accent:#22d3ee; --accent2:#6366f1;
-  }
-  * { box-sizing:border-box; }
-  body {
-    margin:0; padding:32px 24px 64px;
-    background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, var(--bg) 55%);
-    color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
-  }
-  .brandbar { max-width:1000px; margin:0 auto 20px;
-    display:flex; align-items:center; justify-content:space-between; }
-  .brandbar .brand { display:inline-flex; align-items:center; gap:11px; text-decoration:none;
-    color:var(--text); font-weight:600; font-size:15px; letter-spacing:-0.01em;
-    opacity:.92; transition:opacity .15s; }
-  .brandbar .brand:hover { opacity:1; }
-  .brandbar img { height:30px; width:auto; display:block; }
-  .back-link { color:var(--muted); text-decoration:none; font-size:13px;
-    border:1px solid var(--border); border-radius:999px; padding:6px 14px;
-    transition:color .15s, border-color .15s; }
-  .back-link:hover { color:var(--accent); border-color:var(--accent); }
-  header { max-width:1000px; margin:0 auto 24px; }
-  h1 { margin:0 0 6px; font-size:26px; letter-spacing:-0.02em; }
-  .subtitle { color:var(--muted); font-size:14px; line-height:1.6; }
-  .subtitle code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); font-size:.9em; }
-  .video-wrap {
-    max-width:1000px; margin:0 auto;
-    background:var(--card); border:1px solid var(--border); border-radius:14px;
-    padding:12px; box-shadow: 0 14px 44px rgba(0,0,0,.45);
-  }
-  video {
-    display:block; width:100%; height:auto;
-    border-radius:8px; background:#000;
-  }
-  .pipeline {
-    max-width:1000px; margin:24px auto 0;
-    display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;
-  }
-  .pipeline div {
-    background:var(--card); border:1px solid var(--border); border-radius:10px;
-    padding:14px 16px; font-size:13px; line-height:1.5;
-  }
-  .pipeline strong { display:block; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px; }
-  .pipeline span { color:var(--muted); }
-  footer { max-width:1000px; margin:40px auto 0; color:var(--muted); font-size:12px; text-align:center; }
-  footer code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); }
-  footer a { color:var(--accent); text-decoration:none; }
-  footer a:hover { text-decoration:underline; }
-  @media (max-width:700px) {
-    .pipeline { grid-template-columns:repeat(2, 1fr); }
-  }
-</style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#0b1120',
+          panel: '#0a1226',
+          card: '#152037',
+          'card-hover': '#1d2c4a',
+          line: '#243352',
+          fg: '#e7edf7',
+          muted: '#93a4c3',
+          accent: '#22d3ee',
+          accent2: '#6366f1',
+          hl: '#fbbf24',
+        },
+        fontFamily: {
+          sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Arial', 'sans-serif'],
+        },
+        backgroundImage: {
+          'page-grad': 'radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%)',
+        },
+        boxShadow: {
+          card: '0 14px 44px rgba(0,0,0,.45)',
+        },
+      },
+    },
+  };
+</script>
 </head>
-<body>
-<div class="brandbar">
-  <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
-    <img src="levantar-logo-white.png" alt="Levantar">
-    <span>Levantar</span>
-  </a>
-  <a class="back-link" href="../">← All demos</a>
-</div>
-<header>
-  <h1>Narrated MP4 walkthrough</h1>
-  <div class="subtitle">
-    Same Acme contact flow as the <a href="../claude-playwright-walkthrough/" style="color:var(--accent);">first demo</a>,
-    but the output is a single narrated video instead of an interactive page.
-    Per-step CSS spotlights highlight whatever the narrator is talking about;
-    AWS Polly (<code>Arthur</code>, en-GB, neural) reads each step; ffmpeg
-    composites the title + caption bars in post and stitches the clips.
+<body class="m-0 px-6 pt-8 pb-16 text-fg font-sans bg-bg bg-page-grad">
+
+  <div class="max-w-[1000px] mx-auto mb-5 flex items-center justify-between">
+    <a class="inline-flex items-center gap-[11px] no-underline text-fg font-semibold text-[15px] tracking-tight opacity-90 transition-opacity duration-150 hover:opacity-100" href="https://levantar.ai" target="_blank" rel="noopener">
+      <img class="h-[30px] w-auto block" src="levantar-logo-white.png" alt="Levantar">
+      <span>Levantar</span>
+    </a>
+    <a class="text-muted no-underline text-[13px] border border-line rounded-full px-3.5 py-1.5 transition-colors duration-150 hover:text-accent hover:border-accent" href="../">← All demos</a>
   </div>
-</header>
 
-<div class="video-wrap">
-  <video controls preload="metadata" poster="">
-    <source src="walkthrough.mp4" type="video/mp4">
-    Your browser doesn&rsquo;t support embedded video. <a href="walkthrough.mp4">Download the MP4</a>.
-  </video>
-</div>
+  <header class="max-w-[1000px] mx-auto mb-6">
+    <h1 class="text-[26px] tracking-tight mb-1.5 font-bold">Narrated MP4 walkthrough</h1>
+    <div class="text-muted text-sm leading-relaxed">
+      Same Acme contact flow as the <a href="../claude-playwright-walkthrough/" class="text-accent no-underline hover:underline">first demo</a>,
+      but the output is a single narrated video instead of an interactive page.
+      Per-step CSS spotlights highlight whatever the narrator is talking about;
+      AWS Polly (<code class="bg-panel text-accent px-1.5 py-0.5 rounded text-[0.9em]">Arthur</code>, en-GB, neural) reads each step; ffmpeg
+      composites the title + caption bars in post and stitches the clips.
+    </div>
+  </header>
 
-<div class="pipeline">
-  <div><strong>1 · Capture</strong><span>Playwright drives the app, applies spotlight CSS, screenshots clean 1920&times;1080 frames.</span></div>
-  <div><strong>2 · Narrate</strong><span>AWS Polly synthesizes one MP3 per step using the Arthur (en-GB) neural voice.</span></div>
-  <div><strong>3 · Overlay</strong><span>A headless Playwright pass renders title + caption bar PNGs from a tiny HTML template.</span></div>
-  <div><strong>4 · Stitch</strong><span>ffmpeg composites each still + both overlays + the matching MP3, then concatenates.</span></div>
-</div>
+  <div class="max-w-[1000px] mx-auto bg-card border border-line rounded-[14px] p-3 shadow-card">
+    <video controls preload="metadata" class="block w-full h-auto rounded-lg bg-black">
+      <source src="walkthrough.mp4" type="video/mp4">
+      Your browser doesn&rsquo;t support embedded video. <a href="walkthrough.mp4">Download the MP4</a>.
+    </video>
+  </div>
 
-<footer>
-  Regenerate with <code>npm run video</code> (wrapped in <code>aws-vault exec</code> for Polly creds).
-  <br>Built by <a href="https://levantar.ai" target="_blank" rel="noopener">Levantar — levantar.ai</a>
-</footer>
+  <div class="max-w-[1000px] mx-auto mt-6 grid grid-cols-2 min-[700px]:grid-cols-4 gap-3">
+    <div class="bg-card border border-line rounded-[10px] px-4 py-3.5 text-[13px] leading-normal">
+      <strong class="block text-accent text-[11px] uppercase tracking-wider mb-1 font-bold">1 · Capture</strong>
+      <span class="text-muted">Playwright drives the app, applies spotlight CSS, screenshots clean 1920&times;1080 frames.</span>
+    </div>
+    <div class="bg-card border border-line rounded-[10px] px-4 py-3.5 text-[13px] leading-normal">
+      <strong class="block text-accent text-[11px] uppercase tracking-wider mb-1 font-bold">2 · Narrate</strong>
+      <span class="text-muted">AWS Polly synthesizes one MP3 per step using the Arthur (en-GB) neural voice.</span>
+    </div>
+    <div class="bg-card border border-line rounded-[10px] px-4 py-3.5 text-[13px] leading-normal">
+      <strong class="block text-accent text-[11px] uppercase tracking-wider mb-1 font-bold">3 · Overlay</strong>
+      <span class="text-muted">A headless Playwright pass renders title + caption bar PNGs from a tiny HTML template.</span>
+    </div>
+    <div class="bg-card border border-line rounded-[10px] px-4 py-3.5 text-[13px] leading-normal">
+      <strong class="block text-accent text-[11px] uppercase tracking-wider mb-1 font-bold">4 · Stitch</strong>
+      <span class="text-muted">ffmpeg composites each still + both overlays + the matching MP3, then concatenates.</span>
+    </div>
+  </div>
+
+  <footer class="max-w-[1000px] mx-auto mt-10 text-muted text-xs text-center">
+    Regenerate with <code class="bg-panel text-accent px-1.5 py-0.5 rounded">npm run video</code> (wrapped in <code class="bg-panel text-accent px-1.5 py-0.5 rounded">aws-vault exec</code> for Polly creds).
+    <br>Built by <a href="https://levantar.ai" target="_blank" rel="noopener" class="text-accent no-underline hover:underline">Levantar — levantar.ai</a>
+  </footer>
 </body>
 </html>

@@ -8,23 +8,46 @@
 <meta name="keywords" content="claude, playwright, walkthrough, d3, screenshots, demo">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: '#0b1120',
+          panel: '#0a1226',
+          card: '#152037',
+          'card-hover': '#1d2c4a',
+          line: '#243352',
+          fg: '#e7edf7',
+          muted: '#93a4c3',
+          accent: '#22d3ee',
+          accent2: '#6366f1',
+        },
+        fontFamily: {
+          sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Arial', 'sans-serif'],
+        },
+        backgroundImage: {
+          'page-grad': 'radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%)',
+        },
+      },
+    },
+  };
+</script>
 <style>
+  /* D3 sets these class names on SVG elements at render time, so they
+     can't be Tailwind utilities. Same for the GLightbox overrides
+     below (third-party DOM we can't touch from markup). */
   :root {
-    --bg:#0b1120; --panel:#0a1226; --card:#152037; --card-hover:#1d2c4a;
-    --border:#243352; --text:#e7edf7; --muted:#93a4c3; --accent:#22d3ee; --accent2:#6366f1;
+    --accent: #22d3ee;
+    --accent2: #6366f1;
+    --card: #152037;
+    --card-hover: #1d2c4a;
+    --border: #243352;
+    --text: #e7edf7;
+    --muted: #93a4c3;
   }
-  * { box-sizing:border-box; }
-  body {
-    margin:0; padding:32px 24px 64px; background:
-      radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, var(--bg) 55%);
-    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
-  }
-  header { max-width:1000px; margin:0 auto 8px; }
-  h1 { margin:0 0 6px; font-size:26px; letter-spacing:-0.02em; }
-  .subtitle { color:var(--muted); font-size:14px; line-height:1.6; }
-  .subtitle code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); font-size:.9em; }
-  #diagram { max-width:1000px; margin:24px auto 0; }
-  svg { display:block; width:100%; height:auto; }
+  #diagram svg { display:block; width:100%; height:auto; }
   .node-link { cursor:pointer; }
   .node-rect { fill:var(--card); stroke:var(--border); stroke-width:1.5; transition:all .15s; }
   .node-link:hover .node-rect { fill:var(--card-hover); stroke:var(--accent); }
@@ -34,131 +57,118 @@
   .caption { fill:var(--text); font-size:15px; font-weight:600; }
   .subcaption { fill:var(--muted); font-size:12px; }
   .connector { stroke:var(--accent2); stroke-width:2; fill:none; opacity:.6; }
-  footer { max-width:1000px; margin:40px auto 0; color:var(--muted); font-size:12px; text-align:center; }
-  footer code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); }
-  footer a { color:var(--accent); text-decoration:none; }
-  footer a:hover { text-decoration:underline; }
-  .brandbar { max-width:1000px; margin:0 auto 20px;
-    display:flex; align-items:center; justify-content:space-between; }
-  .brandbar .brand { display:inline-flex; align-items:center; gap:11px; text-decoration:none;
-    color:var(--text); font-weight:600; font-size:15px; letter-spacing:-0.01em;
-    opacity:.92; transition:opacity .15s; }
-  .brandbar .brand:hover { opacity:1; }
-  .brandbar img { height:30px; width:auto; display:block; }
-  .back-link { color:var(--muted); text-decoration:none; font-size:13px;
-    border:1px solid var(--border); border-radius:999px; padding:6px 14px;
-    transition:color .15s, border-color .15s; }
-  .back-link:hover { color:var(--accent); border-color:var(--accent); }
   .gslide-description { background:rgba(10,18,38,.96)!important; }
   .gslide-title { color:var(--accent)!important; font-weight:600; }
   .gslide-desc { color:var(--text)!important; line-height:1.6; }
 </style>
 </head>
-<body>
-<div class="brandbar">
-  <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
-    <img src="levantar-logo-white.png" alt="Levantar">
-    <span>Levantar</span>
-  </a>
-  <a class="back-link" href="../">← All demos</a>
-</div>
-<header>
-  <h1 id="title">Feature Walkthrough</h1>
-  <div class="subtitle">
-    Every screenshot below was captured by <strong>Claude driving Playwright</strong>
-    through the live app — see <code>walkthrough/capture.mjs</code>. This page renders
-    <code>steps.json</code> with D3; click any step for the full-resolution shot.
+<body class="m-0 px-6 pt-8 pb-16 text-fg font-sans bg-bg bg-page-grad">
+
+  <div class="max-w-[1000px] mx-auto mb-5 flex items-center justify-between">
+    <a class="inline-flex items-center gap-[11px] no-underline text-fg font-semibold text-[15px] tracking-[-0.01em] opacity-[0.92] transition-opacity duration-150 hover:opacity-100" href="https://levantar.ai" target="_blank" rel="noopener">
+      <img class="h-[30px] w-auto block" src="levantar-logo-white.png" alt="Levantar">
+      <span>Levantar</span>
+    </a>
+    <a class="text-muted no-underline text-[13px] border border-line rounded-full px-3.5 py-1.5 transition-colors duration-150 hover:text-accent hover:border-accent" href="../">← All demos</a>
   </div>
-</header>
 
-<div id="diagram"></div>
+  <header class="max-w-[1000px] mx-auto mb-2">
+    <h1 id="title" class="text-[26px] tracking-[-0.02em] mb-1.5 font-bold">Feature Walkthrough</h1>
+    <div class="text-muted text-sm leading-relaxed">
+      Every screenshot below was captured by <strong>Claude driving Playwright</strong>
+      through the live app — see <code class="bg-panel text-accent px-1.5 py-0.5 rounded text-[0.9em]">walkthrough/capture.mjs</code>. This page renders
+      <code class="bg-panel text-accent px-1.5 py-0.5 rounded text-[0.9em]">steps.json</code> with D3; click any step for the full-resolution shot.
+    </div>
+  </header>
 
-<footer>
-  Regenerate any time with <code>npm run capture</code> — the script emits the
-  screenshots <em>and</em> this manifest, so the story never drifts from the UI.
-  <br>Built by <a href="https://levantar.ai" target="_blank" rel="noopener">Levantar — levantar.ai</a>
-</footer>
+  <div id="diagram" class="max-w-[1000px] mx-auto mt-6"></div>
 
-<script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
-<script>
-const NODE_W = 712, NODE_H = 132, GAP = 44, PAD = 16;
-const THUMB_W = 168, THUMB_H = 104;
+  <footer class="max-w-[1000px] mx-auto mt-10 text-muted text-xs text-center">
+    Regenerate any time with <code class="bg-panel text-accent px-1.5 py-0.5 rounded">npm run capture</code> — the script emits the
+    screenshots <em>and</em> this manifest, so the story never drifts from the UI.
+    <br>Built by <a href="https://levantar.ai" target="_blank" rel="noopener" class="text-accent no-underline hover:underline">Levantar — levantar.ai</a>
+  </footer>
 
-let lightbox = null;
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+  <script>
+  const NODE_W = 712, NODE_H = 132, GAP = 44, PAD = 16;
+  const THUMB_W = 168, THUMB_H = 104;
 
-function render(data) {
-  document.getElementById('title').textContent = data.title || 'Feature Walkthrough';
-  const steps = data.steps || [];
-  const H = PAD * 2 + steps.length * NODE_H + (steps.length - 1) * GAP;
+  let lightbox = null;
 
-  const svg = d3.select('#diagram').append('svg')
-    .attr('viewBox', `0 0 ${NODE_W + 2} ${H}`);
+  function render(data) {
+    document.getElementById('title').textContent = data.title || 'Feature Walkthrough';
+    const steps = data.steps || [];
+    const H = PAD * 2 + steps.length * NODE_H + (steps.length - 1) * GAP;
 
-  const defs = svg.append('defs');
-  defs.append('marker')
-    .attr('id', 'arrow').attr('viewBox', '0 -5 10 10')
-    .attr('refX', 8).attr('refY', 0)
-    .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto')
-    .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', 'var(--accent2)');
+    const svg = d3.select('#diagram').append('svg')
+      .attr('viewBox', `0 0 ${NODE_W + 2} ${H}`);
 
-  const yOf = i => PAD + i * (NODE_H + GAP);
+    const defs = svg.append('defs');
+    defs.append('marker')
+      .attr('id', 'arrow').attr('viewBox', '0 -5 10 10')
+      .attr('refX', 8).attr('refY', 0)
+      .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', 'var(--accent2)');
 
-  // Connectors between consecutive steps
-  for (let i = 1; i < steps.length; i++) {
-    const x = 1 + NODE_W / 2;
-    svg.append('path')
-      .attr('class', 'connector')
-      .attr('d', `M${x},${yOf(i - 1) + NODE_H} L${x},${yOf(i) - 2}`)
-      .attr('marker-end', 'url(#arrow)');
+    const yOf = i => PAD + i * (NODE_H + GAP);
+
+    // Connectors between consecutive steps
+    for (let i = 1; i < steps.length; i++) {
+      const x = 1 + NODE_W / 2;
+      svg.append('path')
+        .attr('class', 'connector')
+        .attr('d', `M${x},${yOf(i - 1) + NODE_H} L${x},${yOf(i) - 2}`)
+        .attr('marker-end', 'url(#arrow)');
+    }
+
+    const g = svg.selectAll('g.node').data(steps).enter()
+      .append('g')
+      .attr('class', 'node-link')
+      .attr('transform', (d, i) => `translate(1, ${yOf(i)})`)
+      .on('click', (e, d) => lightbox.openAt(d.__i));
+
+    g.each(function (d, i) {
+      const n = d3.select(this);
+      d.__i = i;
+      n.append('rect').attr('class', 'node-rect')
+        .attr('width', NODE_W).attr('height', NODE_H).attr('rx', 14);
+
+      n.append('rect').attr('class', 'thumb-border')
+        .attr('x', 14).attr('y', (NODE_H - THUMB_H) / 2)
+        .attr('width', THUMB_W).attr('height', THUMB_H).attr('rx', 6);
+      n.append('image')
+        .attr('href', `shots/${d.file}`)
+        .attr('x', 14).attr('y', (NODE_H - THUMB_H) / 2)
+        .attr('width', THUMB_W).attr('height', THUMB_H)
+        .attr('preserveAspectRatio', 'xMidYMid slice')
+        .attr('clip-path', 'inset(0 round 6px)');
+
+      const tx = 14 + THUMB_W + 24;
+      n.append('text').attr('class', 'step-num').attr('x', tx).attr('y', 40)
+        .text(`STEP ${d.n}`);
+      n.append('text').attr('class', 'caption').attr('x', tx).attr('y', 66)
+        .text(d.caption);
+      n.append('text').attr('class', 'subcaption').attr('x', tx).attr('y', 92)
+        .text(d.sub);
+    });
+
+    const elements = steps.map(s => ({
+      href: `shots/${s.file}`, type: 'image',
+      title: `Step ${s.n} — ${s.caption}`, description: s.sub || '',
+    }));
+    if (lightbox) lightbox.destroy();
+    lightbox = GLightbox({ elements, loop: true, zoomable: true, skin: 'clean' });
   }
 
-  const g = svg.selectAll('g.node').data(steps).enter()
-    .append('g')
-    .attr('class', 'node-link')
-    .attr('transform', (d, i) => `translate(1, ${yOf(i)})`)
-    .on('click', (e, d) => lightbox.openAt(d.__i));
-
-  g.each(function (d, i) {
-    const n = d3.select(this);
-    d.__i = i;
-    n.append('rect').attr('class', 'node-rect')
-      .attr('width', NODE_W).attr('height', NODE_H).attr('rx', 14);
-
-    n.append('rect').attr('class', 'thumb-border')
-      .attr('x', 14).attr('y', (NODE_H - THUMB_H) / 2)
-      .attr('width', THUMB_W).attr('height', THUMB_H).attr('rx', 6);
-    n.append('image')
-      .attr('href', `shots/${d.file}`)
-      .attr('x', 14).attr('y', (NODE_H - THUMB_H) / 2)
-      .attr('width', THUMB_W).attr('height', THUMB_H)
-      .attr('preserveAspectRatio', 'xMidYMid slice')
-      .attr('clip-path', 'inset(0 round 6px)');
-
-    const tx = 14 + THUMB_W + 24;
-    n.append('text').attr('class', 'step-num').attr('x', tx).attr('y', 40)
-      .text(`STEP ${d.n}`);
-    n.append('text').attr('class', 'caption').attr('x', tx).attr('y', 66)
-      .text(d.caption);
-    n.append('text').attr('class', 'subcaption').attr('x', tx).attr('y', 92)
-      .text(d.sub);
-  });
-
-  const elements = steps.map(s => ({
-    href: `shots/${s.file}`, type: 'image',
-    title: `Step ${s.n} — ${s.caption}`, description: s.sub || '',
-  }));
-  if (lightbox) lightbox.destroy();
-  lightbox = GLightbox({ elements, loop: true, zoomable: true, skin: 'clean' });
-}
-
-fetch('steps.json')
-  .then(r => r.json())
-  .then(render)
-  .catch(() => {
-    document.getElementById('diagram').innerHTML =
-      '<p style="color:#93a4c3">No <code>steps.json</code> yet — run <code>npm run capture</code> first.</p>';
-  });
-</script>
+  fetch('steps.json')
+    .then(r => r.json())
+    .then(render)
+    .catch(() => {
+      document.getElementById('diagram').innerHTML =
+        '<p style="color:#93a4c3">No <code>steps.json</code> yet — run <code>npm run capture</code> first.</p>';
+    });
+  </script>
 </body>
 </html>
