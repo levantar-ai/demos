@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Narrated MP4 Walkthrough — Claude + Playwright + AWS Polly</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A narrated feature walkthrough — Claude+Playwright captures stills with on-page CSS spotlights, AWS Polly narrates each step in British English, ffmpeg stitches the result into a single MP4.">
+<meta name="keywords" content="claude, playwright, aws polly, ffmpeg, video walkthrough, demo">
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+  :root {
+    --bg:#0b1120; --panel:#0a1226; --card:#152037;
+    --border:#243352; --text:#e7edf7; --muted:#93a4c3; --accent:#22d3ee; --accent2:#6366f1;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:32px 24px 64px;
+    background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  }
+  .brandbar { max-width:1000px; margin:0 auto 20px; }
+  .brandbar a { display:inline-flex; align-items:center; gap:11px; text-decoration:none;
+    color:var(--text); font-weight:600; font-size:15px; letter-spacing:-0.01em;
+    opacity:.92; transition:opacity .15s; }
+  .brandbar a:hover { opacity:1; }
+  .brandbar img { height:30px; width:auto; display:block; }
+  header { max-width:1000px; margin:0 auto 24px; }
+  h1 { margin:0 0 6px; font-size:26px; letter-spacing:-0.02em; }
+  .subtitle { color:var(--muted); font-size:14px; line-height:1.6; }
+  .subtitle code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); font-size:.9em; }
+  .video-wrap {
+    max-width:1000px; margin:0 auto;
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:12px; box-shadow: 0 14px 44px rgba(0,0,0,.45);
+  }
+  video {
+    display:block; width:100%; height:auto;
+    border-radius:8px; background:#000;
+  }
+  .pipeline {
+    max-width:1000px; margin:24px auto 0;
+    display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;
+  }
+  .pipeline div {
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:14px 16px; font-size:13px; line-height:1.5;
+  }
+  .pipeline strong { display:block; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px; }
+  .pipeline span { color:var(--muted); }
+  footer { max-width:1000px; margin:40px auto 0; color:var(--muted); font-size:12px; text-align:center; }
+  footer code { background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--accent); }
+  footer a { color:var(--accent); text-decoration:none; }
+  footer a:hover { text-decoration:underline; }
+  @media (max-width:700px) {
+    .pipeline { grid-template-columns:repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="brandbar">
+  <a href="https://levantar.ai" target="_blank" rel="noopener">
+    <img src="levantar-logo-white.png" alt="Levantar">
+    <span>Levantar</span>
+  </a>
+</div>
+<header>
+  <h1>Narrated MP4 walkthrough</h1>
+  <div class="subtitle">
+    Same Acme contact flow as the <a href="../claude-playwright-walkthrough/" style="color:var(--accent);">first demo</a>,
+    but the output is a single narrated video instead of an interactive page.
+    Per-step CSS spotlights highlight whatever the narrator is talking about;
+    AWS Polly (<code>Arthur</code>, en-GB, neural) reads each step; ffmpeg
+    composites the title + caption bars in post and stitches the clips.
+  </div>
+</header>
+
+<div class="video-wrap">
+  <video controls preload="metadata" poster="">
+    <source src="walkthrough.mp4" type="video/mp4">
+    Your browser doesn&rsquo;t support embedded video. <a href="walkthrough.mp4">Download the MP4</a>.
+  </video>
+</div>
+
+<div class="pipeline">
+  <div><strong>1 · Capture</strong><span>Playwright drives the app, applies spotlight CSS, screenshots clean 1920&times;1080 frames.</span></div>
+  <div><strong>2 · Narrate</strong><span>AWS Polly synthesizes one MP3 per step using the Arthur (en-GB) neural voice.</span></div>
+  <div><strong>3 · Overlay</strong><span>A headless Playwright pass renders title + caption bar PNGs from a tiny HTML template.</span></div>
+  <div><strong>4 · Stitch</strong><span>ffmpeg composites each still + both overlays + the matching MP3, then concatenates.</span></div>
+</div>
+
+<footer>
+  Regenerate with <code>npm run video</code> (wrapped in <code>aws-vault exec</code> for Polly creds).
+  <br>Built by <a href="https://levantar.ai" target="_blank" rel="noopener">Levantar — levantar.ai</a>
+</footer>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "claude-polly-video-walkthrough",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Like the first demo, but produces a narrated MP4 walkthrough — Claude+Playwright captures stills with on-page CSS highlights, AWS Polly (Arthur, en-GB) narrates each step, ffmpeg stitches the result into one video.",
+  "scripts": {
+    "dev:server": "node server/index.js",
+    "dev:web": "vite",
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "capture": "node walkthrough/capture.mjs",
+    "narrate": "node walkthrough/narrate.mjs",
+    "overlays": "node walkthrough/render-overlays.mjs",
+    "render": "node walkthrough/render-video.mjs",
+    "video": "npm run capture && npm run narrate && npm run overlays && npm run render"
+  },
+  "dependencies": {
+    "@aws-sdk/client-polly": "^3.658.0",
+    "express": "^4.19.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "playwright": "^1.47.2",
+    "vite": "^5.4.8"
+  }
+}

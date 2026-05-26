@@ -1,0 +1,423 @@
+:root {
+  --bg: #0b1120;
+  --surface: #111c33;
+  --surface-2: #18243f;
+  --border: #243352;
+  --text: #e7edf7;
+  --muted: #93a4c3;
+  --accent: #6366f1;
+  --accent-2: #22d3ee;
+  --good: #34d399;
+  --bad: #f87171;
+  --hl: #fbbf24;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(
+    1200px 600px at 70% -10%,
+    #1b2a4a 0%,
+    var(--bg) 55%
+  );
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+.shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 40px;
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-mark {
+  color: var(--accent-2);
+}
+
+.topbar nav {
+  display: flex;
+  gap: 8px;
+}
+
+.topbar nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+
+.topbar nav a:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.topbar nav a.active {
+  color: #fff;
+  background: var(--accent);
+}
+
+main {
+  flex: 1;
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 56px 32px;
+}
+
+.eyebrow {
+  color: var(--accent-2);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 12px;
+  margin: 0 0 16px;
+}
+
+.hero h1 {
+  font-size: 52px;
+  line-height: 1.05;
+  margin: 0 0 20px;
+  letter-spacing: -0.02em;
+}
+
+.hero .accent {
+  color: var(--accent-2);
+}
+
+.lede {
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.6;
+  max-width: 620px;
+  margin: 0 0 32px;
+}
+
+.cta-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 13px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.08s,
+    filter 0.15s;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent), #818cf8);
+  color: #fff;
+}
+
+.btn.primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.btn.ghost:hover {
+  background: var(--surface);
+}
+
+.stat-strip {
+  display: flex;
+  gap: 40px;
+  margin-top: 56px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.stat-strip div {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-strip strong {
+  font-size: 28px;
+}
+
+.stat-strip span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+h2 {
+  font-size: 30px;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+
+.sub {
+  color: var(--muted);
+  margin: 0 0 28px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+}
+
+.form-wrap {
+  max-width: 540px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.form input,
+.form textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.form input:focus,
+.form textarea:focus {
+  border-color: var(--accent);
+}
+
+.form .invalid {
+  border-color: var(--bad);
+}
+
+.err {
+  color: var(--bad);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-style: normal;
+}
+
+.centered {
+  text-align: center;
+  max-width: 480px;
+  margin: 40px auto;
+}
+
+.check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  margin: 0 auto 22px;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  color: #062;
+  background: var(--good);
+}
+
+.centered .cta-row {
+  justify-content: center;
+}
+
+code {
+  background: var(--surface-2);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.9em;
+}
+
+.admin-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.pill {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+table.card {
+  width: 100%;
+  border-collapse: collapse;
+  padding: 0;
+  overflow: hidden;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 14px 18px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface-2);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+.mono {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 13px;
+}
+
+.dim {
+  color: var(--muted);
+}
+
+.msg {
+  max-width: 320px;
+  color: var(--muted);
+}
+
+.empty {
+  padding: 40px 0;
+  text-align: center;
+}
+
+.footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 24px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------------------------------------------------------------
+ * Demo-highlight overlay system.
+ *
+ * The capture script applies `.demo-spotlight` to <body> and
+ * `.demo-highlight` to one or more focus elements. The page then:
+ *   - dims everything to ~30% via a full-viewport ::before veil
+ *   - lifts the highlighted element above the veil with z-index
+ *   - draws a glowing amber ring + animated pulse around it
+ *
+ * The whole thing is pure CSS so it works identically in the
+ * captured screenshots and in a live browser.
+ * --------------------------------------------------------------- */
+
+body.demo-spotlight::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+  z-index: 50;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+body.demo-spotlight .demo-highlight {
+  position: relative;
+  z-index: 60;
+  outline: 3px solid var(--hl);
+  outline-offset: 6px;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 6px rgb(251 191 36 / 25%),
+    0 0 28px 6px rgb(251 191 36 / 55%);
+  animation: demo-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes demo-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 6px rgb(251 191 36 / 18%),
+      0 0 22px 4px rgb(251 191 36 / 40%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 10px rgb(251 191 36 / 28%),
+      0 0 34px 10px rgb(251 191 36 / 65%);
+  }
+}
+
+/* When the highlight is a table row, outline-offset clips weirdly;
+ * give it a softer treatment that still reads as "this row." */
+body.demo-spotlight tr.demo-highlight {
+  outline: none;
+  background: rgb(251 191 36 / 12%);
+  box-shadow: inset 4px 0 0 var(--hl);
+  animation: none;
+}
+
+/* The title + caption bars are NOT drawn in the app DOM — they are
+ * rendered by walkthrough/render-overlays.mjs into PNGs and composited
+ * onto each clip by ffmpeg. Keeping the bar styling out of the app
+ * means the captured frames stay clean and the bars can be tweaked
+ * without re-running capture. */

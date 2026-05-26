@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+presentation/shots/
+presentation/overlays/
+presentation/audio/
+presentation/clips/
+presentation/walkthrough.mp4
