@@ -60,29 +60,38 @@
     <h1 class="text-[30px] tracking-tight mb-2 font-bold">Levantar — Demos</h1>
     <p class="text-muted mb-10 leading-relaxed">Small, self-contained demos. Each links to its live walkthrough.</p>
 
-    <a class="block no-underline text-fg bg-card border border-line rounded-2xl px-[26px] py-6 mb-4 transition-[border-color,transform] duration-150 hover:border-accent hover:-translate-y-0.5" href="./claude-playwright-walkthrough/">
-      <h2 class="text-[19px] font-bold mb-1.5">Claude + Playwright → interactive walkthrough</h2>
-      <p class="text-muted text-sm leading-relaxed">Point Claude at a feature; it drives Playwright through the flow, captures a
-         screenshot per step, and renders an interactive D3 walkthrough — zero
-         screenshots taken by hand.</p>
-      <span class="inline-block mt-3.5 text-xs text-accent border border-line rounded-full px-3 py-[3px]">View walkthrough →</span>
+    <a class="block no-underline text-fg bg-card border border-line rounded-2xl px-[26px] py-6 mb-4 transition-[border-color,transform] duration-150 hover:border-accent hover:-translate-y-0.5" href="./claude-elevenlabs-video-walkthrough/">
+      <div class="flex items-baseline justify-between gap-4 mb-1.5">
+        <h2 class="text-[19px] font-bold">Claude + ElevenLabs → narrated MP4, in four languages</h2>
+        <time datetime="2026-05-29" class="text-xs text-muted whitespace-nowrap shrink-0">29 May 2026</time>
+      </div>
+      <p class="text-muted text-sm leading-relaxed">The narrated video, localized. Claude translates each step's narration and
+         captions; ElevenLabs voices English, French, Spanish and Japanese in one multilingual
+         voice; ffmpeg stitches a separate MP4 per language, flag and all. One source script,
+         four videos.</p>
+      <span class="inline-block mt-3.5 text-xs text-accent border border-line rounded-full px-3 py-[3px]">Watch in 4 languages →</span>
     </a>
 
     <a class="block no-underline text-fg bg-card border border-line rounded-2xl px-[26px] py-6 mb-4 transition-[border-color,transform] duration-150 hover:border-accent hover:-translate-y-0.5" href="./claude-polly-video-walkthrough/">
-      <h2 class="text-[19px] font-bold mb-1.5">Claude + Playwright + AWS Polly → narrated MP4</h2>
+      <div class="flex items-baseline justify-between gap-4 mb-1.5">
+        <h2 class="text-[19px] font-bold">Claude + Playwright + AWS Polly → narrated MP4</h2>
+        <time datetime="2026-05-26" class="text-xs text-muted whitespace-nowrap shrink-0">26 May 2026</time>
+      </div>
       <p class="text-muted text-sm leading-relaxed">Same flow, video output. Per-step CSS spotlights highlight what the narrator
          is talking about; AWS Polly (Arthur, en-GB) reads each step; ffmpeg composites
          title and caption bars in post and stitches it all into one MP4.</p>
       <span class="inline-block mt-3.5 text-xs text-accent border border-line rounded-full px-3 py-[3px]">Watch video →</span>
     </a>
 
-    <a class="block no-underline text-fg bg-card border border-line rounded-2xl px-[26px] py-6 mb-4 transition-[border-color,transform] duration-150 hover:border-accent hover:-translate-y-0.5" href="./claude-elevenlabs-video-walkthrough/">
-      <h2 class="text-[19px] font-bold mb-1.5">Claude + ElevenLabs → narrated MP4, in four languages</h2>
-      <p class="text-muted text-sm leading-relaxed">The narrated video, localized. Claude translates each step's narration and
-         captions; ElevenLabs voices English, French, Spanish and Japanese in one multilingual
-         voice; ffmpeg stitches a separate MP4 per language, flag and all. One source script,
-         four videos.</p>
-      <span class="inline-block mt-3.5 text-xs text-accent border border-line rounded-full px-3 py-[3px]">Watch in 4 languages →</span>
+    <a class="block no-underline text-fg bg-card border border-line rounded-2xl px-[26px] py-6 mb-4 transition-[border-color,transform] duration-150 hover:border-accent hover:-translate-y-0.5" href="./claude-playwright-walkthrough/">
+      <div class="flex items-baseline justify-between gap-4 mb-1.5">
+        <h2 class="text-[19px] font-bold">Claude + Playwright → interactive walkthrough</h2>
+        <time datetime="2026-05-16" class="text-xs text-muted whitespace-nowrap shrink-0">16 May 2026</time>
+      </div>
+      <p class="text-muted text-sm leading-relaxed">Point Claude at a feature; it drives Playwright through the flow, captures a
+         screenshot per step, and renders an interactive D3 walkthrough — zero
+         screenshots taken by hand.</p>
+      <span class="inline-block mt-3.5 text-xs text-accent border border-line rounded-full px-3 py-[3px]">View walkthrough →</span>
     </a>
 
     <footer class="text-muted text-xs mt-12 text-center">
