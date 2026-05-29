@@ -3,8 +3,7 @@
 Follow-on to the Polly narrated-video post. Focus: ElevenLabs for the voice,
 Claude for the translation. No em dashes (per preference).
 
-Demo page: https://levantar-ai.github.io/demos/claude-elevenlabs-video-walkthrough/
-(shorten via LinkedIn before posting; replace [INSERT NEW DEMO LINK] below.)
+Demo page (live): https://levantar-ai.github.io/demos/claude-elevenlabs-video-walkthrough/
 
 ---
 
@@ -24,6 +23,6 @@ And the single-source-of-truth rule survives translation: one step array still d
 
 Cost and time? A handful of pennies of ElevenLabs characters and a couple of minutes on a laptop for all four languages.
 
-The demo is live here: [INSERT NEW DEMO LINK]
+The demo is live here: https://levantar-ai.github.io/demos/claude-elevenlabs-video-walkthrough/
 
 If your docs only exist in English today, what's the real blocker to shipping them in five more: the translation, the voice talent, or the production time? 🤔
