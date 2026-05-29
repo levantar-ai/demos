@@ -20,3 +20,5 @@ Cost? Nothing. It fit inside ElevenLabs' free tier (10,000 credits a month) and 
 The demo is live here: https://levantar-ai.github.io/demos/claude-elevenlabs-video-walkthrough/
 
 If you have an international customer base, this is a cheap way to meet people in their own language. What's held your localized version back: the translation, the voice talent, or the production time? 🤔
+
+#ElevenLabs #Claude #AI #Localization #TextToSpeech #Playwright #Automation
