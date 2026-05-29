@@ -15,7 +15,7 @@ In the previous post I shared a pipeline where Claude drives Playwright through 
 
 **ElevenLabs for the voice.** I swapped Polly for ElevenLabs (https://elevenlabs.io/). Same narration text, same capture, same ffmpeg stitch. Only one stage of the pipeline changed. But the voice (a British narrator called "George") lands much closer to a real person, which makes a real difference for anything a customer watches rather than just an internal demo loop. 🎧
 
-**Claude for the translation.** Then the part I was actually excited about. I had Claude translate every step, including the spoken narration, the on-screen captions, and the UI labels, into French, Spanish and Japanese. No translation vendor, no per-locale recording session, no second take. ElevenLabs' multilingual model then voices all of them in that same "George" voice, so it sounds consistent across languages. One source script in, three additional fully-narrated videos out.
+**Claude for the translation.** I had Claude translate every step, including the spoken narration, the on-screen captions, and the UI labels, into French, Spanish and Japanese. No translation vendor, no per-locale recording session, no second take. ElevenLabs' multilingual model then voices all of them in that same "George" voice, so it sounds consistent across languages. One source script in, three additional fully-narrated videos out.
 
 One honest bit of scoping. I localized the narration layer, not the app chrome. The app's own buttons stay in English on purpose, because the point was to show the storytelling layer translating end to end, voice and captions together, without anyone touching the underlying app.
 
