@@ -11,19 +11,17 @@ Four languages. Fifteen minutes. One demo. 🌍
 
 ElevenLabs handled the voice, Claude handled the translation, and I didn't record, translate, or re-edit a single word myself. I wrote the narration once, in English.
 
-In the previous post I shared a pipeline where Claude drives Playwright through a live app and stitches the result into a narrated MP4. I flagged two gaps at the end: the AWS Polly voice was generic-pleasant rather than human, and localization was still on the to-do list. This post closes both, and the pipeline barely changed to do it.
+This builds on the pipeline from my last post, where Claude drives Playwright through a live app and ffmpeg stitches the captured steps into a narrated MP4. Last time I flagged two gaps, a human-sounding voice and localization. This closes both, and the pipeline barely changed.
 
-**ElevenLabs for the voice.** I swapped Polly for ElevenLabs (https://elevenlabs.io/). Same narration text, same capture, same ffmpeg stitch. Only one stage of the pipeline changed. But the voice (a British narrator called "George") lands much closer to a real person, which makes a real difference for anything a customer watches rather than just an internal demo loop. 🎧
+**ElevenLabs for the voice.** I swapped Polly for ElevenLabs (https://elevenlabs.io/). Same narration text, same capture, same ffmpeg stitch, only one stage changed. The voice (a British narrator called "George") lands much closer to a real person, which matters for anything a customer watches rather than just an internal demo loop. 🎧
 
 **Claude for the translation.** I had Claude translate every step, including the spoken narration, the on-screen captions, and the UI labels, into French, Spanish and Japanese. No translation vendor, no per-locale recording session, no second take. ElevenLabs' multilingual model then voices all of them in that same "George" voice, so it sounds consistent across languages. One source script in, three additional fully-narrated videos out.
 
 I localized the narration layer, not the app chrome. The app's own buttons stay in English on purpose, because the point was to show the storytelling layer translating end to end, voice and captions together, without anyone touching the underlying app.
 
-This is AI translation though, and I don't speak French, Spanish or Japanese, so I can't verify what it has generated is correct. For anything customer-facing I'd have a native speaker review the script before it ships. The pipeline gets you a polished draft in minutes, but it doesn't remove the human check.
+This is AI translation, and I don't speak French, Spanish or Japanese, so I can't verify the output myself. For anything customer-facing you'd want a native speaker to review it before shipping.
 
-That same "post-process without touching the app" principle from last time still holds. Each video's title bar now carries the language's flag, dropped into the spare space entirely in the ffmpeg overlay stage. Restyle it, reword it, or regenerate a single language without re-running capture. ⚙️
-
-And the single-source-of-truth rule survives translation: one step array still declares the Playwright actions, the highlight, the caption, and the narration, now per locale. Visuals, audio, and story can't drift apart, in any language.
+The flags sit in each title bar, composited in post by ffmpeg without touching the app, so I can restyle or regenerate a single language without re-capturing. And one step array still drives the Playwright actions, the highlight, the caption and the narration per locale, so visuals, audio and story stay in sync. ⚙️
 
 Cost? Nothing. It fit inside ElevenLabs' free tier (10,000 credits a month, plenty for a demo), and the translation just used my existing Claude subscription. About fifteen minutes on a laptop for all four languages.
 
