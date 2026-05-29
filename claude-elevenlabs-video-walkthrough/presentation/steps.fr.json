@@ -1,0 +1,92 @@
+{
+  "title": "Acme — Contacter un humain",
+  "purpose": "Capture Claude + Playwright · narration ElevenLabs (George) · assemblage ffmpeg",
+  "lang": "fr",
+  "flag": "fr",
+  "labels": {
+    "walkthrough": "Démonstration",
+    "step": "Étape",
+    "of": "sur"
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "voice": {
+    "id": "JBFqnCBsd6RMkjVDRZzb",
+    "name": "George",
+    "modelId": "eleven_multilingual_v2"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "name": "home",
+      "file": "01-home.png",
+      "caption": "Page d'accueil",
+      "narration": "Bienvenue sur Acme — notre produit de démonstration volontairement banal. Un visiteur arrive sur la page d'accueil, et l'appel à l'action principal est bien en évidence : Nous contacter.",
+      "audio": "fr/audio/01-home.mp3",
+      "titleOverlay": "fr/overlays/01-title.png",
+      "captionOverlay": "fr/overlays/01-caption.png"
+    },
+    {
+      "n": 2,
+      "name": "contact-open",
+      "file": "02-contact-open.png",
+      "caption": "Formulaire de contact ouvert",
+      "narration": "En cliquant sur Nous contacter, le visiteur est dirigé vers un simple formulaire de contact. Trois champs — nom, e-mail et message — et un seul bouton d'envoi. Rien de compliqué.",
+      "audio": "fr/audio/02-contact-open.mp3",
+      "titleOverlay": "fr/overlays/02-title.png",
+      "captionOverlay": "fr/overlays/02-caption.png"
+    },
+    {
+      "n": 3,
+      "name": "validation",
+      "file": "03-validation.png",
+      "caption": "Validation en ligne",
+      "narration": "Soumettre un formulaire vide fait apparaître une validation en ligne sur chaque champ. Aucune donnée incorrecte n'atteint le serveur — l'utilisateur voit exactement ce qui manque.",
+      "audio": "fr/audio/03-validation.mp3",
+      "titleOverlay": "fr/overlays/03-title.png",
+      "captionOverlay": "fr/overlays/03-caption.png"
+    },
+    {
+      "n": 4,
+      "name": "filled",
+      "file": "04-filled.png",
+      "caption": "Formulaire complété",
+      "narration": "Une fois les champs remplis avec des données valides, les erreurs en ligne disparaissent automatiquement et le formulaire est prêt à être envoyé.",
+      "audio": "fr/audio/04-filled.mp3",
+      "titleOverlay": "fr/overlays/04-title.png",
+      "captionOverlay": "fr/overlays/04-caption.png"
+    },
+    {
+      "n": 5,
+      "name": "ready-to-send",
+      "file": "05-ready-to-send.png",
+      "caption": "Prêt à envoyer",
+      "narration": "Tous les champs étant valides, le bouton Envoyer le message est désormais actif. Un seul clic envoie le message au serveur.",
+      "audio": "fr/audio/05-ready-to-send.mp3",
+      "titleOverlay": "fr/overlays/05-title.png",
+      "captionOverlay": "fr/overlays/05-caption.png"
+    },
+    {
+      "n": 6,
+      "name": "success",
+      "file": "06-success.png",
+      "caption": "Envoi confirmé",
+      "narration": "La requête POST vers /api/contact aboutit, et l'utilisateur arrive sur une page de confirmation comportant un identifiant de ticket unique.",
+      "audio": "fr/audio/06-success.mp3",
+      "titleOverlay": "fr/overlays/06-title.png",
+      "captionOverlay": "fr/overlays/06-caption.png"
+    },
+    {
+      "n": 7,
+      "name": "admin",
+      "file": "07-admin.png",
+      "caption": "Apparaît dans les soumissions",
+      "narration": "Et voici la preuve de bout en bout. La soumission apparaît dans la liste du back-office avec un horodatage récent — exactement la ligne qu'Ada vient de créer.",
+      "audio": "fr/audio/07-admin.mp3",
+      "titleOverlay": "fr/overlays/07-title.png",
+      "captionOverlay": "fr/overlays/07-caption.png"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "title": "Acme — Contactar con una persona",
+  "purpose": "Captura con Claude + Playwright · narración de ElevenLabs (George) · montaje con ffmpeg",
+  "lang": "es",
+  "flag": "es",
+  "labels": {
+    "walkthrough": "Recorrido",
+    "step": "Paso",
+    "of": "de"
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "voice": {
+    "id": "JBFqnCBsd6RMkjVDRZzb",
+    "name": "George",
+    "modelId": "eleven_multilingual_v2"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "name": "home",
+      "file": "01-home.png",
+      "caption": "Página de inicio",
+      "narration": "Bienvenido a Acme — nuestro producto de demostración deliberadamente aburrido. Un visitante llega a la página de inicio y la llamada a la acción principal está bien visible: Ponte en contacto.",
+      "audio": "es/audio/01-home.mp3",
+      "titleOverlay": "es/overlays/01-title.png",
+      "captionOverlay": "es/overlays/01-caption.png"
+    },
+    {
+      "n": 2,
+      "name": "contact-open",
+      "file": "02-contact-open.png",
+      "caption": "Formulario de contacto abierto",
+      "narration": "Al hacer clic en Ponte en contacto, el visitante llega a un sencillo formulario de contacto. Tres campos — nombre, correo electrónico y mensaje — y un único botón de envío. Nada complicado.",
+      "audio": "es/audio/02-contact-open.mp3",
+      "titleOverlay": "es/overlays/02-title.png",
+      "captionOverlay": "es/overlays/02-caption.png"
+    },
+    {
+      "n": 3,
+      "name": "validation",
+      "file": "03-validation.png",
+      "caption": "Validación en línea",
+      "narration": "Al enviar un formulario vacío aparece la validación en línea en cada campo. Ningún dato incorrecto llega al servidor — el usuario ve exactamente qué falta.",
+      "audio": "es/audio/03-validation.mp3",
+      "titleOverlay": "es/overlays/03-title.png",
+      "captionOverlay": "es/overlays/03-caption.png"
+    },
+    {
+      "n": 4,
+      "name": "filled",
+      "file": "04-filled.png",
+      "caption": "Formulario completado",
+      "narration": "Una vez que los campos se rellenan con datos válidos, los errores en línea desaparecen automáticamente y el formulario está listo para enviarse.",
+      "audio": "es/audio/04-filled.mp3",
+      "titleOverlay": "es/overlays/04-title.png",
+      "captionOverlay": "es/overlays/04-caption.png"
+    },
+    {
+      "n": 5,
+      "name": "ready-to-send",
+      "file": "05-ready-to-send.png",
+      "caption": "Listo para enviar",
+      "narration": "Con todos los campos válidos, el botón Enviar mensaje ya está activo. Un solo clic envía el mensaje al servidor.",
+      "audio": "es/audio/05-ready-to-send.mp3",
+      "titleOverlay": "es/overlays/05-title.png",
+      "captionOverlay": "es/overlays/05-caption.png"
+    },
+    {
+      "n": 6,
+      "name": "success",
+      "file": "06-success.png",
+      "caption": "Envío confirmado",
+      "narration": "La solicitud POST a /api/contact se completa con éxito y el usuario llega a una página de confirmación con un identificador de ticket único.",
+      "audio": "es/audio/06-success.mp3",
+      "titleOverlay": "es/overlays/06-title.png",
+      "captionOverlay": "es/overlays/06-caption.png"
+    },
+    {
+      "n": 7,
+      "name": "admin",
+      "file": "07-admin.png",
+      "caption": "Aparece en los envíos",
+      "narration": "Y aquí está la prueba de principio a fin. El envío aparece en la lista del back office con una marca de tiempo reciente — exactamente la fila que Ada acaba de crear.",
+      "audio": "es/audio/07-admin.mp3",
+      "titleOverlay": "es/overlays/07-title.png",
+      "captionOverlay": "es/overlays/07-caption.png"
+    }
+  ]
+}

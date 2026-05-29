@@ -1,0 +1,92 @@
+{
+  "title": "Acme — 人間に問い合わせる",
+  "purpose": "Claude + Playwright でキャプチャ · ElevenLabs（George）がナレーション · ffmpeg で結合",
+  "lang": "ja",
+  "flag": "ja",
+  "labels": {
+    "walkthrough": "ウォークスルー",
+    "step": "ステップ",
+    "of": "/"
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "voice": {
+    "id": "JBFqnCBsd6RMkjVDRZzb",
+    "name": "George",
+    "modelId": "eleven_multilingual_v2"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "name": "home",
+      "file": "01-home.png",
+      "caption": "ランディングページ",
+      "narration": "Acme へようこそ。あえて地味に作ったデモ用の製品です。訪問者がホームページに到着すると、主要な行動喚起がすぐ目の前にあります。「お問い合わせ」です。",
+      "audio": "ja/audio/01-home.mp3",
+      "titleOverlay": "ja/overlays/01-title.png",
+      "captionOverlay": "ja/overlays/01-caption.png"
+    },
+    {
+      "n": 2,
+      "name": "contact-open",
+      "file": "02-contact-open.png",
+      "caption": "問い合わせフォームを表示",
+      "narration": "「お問い合わせ」をクリックすると、訪問者はシンプルな問い合わせフォームに移動します。名前、メールアドレス、メッセージという三つの入力欄と、送信ボタンが一つだけ。凝った仕組みはありません。",
+      "audio": "ja/audio/02-contact-open.mp3",
+      "titleOverlay": "ja/overlays/02-title.png",
+      "captionOverlay": "ja/overlays/02-caption.png"
+    },
+    {
+      "n": 3,
+      "name": "validation",
+      "file": "03-validation.png",
+      "caption": "インラインバリデーション",
+      "narration": "空のフォームを送信すると、各入力欄にインラインのバリデーションが表示されます。不正なデータがバックエンドに届くことはなく、利用者には何が足りないかが正確に示されます。",
+      "audio": "ja/audio/03-validation.mp3",
+      "titleOverlay": "ja/overlays/03-title.png",
+      "captionOverlay": "ja/overlays/03-caption.png"
+    },
+    {
+      "n": 4,
+      "name": "filled",
+      "file": "04-filled.png",
+      "caption": "フォーム入力完了",
+      "narration": "各入力欄に正しい内容を入力すると、インラインのエラーは自動的に消え、フォームは送信できる状態になります。",
+      "audio": "ja/audio/04-filled.mp3",
+      "titleOverlay": "ja/overlays/04-title.png",
+      "captionOverlay": "ja/overlays/04-caption.png"
+    },
+    {
+      "n": 5,
+      "name": "ready-to-send",
+      "file": "05-ready-to-send.png",
+      "caption": "送信の準備完了",
+      "narration": "すべての入力欄が有効になり、「メッセージを送信」ボタンが有効化されました。クリックひとつでメッセージがバックエンドに送信されます。",
+      "audio": "ja/audio/05-ready-to-send.mp3",
+      "titleOverlay": "ja/overlays/05-title.png",
+      "captionOverlay": "ja/overlays/05-caption.png"
+    },
+    {
+      "n": 6,
+      "name": "success",
+      "file": "06-success.png",
+      "caption": "送信完了",
+      "narration": "/api/contact への POST リクエストが成功し、利用者は固有のチケット番号が表示された確認ページに移動します。",
+      "audio": "ja/audio/06-success.mp3",
+      "titleOverlay": "ja/overlays/06-title.png",
+      "captionOverlay": "ja/overlays/06-caption.png"
+    },
+    {
+      "n": 7,
+      "name": "admin",
+      "file": "07-admin.png",
+      "caption": "送信一覧に表示",
+      "narration": "そしてこれがエンドツーエンドの証拠です。送信内容が新しいタイムスタンプとともにバックオフィスの一覧に表示されます。まさに Ada がいま作成した行です。",
+      "audio": "ja/audio/07-admin.mp3",
+      "titleOverlay": "ja/overlays/07-title.png",
+      "captionOverlay": "ja/overlays/07-caption.png"
+    }
+  ]
+}

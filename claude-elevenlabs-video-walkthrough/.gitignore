@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+presentation/shots/
+presentation/overlays/
+presentation/audio/
+presentation/clips/
+presentation/walkthrough*.mp4
+# per-language generated artifacts (audio/overlays/clips); steps.*.json are kept
+presentation/fr/
+presentation/es/
+presentation/ja/

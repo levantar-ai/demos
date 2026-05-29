@@ -1,0 +1,85 @@
+{
+  "title": "Acme — Contact a human",
+  "purpose": "Claude + Playwright capture · ElevenLabs narrates (George, British) · ffmpeg stitches",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "voice": {
+    "id": "JBFqnCBsd6RMkjVDRZzb",
+    "name": "George",
+    "modelId": "eleven_multilingual_v2"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "name": "home",
+      "file": "01-home.png",
+      "caption": "Landing page",
+      "narration": "Welcome to Acme — our deliberately boring demo product. A visitor lands on the home page, and the primary call to action is right up front: Get in touch.",
+      "audio": "audio/01-home.mp3",
+      "titleOverlay": "overlays/01-title.png",
+      "captionOverlay": "overlays/01-caption.png"
+    },
+    {
+      "n": 2,
+      "name": "contact-open",
+      "file": "02-contact-open.png",
+      "caption": "Contact form opened",
+      "narration": "Clicking Get in touch routes the visitor to a simple contact form. Three fields — name, email, and message — and a single submit button. Nothing clever.",
+      "audio": "audio/02-contact-open.mp3",
+      "titleOverlay": "overlays/02-title.png",
+      "captionOverlay": "overlays/02-caption.png"
+    },
+    {
+      "n": 3,
+      "name": "validation",
+      "file": "03-validation.png",
+      "caption": "Inline validation",
+      "narration": "Submitting an empty form surfaces inline validation against each field. No malformed data ever reaches the back end — the user sees exactly what is missing.",
+      "audio": "audio/03-validation.mp3",
+      "titleOverlay": "overlays/03-title.png",
+      "captionOverlay": "overlays/03-caption.png"
+    },
+    {
+      "n": 4,
+      "name": "filled",
+      "file": "04-filled.png",
+      "caption": "Form completed",
+      "narration": "Once the fields are filled in with valid input the inline errors disappear automatically, and the form is ready to send.",
+      "audio": "audio/04-filled.mp3",
+      "titleOverlay": "overlays/04-title.png",
+      "captionOverlay": "overlays/04-caption.png"
+    },
+    {
+      "n": 5,
+      "name": "ready-to-send",
+      "file": "05-ready-to-send.png",
+      "caption": "Ready to send",
+      "narration": "With every field valid, the Send message button is now armed. One click submits the message to the back end.",
+      "audio": "audio/05-ready-to-send.mp3",
+      "titleOverlay": "overlays/05-title.png",
+      "captionOverlay": "overlays/05-caption.png"
+    },
+    {
+      "n": 6,
+      "name": "success",
+      "file": "06-success.png",
+      "caption": "Submission confirmed",
+      "narration": "The POST to slash A P I slash contact succeeds, and the user lands on a confirmation page with a unique ticket identifier.",
+      "audio": "audio/06-success.mp3",
+      "titleOverlay": "overlays/06-title.png",
+      "captionOverlay": "overlays/06-caption.png"
+    },
+    {
+      "n": 7,
+      "name": "admin",
+      "file": "07-admin.png",
+      "caption": "Appears in submissions",
+      "narration": "And here is the end-to-end proof. The submission shows up in the back office list with a fresh timestamp — exactly the row Ada just created.",
+      "audio": "audio/07-admin.mp3",
+      "titleOverlay": "overlays/07-title.png",
+      "captionOverlay": "overlays/07-caption.png"
+    }
+  ]
+}
