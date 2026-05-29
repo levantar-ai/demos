@@ -17,7 +17,7 @@ In the previous post I shared a pipeline where Claude drives Playwright through 
 
 **Claude for the translation.** I had Claude translate every step, including the spoken narration, the on-screen captions, and the UI labels, into French, Spanish and Japanese. No translation vendor, no per-locale recording session, no second take. ElevenLabs' multilingual model then voices all of them in that same "George" voice, so it sounds consistent across languages. One source script in, three additional fully-narrated videos out.
 
-One honest bit of scoping. I localized the narration layer, not the app chrome. The app's own buttons stay in English on purpose, because the point was to show the storytelling layer translating end to end, voice and captions together, without anyone touching the underlying app.
+I localized the narration layer, not the app chrome. The app's own buttons stay in English on purpose, because the point was to show the storytelling layer translating end to end, voice and captions together, without anyone touching the underlying app.
 
 This is AI translation though, and I don't speak French, Spanish or Japanese, so I can't personally vouch that every nuance is right. For anything customer-facing I'd have a native speaker review the script before it ships. The pipeline gets you a polished draft in minutes, but it doesn't remove the human check.
 
