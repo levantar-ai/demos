@@ -27,4 +27,4 @@ Cost? Nothing. It fit inside ElevenLabs' free tier (10,000 credits a month, plen
 
 The demo is live here: https://levantar-ai.github.io/demos/claude-elevenlabs-video-walkthrough/
 
-If your docs only exist in English today, what's the real blocker to shipping them in five more: the translation, the voice talent, or the production time? 🤔
+If you have an international customer base, this is a cheap way to meet people in their own language without a studio or a translation agency. And if that's you, what's held the localized version back so far: the translation, the voice talent, or the production time? 🤔
