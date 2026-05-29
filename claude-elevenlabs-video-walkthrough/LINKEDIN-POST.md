@@ -19,6 +19,8 @@ In the previous post I shared a pipeline where Claude drives Playwright through 
 
 One honest bit of scoping. I localized the narration layer, not the app chrome. The app's own buttons stay in English on purpose, because the point was to show the storytelling layer translating end to end, voice and captions together, without anyone touching the underlying app.
 
+And an important caveat: this is AI translation. I don't speak French, Spanish or Japanese, so I can't personally vouch that every nuance is right. For anything customer-facing I'd have a native speaker review the script before it ships. The pipeline gets you a polished draft in minutes; it doesn't remove the human check.
+
 That same "post-process without touching the app" principle from last time still holds. Each video's title bar now carries the language's flag, dropped into the spare space entirely in the ffmpeg overlay stage. Restyle it, reword it, or regenerate a single language without re-running capture. ⚙️
 
 And the single-source-of-truth rule survives translation: one step array still declares the Playwright actions, the highlight, the caption, and the narration, now per locale. Visuals, audio, and story can't drift apart, in any language.
