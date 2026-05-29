@@ -23,7 +23,7 @@ That same "post-process without touching the app" principle from last time still
 
 And the single-source-of-truth rule survives translation: one step array still declares the Playwright actions, the highlight, the caption, and the narration, now per locale. Visuals, audio, and story can't drift apart, in any language.
 
-Cost and time? A handful of pennies of ElevenLabs characters and about fifteen minutes on a laptop for all four languages.
+Cost? Nothing. It fit inside ElevenLabs' free tier (10,000 credits a month, plenty for a demo), and the translation just used my existing Claude subscription. About fifteen minutes on a laptop for all four languages.
 
 The demo is live here: https://levantar-ai.github.io/demos/claude-elevenlabs-video-walkthrough/
 
