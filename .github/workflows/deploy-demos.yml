@@ -132,8 +132,9 @@ jobs:
             ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
             REPO_URL="${ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com/demos/${{ matrix.demo }}"
           fi
+          # Tags are immutable; deploys reference the git SHA only
           docker buildx build --platform linux/arm64 \
-            -t "${REPO_URL}:${GITHUB_SHA}" -t "${REPO_URL}:latest" \
+            -t "${REPO_URL}:${GITHUB_SHA}" \
             --push "${{ matrix.demo }}/agent"
 
       - name: Terraform plan (PR)

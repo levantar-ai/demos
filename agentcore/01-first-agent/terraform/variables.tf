@@ -5,7 +5,6 @@ variable "aws_region" {
 }
 
 variable "image_tag" {
-  description = "Tag of the agent container image to deploy (set by CI to the git SHA)"
+  description = "Tag of the agent container image to deploy (CI passes the git SHA; tags are immutable)"
   type        = string
-  default     = "latest"
 }
