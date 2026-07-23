@@ -11,7 +11,8 @@ the post shows the diff. Tick items as they complete.
   (terraform validate, tflint, Trivy, ruff, pytest/go test, arm64 build check)
 - [x] `aws-setup/` applied: OIDC role exists but CI does NOT deploy —
   all deploys/teardowns are run locally via the Makefile
-- [ ] First local deploy of demo 01 (`make demo-apply DEMO=agentcore/01-first-agent`)
+- [x] First local deploy of demo 01: deployed, invoked (6 invocations across
+  3 sessions), artifacts captured, torn down (2026-07-23)
 
 ## Posts
 
@@ -20,7 +21,8 @@ Positioning intro (vs. Bedrock Agents, Lambda loops, self-hosted frameworks;
 the seven services), then deploy a minimal agent to Runtime: container
 contract, microVM session isolation, invocation.
 - [x] Demo scaffolded (`01-first-agent/`)
-- [ ] Demo deployed and invocable
+- [x] Demo deployed and invoked; blog artifacts in `01-first-agent/artifacts/`
+  (timings, gotchas, logs, runtime description); resources destroyed after
 - [ ] Post drafted
 - [ ] Post published
 

@@ -69,7 +69,9 @@
     "misconfig",
     "pytest",
     "teardowns",
-    "teardown"
+    "teardown",
+    "PYTHONUNBUFFERED",
+    "stdlib"
   ],
   "ignorePaths": [
     "node_modules/**",

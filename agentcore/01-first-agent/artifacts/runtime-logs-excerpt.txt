@@ -1,0 +1,15 @@
+# Log group: /aws/bedrock-agentcore/runtimes/demos_agentcore_01_first_agent-<id>-DEFAULT
+# Stream:    2026/07/23/[runtime-logs]ad5a5194-... (one stream per session microVM)
+# Captured after fixing PYTHONUNBUFFERED (see artifacts/README.md gotcha 4)
+
+agent listening on :8080
+127.0.0.1 "POST /invocations HTTP/1.1" 200 -
+127.0.0.1 "GET /ping HTTP/1.1" 200 -
+127.0.0.1 "POST /invocations HTTP/1.1" 200 -
+127.0.0.1 "GET /ping HTTP/1.1" 200 -
+127.0.0.1 "GET /ping HTTP/1.1" 200 -
+127.0.0.1 "GET /ping HTTP/1.1" 200 -
+127.0.0.1 "GET /ping HTTP/1.1" 200 -
+
+# Note: the platform polls GET /ping continuously between invocations —
+# the health endpoint is load-bearing, not ceremonial.
