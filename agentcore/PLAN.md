@@ -9,8 +9,9 @@ the post shows the diff. Tick items as they complete.
 - [x] `agentcore/` category structure (one standalone dir per post)
 - [x] `aws-setup/` GitHub OIDC deploy role (namespaced to `demos-*`)
 - [x] CI pipeline: quality gates + changed-demo detection + matrix deploy
-- [ ] `aws-setup` applied and `AWS_ROLE_TO_ASSUME` secret set
-- [ ] First green pipeline run (plan on PR, apply on main)
+- [x] `aws-setup` applied and `AWS_ROLE_TO_ASSUME` secret set
+- [x] First green pipeline run: plan on PR (#1) via OIDC
+- [ ] First apply on main (merge PR #1)
 
 ## Posts
 
