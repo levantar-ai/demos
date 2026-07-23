@@ -47,7 +47,20 @@ variable "terraform_state_bucket" {
 
 data "aws_caller_identity" "current" {}
 
-# Reference the existing OIDC provider (created by ideation)
-data "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
+# GitHub OIDC provider — first one in this account (134570442530). If another
+# repo later needs it, that repo should reference it with a data source.
+resource "aws_iam_openid_connect_provider" "github" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1", "1c58a3a8518e8759bf075b76b750d4f2df264fcd"]
+
+  tags = {
+    Name      = "GitHub Actions OIDC"
+    ManagedBy = "Terraform"
+    Project   = "demos"
+  }
+
+  lifecycle {
+    ignore_changes = [thumbprint_list]
+  }
 }
