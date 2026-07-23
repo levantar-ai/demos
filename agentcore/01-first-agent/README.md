@@ -6,14 +6,14 @@ demo in the series copies forward.
 
 ## What gets created
 
-- ECR repository `demos/agentcore/01-first-agent` (image built by CI for
-  `linux/arm64`, tagged with the git SHA)
+- ECR repository `demos/agentcore/01-first-agent` (image is `linux/arm64`,
+  tagged with the git SHA; tags are immutable)
 - IAM execution role `demos-agentcore-01-first-agent-runtime`
 - AgentCore Runtime `demos_agentcore_01_first_agent`
 
 ## Run it
 
-Deployed automatically by CI when this directory changes on `main`. Locally:
+CI only verifies this demo (tests, quality, security). Deployment is local:
 
 ```bash
 make demo-init demo-apply DEMO=agentcore/01-first-agent

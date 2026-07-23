@@ -33,15 +33,19 @@ All demos share one AWS account and must coexist:
 - **Log groups:** `/aws/bedrock-agentcore/…` (created by the service)
 - **Region:** `us-east-1` (AgentCore); state bucket lives in `eu-west-2`
 
-## Deploy / tear down
+## CI vs deployment
 
-CI deploys any demo whose files change on `main` (see the workflow). Locally:
+CI (**verification only**) runs tests, quality and security gates for every
+demo: terraform validate + tflint + Trivy (misconfig/secrets), ruff + pytest
+(or go vet/test) for agent code, and an arm64 container build check. Changed
+demos are verified on PRs; all demos on `main`.
+
+Deployment is **out-of-band** — always run locally:
 
 ```bash
 make demo-init  DEMO=agentcore/01-first-agent
 make demo-plan  DEMO=agentcore/01-first-agent
 make demo-apply DEMO=agentcore/01-first-agent
-# out-of-band teardown:
 make demo-destroy DEMO=agentcore/01-first-agent
 ```
 

@@ -7,11 +7,11 @@ the post shows the diff. Tick items as they complete.
 ## Repo foundations
 
 - [x] `agentcore/` category structure (one standalone dir per post)
-- [x] `aws-setup/` GitHub OIDC deploy role (namespaced to `demos-*`)
-- [x] CI pipeline: quality gates + changed-demo detection + matrix deploy
-- [x] `aws-setup` applied and `AWS_ROLE_TO_ASSUME` secret set
-- [x] First green pipeline run: plan on PR (#1) via OIDC
-- [ ] First apply on main (merge PR #1)
+- [x] CI pipeline (verification only): per-demo tests + quality + security
+  (terraform validate, tflint, Trivy, ruff, pytest/go test, arm64 build check)
+- [x] `aws-setup/` applied: OIDC role exists but CI does NOT deploy —
+  all deploys/teardowns are run locally via the Makefile
+- [ ] First local deploy of demo 01 (`make demo-apply DEMO=agentcore/01-first-agent`)
 
 ## Posts
 

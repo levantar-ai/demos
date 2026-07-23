@@ -64,7 +64,12 @@
     "noprint",
     "Segoe",
     "sels",
-    "setsar"
+    "setsar",
+    "gofmt",
+    "misconfig",
+    "pytest",
+    "teardowns",
+    "teardown"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -11,7 +11,7 @@ the static walkthroughs are published via GitHub Pages.
 |------|---------------|------------------|
 | [`claude-playwright-walkthrough/`](claude-playwright-walkthrough/) | Point Claude at a feature; it drives Playwright through the flow, captures a screenshot per step, and renders an interactive D3 walkthrough. The capture script is the single source of truth for both the screenshots and the narrative. | [open →](https://levantar-ai.github.io/demos/claude-playwright-walkthrough/) |
 | [`claude-polly-video-walkthrough/`](claude-polly-video-walkthrough/) | Same flow as the first demo, but the output is a single narrated MP4. Playwright captures clean frames with on-page CSS spotlights; AWS Polly (Arthur, en-GB) narrates each step; ffmpeg composites the title and caption bars in post and stitches the clips. | [open →](https://levantar-ai.github.io/demos/claude-polly-video-walkthrough/) |
-| [`agentcore/`](agentcore/) | **Category:** demos for the Amazon Bedrock AgentCore blog series. One standalone directory per post (Runtime, Gateway, Memory, Identity, …), each independently deployable via Terraform, deployed by CI on change. | — |
+| [`agentcore/`](agentcore/) | **Category:** demos for the Amazon Bedrock AgentCore blog series. One standalone directory per post (Runtime, Gateway, Memory, Identity, …), each independently deployable via Terraform. CI verifies every demo (tests, quality, security); deployment is run locally. | — |
 
 ## Layout
 
