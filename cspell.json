@@ -46,7 +46,9 @@
     "tfstate",
     "tfvars",
     "elif",
-    "endgroup"
+    "endgroup",
+    "Sandboxed",
+    "sandboxed"
   ],
   "ignorePaths": [
     "node_modules/**",
