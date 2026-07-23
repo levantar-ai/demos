@@ -4,3 +4,9 @@ dist/
 *.log
 .playwright-mcp/
 megalinter-reports/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars

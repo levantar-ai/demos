@@ -1,0 +1,15 @@
+pre-commit:
+  commands:
+    terraform-fmt:
+      glob: "*.tf"
+      run: terraform fmt -check -recursive
+    cspell:
+      run: npx --yes cspell --no-progress --no-must-find-files {staged_files}
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        grep -qE '^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?!?: .+' {1} || {
+          echo "Commit message must follow conventional commits (feat|fix|docs|style|refactor|test|chore)"; exit 1;
+        }
