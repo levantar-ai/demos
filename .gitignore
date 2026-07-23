@@ -10,3 +10,5 @@ megalinter-reports/
 *.tfstate
 *.tfstate.backup
 *.tfvars
+*.tfplan
+tfplan
