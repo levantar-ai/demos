@@ -39,9 +39,11 @@ target, with Cognito client-credentials JWT auth.
 ### 03 — Short-term and long-term memory
 Session context vs. extracted long-term memory, strategies, namespaces.
 Demo: agent recalls user preferences across separate sessions.
-- [ ] Demo built (`03-memory/`)
-- [ ] Demo deployed and invocable
-- [ ] Post drafted
+- [x] Demo built (`03-memory/`)
+- [x] Demo deployed and invoked end to end (events stored session A,
+  extracted USER_PREFERENCE records recalled from session B); artifacts in
+  `03-memory/artifacts/`; video recorded; resources destroyed after
+- [x] Post drafted (`03-memory/POST.md`) — NOT yet on the series list
 - [ ] Post published
 
 ### 04 — Code Interpreter and Browser built-in tools

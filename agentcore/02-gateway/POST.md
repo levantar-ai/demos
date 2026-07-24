@@ -93,8 +93,9 @@ an allow-list of client ids and the scope, so a token missing
 
 ## 3 - The gateway and its target
 
-Two resources. The gateway itself, which is the MCP endpoint plus the JWT
-authorizer, and a target, which maps a backend into the tool list:
+The gateway side is two resources, the gateway itself which is the MCP
+endpoint plus the JWT authorizer, and a target which maps a backend into
+the tool list:
 
 ```hcl
 resource "aws_bedrockagentcore_gateway" "orders" {
