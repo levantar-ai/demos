@@ -1,0 +1,28 @@
+{
+    "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:runtime/demos_agentcore_01_first_agent-5EmSE6BGqA",
+    "agentRuntimeName": "demos_agentcore_01_first_agent",
+    "agentRuntimeId": "demos_agentcore_01_first_agent-5EmSE6BGqA",
+    "agentRuntimeVersion": "1",
+    "createdAt": "2026-07-23T14:40:37.243844+00:00",
+    "lastUpdatedAt": "2026-07-23T14:40:48.568096+00:00",
+    "roleArn": "arn:aws:iam::<ACCOUNT_ID>:role/demos-agentcore-01-first-agent-runtime",
+    "networkConfiguration": {
+        "networkMode": "PUBLIC"
+    },
+    "status": "READY",
+    "lifecycleConfiguration": {
+        "idleRuntimeSessionTimeout": 900,
+        "maxLifetime": 28800
+    },
+    "workloadIdentityDetails": {
+        "workloadIdentityArn": "arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:workload-identity-directory/default/workload-identity/demos_agentcore_01_first_agent-5EmSE6BGqA"
+    },
+    "agentRuntimeArtifact": {
+        "containerConfiguration": {
+            "containerUri": "<ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/demos/agentcore/01-first-agent:f3f7d032577805764aeca5db6caf59915f7250a9"
+        }
+    },
+    "protocolConfiguration": {
+        "serverProtocol": "HTTP"
+    }
+}

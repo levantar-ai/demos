@@ -1,0 +1,115 @@
+name: ci
+
+# Verification only — tests, quality and security for every demo.
+# Deployment is done out-of-band (see Makefile: demo-plan/apply/destroy).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Repo-wide gates
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+      - name: Spelling
+        uses: streetsidesoftware/cspell-action@v6
+        with:
+          incremental_files_only: false
+
+  # Which demos to verify: changed ones on PRs, all of them on main
+  demos:
+    runs-on: ubuntu-latest
+    outputs:
+      demos: ${{ steps.detect.outputs.demos }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select demos
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            demos=$(./scripts/changed-demos.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
+          else
+            demos=$(find . -mindepth 3 -maxdepth 3 -type d -path "./*/*/terraform" \
+              | sed 's|^\./||; s|/terraform$||' | sort -u \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+          echo "demos=$demos" >> "$GITHUB_OUTPUT"
+          echo "Demos under test: $demos"
+
+  # Per-demo pipeline: tests + quality + security
+  verify:
+    needs: demos
+    if: needs.demos.outputs.demos != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: ${{ fromJSON(needs.demos.outputs.demos) }}
+    name: verify (${{ matrix.demo }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform validate
+        working-directory: ${{ matrix.demo }}/terraform
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: TFLint
+        uses: terraform-linters/setup-tflint@v4
+      - run: tflint --chdir=${{ matrix.demo }}/terraform --format compact
+
+      - name: Trivy security scan (IaC + secrets)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ matrix.demo }}
+          scanners: misconfig,secret
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
+      - name: Ruff (Python lint)
+        uses: astral-sh/ruff-action@v3
+        with:
+          src: ${{ matrix.demo }}
+          version: "0.16.0"
+
+      - name: Python tests
+        run: |
+          if ls "${{ matrix.demo }}"/agent/test_*.py >/dev/null 2>&1; then
+            pip install --quiet pytest
+            (cd "${{ matrix.demo }}/agent" && python -m pytest -q)
+          else
+            echo "No Python tests for this demo"
+          fi
+
+      - name: Go tests
+        run: |
+          if [ -f "${{ matrix.demo }}/agent/go.mod" ]; then
+            (cd "${{ matrix.demo }}/agent" && gofmt -l . && go vet ./... && go test -race ./...)
+          else
+            echo "No Go module for this demo"
+          fi
+
+      - name: Set up QEMU (arm64)
+        if: hashFiles(format('{0}/agent/Dockerfile', matrix.demo)) != ''
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        if: hashFiles(format('{0}/agent/Dockerfile', matrix.demo)) != ''
+        uses: docker/setup-buildx-action@v3
+      - name: Agent container builds (no push)
+        if: hashFiles(format('{0}/agent/Dockerfile', matrix.demo)) != ''
+        run: docker buildx build --platform linux/arm64 "${{ matrix.demo }}/agent"
