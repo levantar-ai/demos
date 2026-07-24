@@ -54,7 +54,7 @@ def mcp_request(method, params, token):
 def lookup_order(order_id):
     token = get_token()
     tools = mcp_request("tools/list", {}, token)["result"]["tools"]
-    tool_name = next(t["name"] for t in tools if "lookup_order" in t["name"])
+    tool_name = next(t["name"] for t in tools if t["name"].endswith("___lookup_order"))
     result = mcp_request(
         "tools/call",
         {"name": tool_name, "arguments": {"order_id": order_id}},

@@ -25,6 +25,15 @@ cold start, token fetch, tools/list and tools/call.
 `tools/list` response, showing the `orders___lookup_order` namespacing
 (`<target>___<tool>`, triple underscore).
 
+## Review-fix verification (2026-07-24, second cycle)
+
+After an external review: added `allowed_scopes` to the gateway authorizer,
+trimmed the runtime role (removed unused Bedrock model and workload
+identity permissions), and switched tool matching to
+`endswith("___lookup_order")`. Redeployed (16 resources, first apply) and
+verified: agent answered order 43 end to end, and an unauthenticated call
+to the gateway returned HTTP 401. Destroyed after.
+
 ## Notes
 
 - Gateway requires an authorizer; CUSTOM_JWT against the Cognito pool's

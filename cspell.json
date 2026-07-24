@@ -42,6 +42,7 @@
     "targetable",
     "Concats",
     "creds",
+    "endswith",
     "evals",
     "tfstate",
     "tfvars",

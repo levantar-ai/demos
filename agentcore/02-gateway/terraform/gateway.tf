@@ -52,6 +52,7 @@ resource "aws_bedrockagentcore_gateway" "orders" {
     custom_jwt_authorizer {
       discovery_url   = local.discovery_url
       allowed_clients = [aws_cognito_user_pool_client.agent.id]
+      allowed_scopes  = [local.scope]
     }
   }
 }
