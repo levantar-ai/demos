@@ -2,30 +2,29 @@
 
 ## TL;DR;
 
-An example of deploying a minimal agent container to Amazon Bedrock AgentCore
-Runtime with Terraform, invoking it across a few sessions to see the microVM
-isolation and cold starts, and then tearing it all down. A few things caught
-me out along the way, including all my CloudWatch logs silently disappearing.
+How to deploy an agent container to Amazon Bedrock AgentCore Runtime with
+Terraform, what the platform gives you that you didn't ask for, and the
+handful of things that will catch you out on your first deployment,
+including one that makes your CloudWatch logs silently disappear.
 
 SOURCE CODE - All code for this post is available at:
 https://github.com/levantar-ai/demos/tree/main/agentcore/01-first-agent
 
 ## Longer version
 
-I have been spending time recently looking at what it takes to run an AI
-agent in production on AWS, beyond the point where it works in a notebook.
-The agent loop itself is not the hard part. The hard part is everything
-around it, in that you need somewhere for it to run for potentially hours at
-a time, you need sessions isolated from each other, you need to know who the
-agent is acting as when it calls your APIs, and you need somewhere for the
-traces to go when it does something you didn't expect.
+The gap between an agent that works in a notebook and an agent running in
+production is not the agent loop, it is everything around it. You need
+somewhere for it to run for potentially hours at a time, you need sessions
+isolated from each other, you need to know who the agent is acting as when
+it calls your APIs, and you need somewhere for the traces to go when it does
+something you didn't expect.
 
-Amazon Bedrock AgentCore is AWS's answer to that operational shell. It is
-worth being clear about what it is not, because the name is misleading in a
-couple of ways. It is not a framework, so you keep whatever you are already
-using (Strands, LangGraph, CrewAI or your own loop). It is also not tied to
-Bedrock models despite the branding, because the runtime just executes a
-container you give it and that container can call whatever model it likes.
+Amazon Bedrock AgentCore is AWS's answer to that operational shell, and it
+is worth being clear about what it is not, because the name misleads in two
+ways. It is not a framework, so you keep whatever you are already using
+(Strands, LangGraph, CrewAI or your own loop). It is also not tied to
+Bedrock models, because the runtime executes a container you give it and
+that container can call whatever model it likes.
 
 What you actually get is a set of managed services:
 
@@ -38,9 +37,9 @@ What you actually get is a set of managed services:
 - Browser and Code Interpreter - managed sandboxed built-in tools
 - Observability - OTEL traces and CloudWatch integration on by default
 
-I am planning to work through all of these in this series, one post and one
-deployable demo at a time. This post is about getting the smallest thing
-that can possibly work onto Runtime.
+This series works through all of them, one post and one deployable demo at a
+time. This post covers Runtime, using the smallest agent that can possibly
+work so the platform behaviour is easy to see.
 
 ## The Runtime contract
 
@@ -50,8 +49,8 @@ answer `GET /ping` with a health response, and be built for linux/arm64.
 That is the whole thing, there is no SDK requirement and no blessed
 framework.
 
-To prove that point I wrote the first agent with the Python standard library
-only, no dependencies at all, which came out at about 40 lines:
+The demo agent is the Python standard library only, no dependencies, about
+40 lines:
 
 ```python
 class Handler(BaseHTTPRequestHandler):
@@ -65,17 +64,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"result": f"echo: {payload.get('prompt', '')}"})
 ```
 
-It just echoes the prompt back. I kept it deliberately dumb because I wanted
-to observe the platform behaviour (cold starts, session isolation, health
-checking) without any model calls muddying the timings. Later posts in the
-series will make it do something useful.
+It just echoes the prompt back. Keeping the agent dumb at this stage is a
+deliberate choice, because it lets you observe the platform (cold starts,
+session isolation, health checking) without model calls muddying the
+timings. Later posts in the series make it do something useful.
 
 ## 1 - Deploying it with Terraform
 
-Most of the AgentCore tutorials I found use the `agentcore` starter CLI. I
-wanted to use Terraform because that is how this would actually ship at
-work. The hashicorp/aws provider doesn't cover AgentCore Runtime yet so the
-runtime resource comes from the awscc (Cloud Control) provider:
+Most AgentCore tutorials use the `agentcore` starter CLI, which is fine for
+a first look but not how you will ship at work. The hashicorp/aws provider
+doesn't cover AgentCore Runtime yet so the runtime resource comes from the
+awscc (Cloud Control) provider:
 
 ```hcl
 resource "awscc_bedrockagentcore_runtime" "agent" {
@@ -93,8 +92,8 @@ resource "awscc_bedrockagentcore_runtime" "agent" {
 }
 ```
 
-Alongside that there is an ECR repository (with immutable tags, so deploys
-reference a git SHA rather than latest) and an execution role which the
+Alongside that you want an ECR repository with immutable tags, so deploys
+reference a git SHA rather than latest, and an execution role which the
 runtime assumes to pull the image, write logs and call Bedrock models. The
 whole stack is five resources.
 
@@ -105,7 +104,7 @@ docker buildx build --platform linux/arm64 -t "$REPO:$GIT_SHA" --push agent/
 terraform apply -var="image_tag=$GIT_SHA"
 ```
 
-My first apply failed with the following:
+Expect the first apply of a fresh stack to fail with the following:
 
 ```
 Role validation failed for 'arn:aws:iam::<ACCOUNT_ID>:role/demos-agentcore-01-first-agent-runtime'.
@@ -113,12 +112,11 @@ Please verify that the role exists and its trust policy allows assumption
 by this service (Service: BedrockAgentCoreControl, Status Code: 400)
 ```
 
-The role did exist, it had been created about three seconds earlier in the
-same apply. IAM is eventually consistent and the AgentCore control plane
-validated the role before it had propagated. I ran the apply again
-immediately and it succeeded, with the runtime creation taking 33 seconds
-and the runtime reaching READY about 11 seconds after creation. If you are
-scripting this it is worth building in a retry.
+The role does exist, it was created seconds earlier in the same apply. IAM
+is eventually consistent and the AgentCore control plane validates the role
+before it has propagated, so build a retry into your pipeline. The retry
+succeeds immediately, with runtime creation taking around 33 seconds and the
+runtime reaching READY about 11 seconds after that.
 
 NOTE: Runtime names must match `[a-zA-Z][a-zA-Z0-9_]*` which means
 underscores only, no hyphens, unlike more or less every other AWS resource.
@@ -129,26 +127,28 @@ about it.
 ## 2 - What the service creates without asking
 
 Describing the deployed runtime with
-`aws bedrock-agentcore-control get-agent-runtime` showed a few things I
-never configured:
+`aws bedrock-agentcore-control get-agent-runtime` shows a few things you
+never configured and should know about:
 
-- A workload identity is created automatically for each runtime, which is
-  the hook the Identity post later in this series will build on.
+- A workload identity is created automatically for each runtime. This is
+  the foundation the Identity services build on, and a later post in this
+  series covers it properly.
 - The session lifecycle defaults are visible as actual fields, 900 seconds
   idle timeout and 28,800 seconds (8 hours) maximum lifetime. That is the
   "8 hour agent" headline number in a JSON response.
-- Versioning is built in. This deploy was `agentRuntimeVersion: "1"` and
-  every image update bumps it automatically.
+- Versioning is built in. A fresh deploy is `agentRuntimeVersion: "1"` and
+  every image update bumps it automatically, which matters later for
+  rollbacks.
 
 The full describe output is in the repo at
 [artifacts/runtime-describe.json](artifacts/runtime-describe.json).
 
-## 3 - Invoking it and watching the microVMs
+## 3 - Invoking it and seeing the microVM isolation
 
-Invocation goes through the data plane API. Two things caught me out here.
-Session IDs have to be at least 33 characters, and the CLI treats the
-payload as base64 unless you tell it otherwise, so my first invocation
-failed with `Invalid base64` until I added the binary format flag:
+Invocation goes through the data plane API and there are two things to know
+before your first call. Session IDs must be at least 33 characters, and the
+CLI treats the payload as base64 unless you pass the binary format flag, so
+without it you get `Invalid base64` back:
 
 ```bash
 aws bedrock-agentcore invoke-agent-runtime \
@@ -168,30 +168,30 @@ roughly 0.8 seconds of local aws-vault and CLI overhead:
 | 3 | B (new) | 4.53s | a new session pays its own cold start |
 | 4 | B (warm) | 1.27s | roughly 0.5s server-side once warm |
 
-The third row is the interesting one. Runtime's isolation model is one
-microVM per session, so session B could not reuse session A's warm
-environment even though the same runtime, same container and same version
-was already running. The CloudWatch logs backed this up, in that my two
-sessions produced exactly two `[runtime-logs]` streams in the runtime's log
-group.
+The third row is the one to understand. Runtime's isolation model is one
+microVM per session, so a new session cannot reuse another session's warm
+environment even when the same runtime, same container and same version is
+already running. Every new session pays a cold start, which is a real
+consideration if your workload creates many short sessions. The CloudWatch
+logs back this up, in that two sessions produce exactly two
+`[runtime-logs]` streams in the runtime's log group.
 
 ## 4 - The silent log eater
 
-My first deployment produced completely empty log streams and I spent a
-while assuming I had the IAM permissions wrong. Nothing was wrong with
-AgentCore at all. The agent logs with `print()` and Python block-buffers
-stdout when it is not attached to a TTY, so the output was sitting in a
-buffer and never being flushed. One line in the Dockerfile fixes it:
+If your log streams are empty after your first deployment, before you go
+digging through IAM policies, check your container's stdout buffering. A
+Python agent that logs with `print()` will block-buffer stdout when it is
+not attached to a TTY, so the output sits in a buffer and never reaches
+CloudWatch. One line in the Dockerfile fixes it:
 
 ```dockerfile
 ENV PYTHONUNBUFFERED=1
 ```
 
-Shipping the fix turned out to be a nice little demonstration of the update
-flow. Because the ECR tags are immutable I pushed the fixed image as a new
-tag, ran one terraform apply which updated the runtime in place in 12
-seconds, and `agentRuntimeVersion` bumped to 2 automatically. After that the
-logs landed immediately:
+Shipping a fix like this also demonstrates the update flow. With immutable
+ECR tags the fixed image goes out as a new tag, one terraform apply updates
+the runtime in place in about 12 seconds, and `agentRuntimeVersion` bumps
+automatically. With the buffering fixed the logs land immediately:
 
 ```
 agent listening on :8080
@@ -201,12 +201,12 @@ agent listening on :8080
 ...
 ```
 
-Something I only learned from seeing the logs is that the platform polls
-`GET /ping` continuously between invocations, so the health endpoint is
-doing real work and is worth implementing properly rather than as an
-afterthought. The log group also contained `otel-rt-logs` and `spans`
-streams, which is OTEL plumbing that exists before you have configured any
-observability at all. I want to pull on that thread in a later post.
+Note the `GET /ping` lines. The platform polls your health endpoint
+continuously between invocations, so implement it properly rather than as an
+afterthought, because it is doing real work. The log group also contains
+`otel-rt-logs` and `spans` streams, which is OTEL plumbing that exists
+before you have configured any observability at all. The observability post
+in this series pulls on that thread.
 
 ## Teardown
 
@@ -214,26 +214,27 @@ observability at all. I want to pull on that thread in a later post.
 terraform destroy
 ```
 
-All five resources destroyed in about 20 seconds (the ECR repository has
-`force_delete` set so the pushed images go with it). Runtime bills by
-consumed CPU and memory seconds, so the whole exercise of two deploys, six
-invocations and an hour of mostly idle runtime cost pennies.
+All five resources destroy in about 20 seconds (set `force_delete` on the
+ECR repository so the pushed images go with it). Runtime bills by consumed
+CPU and memory seconds, so an exercise like this, a couple of deploys and a
+handful of invocations, costs pennies. The cost post later in the series
+covers what the pricing model looks like at production volumes, where the
+session lifecycle defaults above start to matter.
 
 ## Conclusion
 
-This experiment has taught me that the Runtime part of AgentCore is small to
-get started with, in that a 40 line stdlib Python server and five Terraform
-resources gets you a deployed agent with per-session microVM isolation that
-you can see for yourself in the timings and the log streams. It also caught
-me out a few times, with the IAM propagation on first apply, the runtime
-naming rules, the base64 payload flag and the Python stdout buffering, all
-of which are cheap to avoid once you know about them and annoying when you
-don't.
+Runtime is a small surface to get started with. A 40 line stdlib Python
+server and five Terraform resources gets you a deployed agent with
+per-session microVM isolation that you can verify yourself in the timings
+and the log streams. The things that catch people out on a first deployment,
+IAM propagation on the first apply, the underscore-only runtime names, the
+base64 payload flag and stdout buffering, are all cheap to avoid once you
+know about them.
 
-What I don't have yet is a trustworthy path to production, because this
-deploy ran from my laptop with admin credentials. The next post covers
-wiring this into CI properly with GitHub OIDC so there are no stored AWS
-keys, namespaced Terraform state, and a pipeline where every demo in the
+What this post does not give you is a trustworthy path to production,
+because this deploy ran from a laptop with admin credentials. The next post
+covers wiring this into CI properly with GitHub OIDC so there are no stored
+AWS keys, namespaced Terraform state, and a pipeline where every demo in the
 repo gets tests, quality gates and security scanning on every change.
 
 References:
