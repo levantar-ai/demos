@@ -129,6 +129,9 @@ aws bedrock-agentcore invoke-agent-runtime \
   --agent-runtime-arn "$RUNTIME_ARN" \
   --runtime-session-id "$SESSION_ID" \
   --payload '{"prompt": "hello"}' response.json
+
+cat response.json
+{"result": "echo: hello"}
 ```
 
 NOTE: session IDs must be at least 33 characters, and the CLI needs
