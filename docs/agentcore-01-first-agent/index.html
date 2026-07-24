@@ -78,8 +78,9 @@ Bedrock models, because the runtime executes a container you give it and
 that container can call whatever model it likes.</p>
 <p>What you actually get is a set of managed services: Runtime for serverless
 execution, Gateway for turning your APIs into MCP tools, Memory, Identity,
-managed Browser and Code Interpreter tools, and observability on by
-default. This series works through all of them, one post and one deployable
+managed Browser and Code Interpreter tools, and observability with
+baseline metrics and a runtime log group out of the box (full traces and
+agent telemetry need extra CloudWatch and OpenTelemetry configuration). This series works through all of them, one post and one deployable
 demo at a time, starting here with Runtime.</p>
 <p>This is what we are deploying:</p>
 <p><img alt="Architecture" src="architecture.png" /></p>
@@ -93,7 +94,7 @@ of Python standard library:</p>
 <pre><code class="language-python">class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == &quot;/ping&quot;:
-            self._send(200, {&quot;status&quot;: &quot;healthy&quot;})
+            self._send(200, {&quot;status&quot;: &quot;Healthy&quot;})
 
     def do_POST(self):
         if self.path == &quot;/invocations&quot;:
@@ -111,11 +112,12 @@ EXPOSE 8080
 USER nobody
 CMD [&quot;python&quot;, &quot;main.py&quot;]
 </code></pre>
-<p>NOTE: <code>PYTHONUNBUFFERED=1</code> is what gets your <code>print()</code> output into
-CloudWatch. Without it Python buffers stdout and your log streams stay
-empty.</p>
+<p>NOTE: <code>PYTHONUNBUFFERED=1</code> is what gets your <code>print()</code> output to
+CloudWatch promptly. Without it Python block-buffers stdout, so log lines
+can sit unflushed for a long time and your log streams look empty while
+the agent runs.</p>
 <h2>2 - The Terraform</h2>
-<p>The hashicorp/aws provider has native AgentCore support from v6, with a
+<p>The hashicorp/aws provider has native AgentCore support from v6.18, with a
 family of <code>aws_bedrockagentcore_*</code> resources covering runtimes, gateways,
 memory and the rest of the platform. The runtime is:</p>
 <pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_agent_runtime&quot; &quot;agent&quot; {
@@ -137,12 +139,13 @@ memory and the rest of the platform. The runtime is:</p>
   }
 }
 </code></pre>
-<p>NOTE: Runtime names are underscores only (<code>[a-zA-Z][a-zA-Z0-9_]*</code>), unlike
-most AWS resources.</p>
+<p>NOTE: Runtime names must start with a letter and may contain letters,
+digits and underscores, no hyphens (<code>[a-zA-Z][a-zA-Z0-9_]*</code>), unlike most
+AWS resources.</p>
 <p>Alongside that there is an ECR repository with immutable tags, so deploys
 reference a git SHA rather than latest, and an execution role the runtime
-assumes to pull the image, write logs and call Bedrock models. Five
-resources in total.</p>
+assumes to pull the image and write logs and telemetry, nothing more,
+because the echo agent needs nothing more. Five resources in total.</p>
 <p>Build, push, apply:</p>
 <pre><code class="language-bash">docker buildx build --platform linux/arm64 -t &quot;$REPO:$GIT_SHA&quot; --push agent/
 terraform apply -var=&quot;image_tag=$GIT_SHA&quot;
@@ -166,7 +169,7 @@ cat response.json
 <p>NOTE: session IDs must be at least 33 characters, and the CLI needs
 <code>--cli-binary-format raw-in-base64-out</code> or it will treat your JSON payload
 as base64.</p>
-<p>Here are four invocations across two sessions, timed:</p>
+<p>Here are four invocations across two sessions from one test run:</p>
 <table>
 <thead>
 <tr>
@@ -205,10 +208,13 @@ as base64.</p>
 </table>
 <p>The third row is the one to understand. Runtime's isolation model is one
 microVM per session, so a new session cannot reuse another session's warm
-environment. The CloudWatch logs back this up, two sessions produce exactly
-two <code>[runtime-logs]</code> streams in the runtime's log group, and the streams
-also show the platform polling <code>GET /ping</code> between invocations, so
+environment. The CloudWatch logs back this up, in this run the two sessions
+produced two <code>[runtime-logs]</code> streams in the runtime's log group, and the
+streams also show the platform polling <code>GET /ping</code> between invocations, so
 implement your health endpoint properly.</p>
+<p>NOTE: the isolation is compute isolation. AgentCore does not know which of
+your users owns a session id, so your application is still responsible for
+authorizing who may use each session.</p>
 <h2>Conclusion</h2>
 <p>Runtime is a small surface to get started with. A 40 line stdlib Python
 server and five Terraform resources gets you a deployed agent with
