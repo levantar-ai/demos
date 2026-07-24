@@ -28,6 +28,7 @@
     "bedrockagentcore",
     "bedrock",
     "Bedrock",
+    "boto",
     "buildx",
     "chdir",
     "lefthook",
