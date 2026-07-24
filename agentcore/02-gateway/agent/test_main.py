@@ -35,7 +35,7 @@ def post(url, body):
 def test_ping_reports_healthy(server_url):
     with urllib.request.urlopen(f"{server_url}/ping") as resp:
         assert resp.status == 200
-        assert json.loads(resp.read()) == {"status": "healthy"}
+        assert json.loads(resp.read()) == {"status": "Healthy"}
 
 
 def test_order_question_calls_tool(server_url):

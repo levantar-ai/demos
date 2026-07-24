@@ -25,8 +25,9 @@ that container can call whatever model it likes.
 
 What you actually get is a set of managed services: Runtime for serverless
 execution, Gateway for turning your APIs into MCP tools, Memory, Identity,
-managed Browser and Code Interpreter tools, and observability on by
-default. This series works through all of them, one post and one deployable
+managed Browser and Code Interpreter tools, and observability with
+baseline metrics and a runtime log group out of the box (full traces and
+agent telemetry need extra CloudWatch and OpenTelemetry configuration). This series works through all of them, one post and one deployable
 demo at a time, starting here with Runtime.
 
 This is what we are deploying:
@@ -45,7 +46,7 @@ of Python standard library:
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/ping":
-            self._send(200, {"status": "healthy"})
+            self._send(200, {"status": "Healthy"})
 
     def do_POST(self):
         if self.path == "/invocations":
@@ -68,13 +69,14 @@ USER nobody
 CMD ["python", "main.py"]
 ```
 
-NOTE: `PYTHONUNBUFFERED=1` is what gets your `print()` output into
-CloudWatch. Without it Python buffers stdout and your log streams stay
-empty.
+NOTE: `PYTHONUNBUFFERED=1` is what gets your `print()` output to
+CloudWatch promptly. Without it Python block-buffers stdout, so log lines
+can sit unflushed for a long time and your log streams look empty while
+the agent runs.
 
 ## 2 - The Terraform
 
-The hashicorp/aws provider has native AgentCore support from v6, with a
+The hashicorp/aws provider has native AgentCore support from v6.18, with a
 family of `aws_bedrockagentcore_*` resources covering runtimes, gateways,
 memory and the rest of the platform. The runtime is:
 
@@ -99,13 +101,14 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
 }
 ```
 
-NOTE: Runtime names are underscores only (`[a-zA-Z][a-zA-Z0-9_]*`), unlike
-most AWS resources.
+NOTE: Runtime names must start with a letter and may contain letters,
+digits and underscores, no hyphens (`[a-zA-Z][a-zA-Z0-9_]*`), unlike most
+AWS resources.
 
 Alongside that there is an ECR repository with immutable tags, so deploys
 reference a git SHA rather than latest, and an execution role the runtime
-assumes to pull the image, write logs and call Bedrock models. Five
-resources in total.
+assumes to pull the image and write logs and telemetry, nothing more,
+because the echo agent needs nothing more. Five resources in total.
 
 Build, push, apply:
 
@@ -138,7 +141,7 @@ NOTE: session IDs must be at least 33 characters, and the CLI needs
 `--cli-binary-format raw-in-base64-out` or it will treat your JSON payload
 as base64.
 
-Here are four invocations across two sessions, timed:
+Here are four invocations across two sessions from one test run:
 
 | # | Session | Time | Observation |
 |---|---------|------|-------------|
@@ -149,10 +152,14 @@ Here are four invocations across two sessions, timed:
 
 The third row is the one to understand. Runtime's isolation model is one
 microVM per session, so a new session cannot reuse another session's warm
-environment. The CloudWatch logs back this up, two sessions produce exactly
-two `[runtime-logs]` streams in the runtime's log group, and the streams
-also show the platform polling `GET /ping` between invocations, so
+environment. The CloudWatch logs back this up, in this run the two sessions
+produced two `[runtime-logs]` streams in the runtime's log group, and the
+streams also show the platform polling `GET /ping` between invocations, so
 implement your health endpoint properly.
+
+NOTE: the isolation is compute isolation. AgentCore does not know which of
+your users owns a session id, so your application is still responsible for
+authorizing who may use each session.
 
 ## Conclusion
 
