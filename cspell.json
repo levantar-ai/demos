@@ -73,7 +73,10 @@
     "PYTHONUNBUFFERED",
     "stdlib",
     "behaviour",
-    "rfile"
+    "rfile",
+    "onprem",
+    "outformat",
+    "mingrammer"
   ],
   "ignorePaths": [
     "node_modules/**",

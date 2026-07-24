@@ -110,6 +110,15 @@ finished system.
 - [ ] Post drafted
 - [ ] Post published
 
+## Series format
+
+- Happy path only, no edge-case deep-dives; blocking necessities get a
+  one-line NOTE at the point of use. Keep posts short.
+- Every post has at least one architecture diagram generated with the
+  Python `diagrams` library (`diagram.py` + committed PNG per demo).
+- Voice per `~/.claude/andy-rea-voice.md` (experienced practitioner, not
+  learner diary).
+
 ## Notes
 
 - Differentiator posts (least covered elsewhere): 02, 06, 08, 10.
