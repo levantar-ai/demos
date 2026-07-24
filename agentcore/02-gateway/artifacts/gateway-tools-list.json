@@ -1,0 +1,24 @@
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "tools": [
+            {
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "order_id": {
+                            "description": "The order id to look up",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "order_id"
+                    ]
+                },
+                "name": "orders___lookup_order",
+                "description": "Look up the status of an order by its order id"
+            }
+        ]
+    }
+}

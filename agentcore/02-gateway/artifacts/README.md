@@ -1,0 +1,36 @@
+# Deployment artifacts — captured from a real run
+
+Captured from an actual deploy → invoke → destroy cycle of this demo on
+2026-07-24 (region `us-east-1`). Raw material for the post.
+
+## Deploy
+
+16 resources, all created on the first apply. Notable timings: gateway 2s,
+gateway target 14s, runtime 8s, Lambda 15s.
+
+## Invocations (through the runtime)
+
+| Prompt | Response |
+|--------|----------|
+| where is order 42? | `{"result": "order 42: {\"status\":\"shipped\",\"carrier\":\"DPD\",\"eta\":\"2026-07-28\"}"}` |
+| what happened to order 44 | `{"result": "order 44: {\"status\":\"delivered\",\"carrier\":\"Royal Mail\",\"eta\":null}"}` |
+| is order 99 ok? | `{"result": "order 99: {\"error\":\"order 99 not found\"}"}` |
+
+First invocation on a fresh session: 2.74s wall-clock including microVM
+cold start, token fetch, tools/list and tools/call.
+
+## Direct MCP call (curl with a Cognito client-credentials token)
+
+[`gateway-tools-list.json`](gateway-tools-list.json) — the gateway's
+`tools/list` response, showing the `orders___lookup_order` namespacing
+(`<target>___<tool>`, triple underscore).
+
+## Notes
+
+- Gateway requires an authorizer; CUSTOM_JWT against the Cognito pool's
+  discovery URL with an allowed client id list worked first time.
+- The token request must include the resource-server scope
+  (`demos-gateway/invoke`) or Cognito refuses the client-credentials grant.
+- The tool Lambda receives the tool arguments as its event; the runtime
+  passes gateway endpoint + credentials to the agent as environment
+  variables from Terraform.

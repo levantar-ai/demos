@@ -11,7 +11,7 @@ the diff between the two directories.
 | # | Demo | Post | What it adds |
 |---|------|------|--------------|
 | 01 | [`01-first-agent/`](01-first-agent/) | [read →](01-first-agent/POST.md) | A minimal agent deployed to AgentCore Runtime |
-| 02 | `02-gateway/` *(planned)* | | Tools via AgentCore Gateway |
+| 02 | [`02-gateway/`](02-gateway/) | | Tools via AgentCore Gateway |
 | 03 | `03-memory/` *(planned)* | | Short- and long-term memory |
 | 04 | `04-builtin-tools/` *(planned)* | | Code Interpreter + Browser |
 | 05 | `05-identity/` *(planned)* | | Inbound/outbound auth |

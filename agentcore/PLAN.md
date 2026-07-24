@@ -27,11 +27,13 @@ contract, microVM session isolation, invocation.
 - [ ] Post published
 
 ### 02 — Giving your agent tools with AgentCore Gateway
-APIs and Lambdas as MCP tools via Gateway targets; semantic tool search.
-Demo: the agent answers questions it couldn't before, via a Gateway target.
-- [ ] Demo built (`02-gateway/`)
-- [ ] Demo deployed and invocable
-- [ ] Post drafted
+APIs and Lambdas as MCP tools via Gateway targets.
+Demo: the agent answers order questions via a Lambda behind a Gateway
+target, with Cognito client-credentials JWT auth.
+- [x] Demo built (`02-gateway/`)
+- [x] Demo deployed and invoked end to end (agent → token → gateway →
+  Lambda); artifacts in `02-gateway/artifacts/`; resources destroyed after
+- [x] Post drafted (`02-gateway/POST.md`) — NOT yet on the series list
 - [ ] Post published
 
 ### 03 — Short-term and long-term memory
