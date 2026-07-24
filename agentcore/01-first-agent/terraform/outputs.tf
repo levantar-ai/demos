@@ -1,6 +1,6 @@
 output "runtime_arn" {
   description = "ARN of the deployed AgentCore runtime"
-  value       = awscc_bedrockagentcore_runtime.agent.agent_runtime_arn
+  value       = aws_bedrockagentcore_agent_runtime.agent.agent_runtime_arn
 }
 
 output "ecr_repository_url" {

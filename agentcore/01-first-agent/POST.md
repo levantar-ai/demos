@@ -73,22 +73,30 @@ timings. Later posts in the series make it do something useful.
 
 Most AgentCore tutorials use the `agentcore` starter CLI, which is fine for
 a first look but not how you will ship at work. The hashicorp/aws provider
-doesn't cover AgentCore Runtime yet so the runtime resource comes from the
-awscc (Cloud Control) provider:
+has native AgentCore support from v6, with a whole family of
+`aws_bedrockagentcore_*` resources covering runtimes, gateways, memory,
+browser, code interpreter, workload identity and credential providers, so
+there is no need to reach for the awscc provider or CloudFormation. The
+runtime is:
 
 ```hcl
-resource "awscc_bedrockagentcore_runtime" "agent" {
+resource "aws_bedrockagentcore_agent_runtime" "agent" {
   agent_runtime_name = "demos_agentcore_01_first_agent"
   role_arn           = aws_iam_role.runtime.arn
 
-  agent_runtime_artifact = {
-    container_configuration = {
+  agent_runtime_artifact {
+    container_configuration {
       container_uri = "${aws_ecr_repository.agent.repository_url}:${var.image_tag}"
     }
   }
 
-  network_configuration  = { network_mode = "PUBLIC" }
-  protocol_configuration = "HTTP"
+  network_configuration {
+    network_mode = "PUBLIC"
+  }
+
+  protocol_configuration {
+    server_protocol = "HTTP"
+  }
 }
 ```
 
@@ -104,7 +112,10 @@ docker buildx build --platform linux/arm64 -t "$REPO:$GIT_SHA" --push agent/
 terraform apply -var="image_tag=$GIT_SHA"
 ```
 
-Expect the first apply of a fresh stack to fail with the following:
+One thing to be aware of when the execution role and the runtime are created
+in the same apply is IAM eventual consistency. The AgentCore control plane
+validates the role at creation time and can reject it before it has
+propagated, which looks like this:
 
 ```
 Role validation failed for 'arn:aws:iam::<ACCOUNT_ID>:role/demos-agentcore-01-first-agent-runtime'.
@@ -112,11 +123,11 @@ Please verify that the role exists and its trust policy allows assumption
 by this service (Service: BedrockAgentCoreControl, Status Code: 400)
 ```
 
-The role does exist, it was created seconds earlier in the same apply. IAM
-is eventually consistent and the AgentCore control plane validates the role
-before it has propagated, so build a retry into your pipeline. The retry
-succeeds immediately, with runtime creation taking around 33 seconds and the
-runtime reaching READY about 11 seconds after that.
+The role does exist, it was created seconds earlier in the same apply. The
+aws provider handles this internally and creates the runtime first time, but
+if you are driving the API directly, or using the awscc provider which
+surfaces this error on a fresh stack, build a retry into your pipeline. The
+runtime reaches READY around 10 seconds after creation.
 
 NOTE: Runtime names must match `[a-zA-Z][a-zA-Z0-9_]*` which means
 underscores only, no hyphens, unlike more or less every other AWS resource.
@@ -241,4 +252,4 @@ References:
 
 - https://github.com/levantar-ai/demos/tree/main/agentcore/01-first-agent
 - https://docs.aws.amazon.com/bedrock-agentcore/
-- https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/resources/bedrockagentcore_runtime
+- https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_agent_runtime
