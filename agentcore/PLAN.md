@@ -1,6 +1,6 @@
 # AgentCore blog series — plan and progress
 
-Eleven posts on Amazon Bedrock AgentCore, each with a working demo in this
+Ten posts on Amazon Bedrock AgentCore, each with a working demo in this
 repo. Every demo is standalone; later demos copy the previous one forward and
 the post shows the diff. Tick items as they complete.
 
@@ -26,88 +26,78 @@ contract, microVM session isolation, invocation.
 - [x] Post drafted (`01-first-agent/POST.md`)
 - [ ] Post published
 
-### 02 — A CI pipeline for agent demos: tests, quality and security
-The pipeline itself is the demo: per-demo verification matrix (terraform
-validate, tflint, Trivy misconfig + secrets, ruff, pytest, arm64 build
-check), changed-demo detection on PRs, everything on main. CI has no AWS
-access; deployment stays local.
-- [x] Demo exists (this repo's `.github/workflows/ci.yml`)
-- [x] Pipeline demonstrated end to end (green on PR #1)
-- [ ] Post drafted
-- [ ] Post published
-
-### 03 — Giving your agent tools with AgentCore Gateway
+### 02 — Giving your agent tools with AgentCore Gateway
 APIs and Lambdas as MCP tools via Gateway targets; semantic tool search.
 Demo: the agent answers questions it couldn't before, via a Gateway target.
-- [ ] Demo built (`03-gateway/`)
+- [ ] Demo built (`02-gateway/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
 
-### 04 — Short-term and long-term memory
+### 03 — Short-term and long-term memory
 Session context vs. extracted long-term memory, strategies, namespaces.
 Demo: agent recalls user preferences across separate sessions.
-- [ ] Demo built (`04-memory/`)
+- [ ] Demo built (`03-memory/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
 
-### 05 — Code Interpreter and Browser built-in tools
+### 04 — Code Interpreter and Browser built-in tools
 Sandboxed execution and cloud browser; the security model of agent-run code.
 Demo: agent analyses an uploaded CSV and completes a live web task.
-- [ ] Demo built (`05-builtin-tools/`)
+- [ ] Demo built (`04-builtin-tools/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
 
-### 06 — Identity: who is your agent acting as?
+### 05 — Identity: who is your agent acting as?
 Inbound auth (Cognito/OIDC) and outbound OAuth token vaulting.
 Demo: agent accesses a user's GitHub/Google account on their behalf, with
 consent flow.
-- [ ] Demo built (`06-identity/`)
+- [ ] Demo built (`05-identity/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
 
-### 07 — Observability: tracing an agent's reasoning
+### 06 — Observability: tracing an agent's reasoning
 OTEL traces through Runtime/Gateway/Memory in CloudWatch; session debugging.
 Demo: debug a deliberately-broken agent run via its trace.
-- [ ] Demo built (`07-observability/`)
+- [ ] Demo built (`06-observability/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
 
-### 08 — Testing and evaluating agents in CI
+### 07 — Evals: testing agent behaviour as a quality gate
 Tool contract tests, mocked-model units, LLM-as-judge evals as a gate.
 Demo: a PR fails CI because an eval regressed, then passes after a fix.
-- [ ] Demo built (`08-ci-evals/`)
+- [ ] Demo built (`07-evals/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
 
-### 09 — Multi-agent patterns on AgentCore
+### 08 — Multi-agent patterns on AgentCore
 Supervisor/worker, agents calling agents, A2A vs. MCP, and when multi-agent
 is warranted. Demo: split the series agent into a supervisor plus two
 specialists.
-- [ ] Demo built (`09-multi-agent/`)
+- [ ] Demo built (`08-multi-agent/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
 
-### 10 — Cost, quotas, and the bill nobody modelled
+### 09 — Cost, quotas, and the bill nobody modelled
 Consumption pricing; session duration and memory strategy as cost drivers.
 Demo: cost dashboard/script pulling real spend from the series agents and
 projecting at 10k sessions/month.
-- [ ] Demo built (`10-cost/`)
+- [ ] Demo built (`09-cost/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
 
-### 11 — Case study: from prototype to production
+### 10 — Case study: from prototype to production
 Retrospective: the finished architecture, what AgentCore saved, where it
 fought back, and a decision framework. Demo: end-to-end walkthrough of the
 finished system.
-- [ ] Demo built (`11-case-study/`)
+- [ ] Demo built (`10-case-study/`)
 - [ ] Demo deployed and invocable
 - [ ] Post drafted
 - [ ] Post published
@@ -123,7 +113,7 @@ finished system.
 
 ## Notes
 
-- Differentiator posts (least covered elsewhere): 02, 06, 08, 10.
+- Differentiator posts (least covered elsewhere): 05, 07, 09.
 - AgentCore moves fast — pin SDK/provider versions in each demo and state the
   version in each post.
-- Trimmed six-post version if needed: 01, 02, 03, 06, 10.
+- Trimmed five-post version if needed: 01, 02, 05, 09.

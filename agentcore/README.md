@@ -8,19 +8,18 @@ the diff between the two directories.
 
 ## Series
 
-| # | Demo | What it adds |
-|---|------|--------------|
-| 01 | [`01-first-agent/`](01-first-agent/) | A minimal agent deployed to AgentCore Runtime |
-| 02 | *(the pipeline itself — see `.github/workflows/ci.yml`)* | Per-demo CI: tests, quality and security |
-| 03 | `03-gateway/` *(planned)* | Tools via AgentCore Gateway |
-| 04 | `04-memory/` *(planned)* | Short- and long-term memory |
-| 05 | `05-builtin-tools/` *(planned)* | Code Interpreter + Browser |
-| 06 | `06-identity/` *(planned)* | Inbound/outbound auth |
-| 07 | `07-observability/` *(planned)* | Tracing and debugging |
-| 08 | `08-ci-evals/` *(planned)* | Testing and evals in CI |
-| 09 | `09-multi-agent/` *(planned)* | Supervisor/worker topologies |
-| 10 | `10-cost/` *(planned)* | Cost modelling |
-| 11 | `11-case-study/` *(planned)* | The finished system |
+| # | Demo | Post | What it adds |
+|---|------|------|--------------|
+| 01 | [`01-first-agent/`](01-first-agent/) | [read →](01-first-agent/POST.md) | A minimal agent deployed to AgentCore Runtime |
+| 02 | `02-gateway/` *(planned)* | | Tools via AgentCore Gateway |
+| 03 | `03-memory/` *(planned)* | | Short- and long-term memory |
+| 04 | `04-builtin-tools/` *(planned)* | | Code Interpreter + Browser |
+| 05 | `05-identity/` *(planned)* | | Inbound/outbound auth |
+| 06 | `06-observability/` *(planned)* | | Tracing and debugging |
+| 07 | `07-evals/` *(planned)* | | Evals: testing agent behaviour as a quality gate |
+| 08 | `08-multi-agent/` *(planned)* | | Supervisor/worker topologies |
+| 09 | `09-cost/` *(planned)* | | Cost modelling |
+| 10 | `10-case-study/` *(planned)* | | The finished system |
 
 ## Conventions (namespacing)
 

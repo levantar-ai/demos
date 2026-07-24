@@ -161,9 +161,9 @@ server and five Terraform resources gets you a deployed agent with
 per-session microVM isolation that you can verify yourself in the timings
 and the log streams.
 
-The next post covers the CI pipeline behind this series, where every demo
-in the repo gets tests, quality gates and security scanning on every
-change.
+The next post gives the agent its first real capability, tools, by putting
+AgentCore Gateway in front of an existing API and letting the agent call it
+as an MCP tool.
 
 References:
 
