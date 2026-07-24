@@ -9,8 +9,8 @@ the post shows the diff. Tick items as they complete.
 - [x] `agentcore/` category structure (one standalone dir per post)
 - [x] CI pipeline (verification only): per-demo tests + quality + security
   (terraform validate, tflint, Trivy, ruff, pytest/go test, arm64 build check)
-- [x] `aws-setup/` applied: OIDC role exists but CI does NOT deploy —
-  all deploys/teardowns are run locally via the Makefile
+- [x] CI has no AWS access at all — all deploys/teardowns are run locally
+  via the Makefile (the earlier OIDC deploy role was destroyed and removed)
 - [x] First local deploy of demo 01: deployed, invoked (6 invocations across
   3 sessions), artifacts captured, torn down (2026-07-23)
 
@@ -26,11 +26,13 @@ contract, microVM session isolation, invocation.
 - [x] Post drafted (`01-first-agent/POST.md`)
 - [ ] Post published
 
-### 02 — Deploying AgentCore with Terraform and GitHub OIDC
-The pipeline itself is the demo: OIDC trust, namespaced state keys, quality
-gates, per-demo change detection, plan-on-PR / apply-on-main.
-- [x] Demo exists (this repo's `aws-setup/` + workflow)
-- [ ] Pipeline demonstrated end to end
+### 02 — A CI pipeline for agent demos: tests, quality and security
+The pipeline itself is the demo: per-demo verification matrix (terraform
+validate, tflint, Trivy misconfig + secrets, ruff, pytest, arm64 build
+check), changed-demo detection on PRs, everything on main. CI has no AWS
+access; deployment stays local.
+- [x] Demo exists (this repo's `.github/workflows/ci.yml`)
+- [x] Pipeline demonstrated end to end (green on PR #1)
 - [ ] Post drafted
 - [ ] Post published
 

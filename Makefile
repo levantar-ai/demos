@@ -3,16 +3,7 @@ TF_STATE_BUCKET ?= opptora-state
 TF_STATE_REGION ?= eu-west-2
 DEMO ?= agentcore/01-first-agent
 
-.PHONY: aws-setup-init aws-setup-apply demo-init demo-plan demo-apply demo-destroy fmt fmt-check validate
-
-aws-setup-init:
-	cd aws-setup && aws-vault exec $(AWS_PROFILE) -- terraform init \
-		-backend-config="bucket=$(TF_STATE_BUCKET)" \
-		-backend-config="key=terraform/demos/aws-setup/terraform.tfstate" \
-		-backend-config="region=$(TF_STATE_REGION)"
-
-aws-setup-apply:
-	cd aws-setup && aws-vault exec $(AWS_PROFILE) -- terraform apply
+.PHONY: demo-init demo-plan demo-apply demo-destroy fmt fmt-check validate
 
 demo-init:
 	cd $(DEMO)/terraform && aws-vault exec $(AWS_PROFILE) -- terraform init \
@@ -36,7 +27,7 @@ fmt-check:
 	terraform fmt -check -recursive
 
 validate:
-	@for dir in aws-setup */*/terraform; do \
+	@for dir in */*/terraform; do \
 		[ -d "$$dir" ] || continue; \
 		echo "== $$dir"; \
 		terraform -chdir=$$dir init -backend=false -input=false >/dev/null && \

@@ -25,7 +25,6 @@ demos/
   claude-polly-video-walkthrough/       runnable demo: Claude + Playwright + Polly → MP4
   agentcore/                            category: AgentCore blog-series demos
     01-first-agent/                     one standalone demo per post (agent/ + terraform/)
-  aws-setup/                            one-time OIDC role so CI can deploy (no stored creds)
   scripts/                              CI helpers (changed-demo detection)
 ```
 

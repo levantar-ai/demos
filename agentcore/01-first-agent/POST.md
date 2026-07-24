@@ -3,7 +3,7 @@
 ## TL;DR;
 
 How to deploy an agent container to Amazon Bedrock AgentCore Runtime with
-Terraform, invoke it, see what the platform gives you, and tear it down.
+Terraform, invoke it, and see what the platform gives you.
 
 SOURCE CODE - All code for this post is available at:
 https://github.com/levantar-ai/demos/tree/main/agentcore/01-first-agent
@@ -154,16 +154,6 @@ two `[runtime-logs]` streams in the runtime's log group, and the streams
 also show the platform polling `GET /ping` between invocations, so
 implement your health endpoint properly.
 
-## 4 - Teardown
-
-```bash
-terraform destroy
-```
-
-All five resources destroy in about 20 seconds (set `force_delete` on the
-ECR repository so the pushed images go with it). Runtime bills by consumed
-CPU and memory seconds, so an exercise like this costs pennies.
-
 ## Conclusion
 
 Runtime is a small surface to get started with. A 40 line stdlib Python
@@ -171,11 +161,9 @@ server and five Terraform resources gets you a deployed agent with
 per-session microVM isolation that you can verify yourself in the timings
 and the log streams.
 
-What this post does not give you is a trustworthy path to production,
-because this deploy ran from a laptop with admin credentials. The next post
-wires this into CI with GitHub OIDC so there are no stored AWS keys, and a
-pipeline where every demo in the repo gets tests, quality gates and
-security scanning on every change.
+The next post covers the CI pipeline behind this series, where every demo
+in the repo gets tests, quality gates and security scanning on every
+change.
 
 References:
 

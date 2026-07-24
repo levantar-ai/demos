@@ -11,7 +11,7 @@ the diff between the two directories.
 | # | Demo | What it adds |
 |---|------|--------------|
 | 01 | [`01-first-agent/`](01-first-agent/) | A minimal agent deployed to AgentCore Runtime |
-| 02 | *(the pipeline itself — see `.github/workflows/deploy-demos.yml`)* | Terraform + GitHub OIDC deployment |
+| 02 | *(the pipeline itself — see `.github/workflows/ci.yml`)* | Per-demo CI: tests, quality and security |
 | 03 | `03-gateway/` *(planned)* | Tools via AgentCore Gateway |
 | 04 | `04-memory/` *(planned)* | Short- and long-term memory |
 | 05 | `05-builtin-tools/` *(planned)* | Code Interpreter + Browser |
