@@ -12,25 +12,20 @@ from diagrams.onprem.client import User
 from diagrams.programming.language import Python
 
 graph_attr = {
-    "pad": "0.75",
-    "nodesep": "1.0",
-    "ranksep": "1.4",
-    "splines": "ortho",
-    "fontsize": "22",
+    "pad": "0.6",
+    "nodesep": "0.9",
+    "ranksep": "1.1",
+    "fontsize": "20",
+    "fontcolor": "#333333",
 }
 
 node_attr = {
-    "fontsize": "14",
-    "height": "1.6",
-}
-
-edge_attr = {
     "fontsize": "13",
 }
 
-cluster_attr = {
-    "fontsize": "16",
-    "margin": "30",
+edge_attr = {
+    "fontsize": "12",
+    "fontcolor": "#555555",
 }
 
 with Diagram(
@@ -44,17 +39,18 @@ with Diagram(
     edge_attr=edge_attr,
 ):
     caller = User("caller")
+    ecr = ECR("ECR image\n(git SHA tag)")
 
-    with Cluster("AWS us-east-1", graph_attr=cluster_attr):
-        ecr = ECR("ECR image\n(git SHA tag)")
-        role = IAMRole("execution\nrole")
-        logs = CloudwatchLogs("runtime\nlogs")
+    with Cluster(
+        "AgentCore Runtime  -  one microVM per session",
+        graph_attr={"fontsize": "15", "margin": "25", "bgcolor": "#f3f7fa"},
+    ):
+        agent = Python("echo agent\nport 8080")
 
-        with Cluster("AgentCore Runtime", graph_attr=cluster_attr):
-            with Cluster("microVM per session", graph_attr=cluster_attr):
-                agent = Python("echo agent\nport 8080")
+    logs = CloudwatchLogs("runtime logs")
+    role = IAMRole("execution role")
 
     caller >> Edge(label="invoke") >> agent
     ecr >> Edge(label="pull", style="dashed") >> agent
-    agent >> Edge(label="assume", style="dashed") >> role
     agent >> Edge(label="stdout") >> logs
+    agent >> Edge(label="assume", style="dashed") >> role
