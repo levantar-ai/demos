@@ -85,6 +85,7 @@ jobs:
         uses: astral-sh/ruff-action@v3
         with:
           src: ${{ matrix.demo }}
+          version: "0.16.0"
 
       - name: Python tests
         run: |

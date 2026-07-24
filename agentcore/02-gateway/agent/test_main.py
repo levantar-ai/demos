@@ -6,7 +6,6 @@ import urllib.request
 from http.server import HTTPServer
 
 import pytest
-
 from main import Handler
 
 

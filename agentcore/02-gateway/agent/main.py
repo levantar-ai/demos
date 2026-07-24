@@ -88,7 +88,7 @@ class Handler(BaseHTTPRequestHandler):
         order_id = match.group()
         try:
             order = self.tool(order_id)
-        except Exception as exc:  # surface tool failures to the caller
+        except Exception as exc:  # noqa: BLE001 — any tool failure becomes a 502
             self._send(502, {"error": f"gateway call failed: {exc}"})
             return
         self._send(200, {"result": f"order {order_id}: {order}"})
