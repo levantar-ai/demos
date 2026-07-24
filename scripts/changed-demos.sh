@@ -11,6 +11,8 @@ git diff --name-only "$BASE_SHA" "$HEAD_SHA" |
   awk -F/ 'NF>=3 {print $1"/"$2}' |
   sort -u |
   while read -r dir; do
-    [ -d "$dir/terraform" ] && echo "$dir"
+    if [ -d "$dir/terraform" ]; then
+      echo "$dir"
+    fi
   done |
   jq -R -s -c 'split("\n") | map(select(length > 0))'
