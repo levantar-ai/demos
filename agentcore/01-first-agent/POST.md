@@ -2,12 +2,10 @@
 
 ## TL;DR;
 
-I deployed a minimal agent container to Amazon Bedrock AgentCore Runtime using
-Terraform, invoked it across multiple sessions to see the microVM isolation
-and cold starts for myself, and then tore it all down. Along the way I hit
-four gotchas which I have written up here, including one where all my
-CloudWatch logs silently disappeared. Every number and error message in this
-post came from a real deployment on 2026-07-23.
+An example of deploying a minimal agent container to Amazon Bedrock AgentCore
+Runtime with Terraform, invoking it across a few sessions to see the microVM
+isolation and cold starts, and then tearing it all down. A few things caught
+me out along the way, including all my CloudWatch logs silently disappearing.
 
 SOURCE CODE - All code for this post is available at:
 https://github.com/levantar-ai/demos/tree/main/agentcore/01-first-agent
@@ -160,8 +158,8 @@ aws bedrock-agentcore invoke-agent-runtime \
   --payload '{"prompt": "hello"}' response.json
 ```
 
-Here are four real invocations across two sessions. The wall-clock times
-include roughly 0.8 seconds of local aws-vault and CLI overhead:
+Here are four invocations across two sessions. The wall-clock times include
+roughly 0.8 seconds of local aws-vault and CLI overhead:
 
 | # | Session | Time | Observation |
 |---|---------|------|-------------|
@@ -223,14 +221,14 @@ invocations and an hour of mostly idle runtime cost pennies.
 
 ## Conclusion
 
-This experiment has taught me that the Runtime part of AgentCore is
-genuinely small to get started with, in that a 40 line stdlib Python server
-and five Terraform resources gets you a deployed agent with per-session
-microVM isolation that you can see for yourself in the timings and the log
-streams. It also handed me four gotchas (IAM propagation on first apply,
-underscore-only runtime names, the base64 payload flag, and Python stdout
-buffering) which are all cheap to avoid once you know about them and
-annoying when you don't.
+This experiment has taught me that the Runtime part of AgentCore is small to
+get started with, in that a 40 line stdlib Python server and five Terraform
+resources gets you a deployed agent with per-session microVM isolation that
+you can see for yourself in the timings and the log streams. It also caught
+me out a few times, with the IAM propagation on first apply, the runtime
+naming rules, the base64 payload flag and the Python stdout buffering, all
+of which are cheap to avoid once you know about them and annoying when you
+don't.
 
 What I don't have yet is a trustworthy path to production, because this
 deploy ran from my laptop with admin credentials. The next post covers
