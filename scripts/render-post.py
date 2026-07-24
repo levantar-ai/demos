@@ -104,6 +104,22 @@ def main():
         shutil.copy(pathlib.Path(demo) / png, out_dir / pathlib.Path(png).name)
 
     body = markdown.markdown(text, extensions=["fenced_code", "tables"])
+
+    # If the demo has a recorded terminal video, place it after the diagram.
+    video_src = pathlib.Path(demo) / "demo.mp4"
+    if video_src.exists():
+        shutil.copy(video_src, out_dir / "demo.mp4")
+        video = (
+            '<video controls muted playsinline preload="metadata" '
+            'style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;">'
+            '<source src="demo.mp4" type="video/mp4"></video>'
+        )
+        body = re.sub(
+            r"(<p><img[^>]*architecture[^>]*></p>)",
+            r"\1\n" + video,
+            body,
+            count=1,
+        )
     html = TEMPLATE.format(title=title, description=description, date=date, body=body)
     (out_dir / "index.html").write_text(html)
     print(f"rendered {src} -> {out_dir}/index.html")
