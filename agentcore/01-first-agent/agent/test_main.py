@@ -36,7 +36,7 @@ def post(url, body):
 def test_ping_reports_healthy(server_url):
     status, body = get(f"{server_url}/ping")
     assert status == 200
-    assert body == {"status": "healthy"}
+    assert body == {"status": "Healthy"}
 
 
 def test_invocations_echoes_prompt(server_url):

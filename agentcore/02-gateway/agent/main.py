@@ -11,7 +11,7 @@ import os
 import re
 import urllib.parse
 import urllib.request
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8080
 
@@ -54,7 +54,7 @@ def mcp_request(method, params, token):
 def lookup_order(order_id):
     token = get_token()
     tools = mcp_request("tools/list", {}, token)["result"]["tools"]
-    tool_name = next(t["name"] for t in tools if "lookup_order" in t["name"])
+    tool_name = next(t["name"] for t in tools if t["name"].endswith("___lookup_order"))
     result = mcp_request(
         "tools/call",
         {"name": tool_name, "arguments": {"order_id": order_id}},
@@ -66,7 +66,7 @@ def lookup_order(order_id):
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/ping":
-            self._send(200, {"status": "healthy"})
+            self._send(200, {"status": "Healthy"})
         else:
             self._send(404, {"error": "not found"})
 
@@ -110,4 +110,4 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"agent listening on :{PORT}")
-    HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

@@ -49,15 +49,19 @@ def handler(event, context):
     return order
 ```
 
-The gateway invokes it with the tool arguments as the event, so an existing
-Lambda with a sensible input shape needs no changes at all.
+The gateway invokes it with the tool arguments as the event, so a Lambda
+that already takes its inputs as top-level event fields and returns JSON
+needs no changes. A Lambda written for another event shape, API Gateway
+style `body` and `pathParameters` for example, would need an adapter.
 
 ## 2 - Auth in front of the gateway
 
-A gateway requires an authorizer, there is no unauthenticated option. The
-simplest machine-to-machine setup is a Cognito user pool with a resource
-server scope and a client-credentials app client, which gives the agent a
-standard OAuth token endpoint to swap its client id and secret for a JWT:
+The gateway supports three authorizer types, `CUSTOM_JWT`, `AWS_IAM` and
+`NONE`, and you want a real one in front of anything beyond a throwaway
+experiment. The simplest machine-to-machine setup is a Cognito user pool
+with a resource server scope and a client-credentials app client, which
+gives the agent a standard OAuth token endpoint to swap its client id and
+secret for a JWT:
 
 ```hcl
 resource "aws_cognito_resource_server" "gateway" {
@@ -83,8 +87,9 @@ resource "aws_cognito_user_pool_client" "agent" {
 }
 ```
 
-The gateway validates tokens against the pool's OIDC discovery document and
-an allow-list of client ids.
+The gateway validates tokens against the pool's OIDC discovery document,
+an allow-list of client ids and the scope, so a token missing
+`demos-gateway/invoke` is refused at the door.
 
 ## 3 - The gateway and its target
 
@@ -102,6 +107,7 @@ resource "aws_bedrockagentcore_gateway" "orders" {
     custom_jwt_authorizer {
       discovery_url   = local.discovery_url
       allowed_clients = [aws_cognito_user_pool_client.agent.id]
+      allowed_scopes  = [local.scope]
     }
   }
 }
@@ -188,7 +194,7 @@ environment variables from Terraform:
 def lookup_order(order_id):
     token = get_token()
     tools = mcp_request("tools/list", {}, token)["result"]["tools"]
-    tool_name = next(t["name"] for t in tools if "lookup_order" in t["name"])
+    tool_name = next(t["name"] for t in tools if t["name"].endswith("___lookup_order"))
     result = mcp_request(
         "tools/call",
         {"name": tool_name, "arguments": {"order_id": order_id}},
@@ -196,6 +202,11 @@ def lookup_order(order_id):
     )
     return result["result"]["content"][0]["text"]
 ```
+
+This is a minimal gateway-specific client, not a conforming MCP
+implementation, it skips the MCP initialize handshake and assumes single
+JSON responses rather than handling event streams. For a real agent use an
+MCP SDK and this plumbing disappears.
 
 ```hcl
   environment_variables = {
@@ -206,6 +217,10 @@ def lookup_order(order_id):
     TOOL_SCOPE            = "demos-gateway/invoke"
   }
 ```
+
+NOTE: the client secret passes through Terraform state and lands in the
+runtime's environment, which is fine for a demo but in production means
+encrypting and restricting the state backend and rotating the credential.
 
 There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
@@ -226,8 +241,8 @@ cat response.json
 ```
 
 The full round trip, agent to token endpoint to gateway to Lambda and
-back, came in at 2.74 seconds on a fresh session including the microVM
-cold start, and the tool handles the miss case the same way:
+back, came in at 2.74 seconds in one run on a fresh session including the
+microVM cold start, and the tool handles the miss case the same way:
 
 ```
 "is order 99 ok?"  ->  {"result": "order 99: {\"error\":\"order 99 not found\"}"}

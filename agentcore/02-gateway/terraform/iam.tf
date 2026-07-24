@@ -84,28 +84,6 @@ resource "aws_iam_role_policy" "runtime" {
             "cloudwatch:namespace" = "bedrock-agentcore"
           }
         }
-      },
-      {
-        Sid    = "InvokeModels"
-        Effect = "Allow"
-        Action = [
-          "bedrock:InvokeModel",
-          "bedrock:InvokeModelWithResponseStream"
-        ]
-        Resource = [
-          "arn:aws:bedrock:*::foundation-model/anthropic.*",
-          "arn:aws:bedrock:*:${data.aws_caller_identity.current.account_id}:inference-profile/*"
-        ]
-      },
-      {
-        Sid    = "WorkloadIdentity"
-        Effect = "Allow"
-        Action = [
-          "bedrock-agentcore:GetWorkloadAccessToken",
-          "bedrock-agentcore:GetWorkloadAccessTokenForJWT",
-          "bedrock-agentcore:GetWorkloadAccessTokenForUserId"
-        ]
-        Resource = "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/*"
       }
     ]
   })
