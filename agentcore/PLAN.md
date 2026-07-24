@@ -23,7 +23,7 @@ contract, microVM session isolation, invocation.
 - [x] Demo scaffolded (`01-first-agent/`)
 - [x] Demo deployed and invoked; blog artifacts in `01-first-agent/artifacts/`
   (timings, gotchas, logs, runtime description); resources destroyed after
-- [ ] Post drafted
+- [x] Post drafted (`01-first-agent/POST.md`)
 - [ ] Post published
 
 ### 02 — Deploying AgentCore with Terraform and GitHub OIDC

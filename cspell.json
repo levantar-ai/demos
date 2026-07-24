@@ -71,7 +71,9 @@
     "teardowns",
     "teardown",
     "PYTHONUNBUFFERED",
-    "stdlib"
+    "stdlib",
+    "behaviour",
+    "rfile"
   ],
   "ignorePaths": [
     "node_modules/**",
