@@ -76,7 +76,10 @@
     "rfile",
     "onprem",
     "outformat",
-    "mingrammer"
+    "mingrammer",
+    "fontsize",
+    "nodesep",
+    "ranksep"
   ],
   "ignorePaths": [
     "node_modules/**",
