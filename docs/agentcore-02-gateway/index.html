@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Giving your agent tools with AgentCore Gateway — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with IAM doing the authentication so there are no credentials to manage anywhere.">
+<meta name="description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with IAM doing the authentication so there are no static keys or client secrets to manage anywhere.">
 <link rel="icon" type="image/png" href="../favicon.png">
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
@@ -62,7 +62,7 @@
 <h2>TL;DR;</h2>
 <p>How to put AgentCore Gateway in front of an existing Lambda so an agent
 can call it as an MCP tool, with IAM doing the authentication so there are
-no credentials to manage anywhere.</p>
+no static keys or client secrets to manage anywhere.</p>
 <p>SOURCE CODE - All code for this post is available at:
 https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway</p>
 <h2>Longer version</h2>
@@ -113,13 +113,13 @@ token authentication when end users authenticate directly through an
 identity provider.</p>
 </blockquote>
 <p>So this demo uses <code>AWS_IAM</code>. The agent signs its gateway requests with
-the runtime execution role's credentials, the gateway checks the caller's
-IAM permission, and there is no client secret, token endpoint or key
-rotation anywhere in the stack, nothing to leak because nothing exists.
-<code>CUSTOM_JWT</code> is the right shape when external or end-user callers arrive
-with tokens from an identity provider, and the Identity post later in
-this series does that properly with AgentCore Identity holding the
-credentials.</p>
+the runtime execution role's automatically rotated temporary credentials,
+the gateway checks the caller's IAM permission, and there is no static
+access key, client secret or token endpoint anywhere in the stack, the
+only credentials involved are the short-lived role credentials the
+platform issues and rotates itself. <code>CUSTOM_JWT</code> is the right shape when
+callers present JWTs issued by a configured external identity provider,
+which is where the Identity post later in this series picks up.</p>
 <h2>3 - The gateway and its target</h2>
 <p>The gateway side is two resources, the gateway itself which is the MCP
 endpoint plus its authorizer, and a target which maps a backend into the
@@ -235,8 +235,8 @@ the result.</p>
     GATEWAY_URL = aws_bedrockagentcore_gateway.orders.gateway_url
   }
 </code></pre>
-<p>The credentials the signature uses come from the runtime's own execution
-role, fetched from the environment the platform provides, they never
+<p>The credentials the signature uses are the runtime execution role's
+temporary credentials, issued and rotated by the platform, they never
 appear in Terraform, state, or configuration.</p>
 <p>There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
@@ -259,9 +259,9 @@ the microVM cold start, and the tool handles the miss case the same way:</p>
 </code></pre>
 <h2>Conclusion</h2>
 <p>One Lambda and two gateway resources turned a plain function into an MCP
-tool an agent can discover and call, with IAM in front of it, no
-credentials anywhere in the stack, and without writing or hosting an MCP
-server. The same target mechanism scales sideways, more Lambdas, OpenAPI
+tool an agent can discover and call, with IAM in front of it, no static
+or application-managed credentials anywhere in the stack, and without
+writing or hosting an MCP server. The same target mechanism scales sideways, more Lambdas, OpenAPI
 specs or API Gateway stages all join the same tool list behind the same
 endpoint.</p>
 <p>The next post gives the agent somewhere to keep what it learns, short-term

@@ -53,3 +53,12 @@ gateway ARN). Verified live: 11-resource apply, order 42 answered end to
 end (7.39s fresh session), unsigned request rejected with HTTP 401.
 Video re-recorded against this stack. No credentials exist in code,
 Terraform, state, or the runtime environment.
+
+## Re-review of the IAM rework (gpt-5.6, fourth cycle)
+
+Seven findings, all actioned: credentials wording corrected (rotated
+role temporaries vs static secrets), InvokeGateway scoped to the exact
+gateway ARN, frozen credential snapshot for thread-safe signing,
+botocore pinned directly, prompt type guards (all three demos), stale
+Cognito comment removed, Identity sentence narrowed. Verified on
+camera: 11-resource apply, both order lookups, unsigned request 401.

@@ -29,6 +29,7 @@
     "bedrock",
     "Bedrock",
     "boto",
+    "actioned",
     "botocore",
     "awsrequest",
     "urlopen",
