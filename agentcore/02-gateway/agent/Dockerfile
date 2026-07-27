@@ -4,7 +4,7 @@ FROM python:3.12-slim
 # Unbuffered stdout so print() reaches CloudWatch immediately
 ENV PYTHONUNBUFFERED=1
 
-RUN pip install --no-cache-dir boto3==1.40.49
+RUN pip install --no-cache-dir botocore==1.40.49
 
 WORKDIR /app
 COPY main.py .

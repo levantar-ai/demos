@@ -26,7 +26,10 @@ def credentials():
     global _session
     if _session is None:
         _session = botocore.session.Session()
-    return _session.get_credentials()
+    creds = _session.get_credentials()
+    if creds is None:
+        raise RuntimeError("AWS credentials are unavailable")
+    return creds.get_frozen_credentials()
 
 
 def mcp_request(method, params):
@@ -82,7 +85,10 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._send(400, {"error": "payload must be a JSON object"})
             return
-        prompt = payload.get("prompt", "")
+        prompt = payload.get("prompt")
+        if not isinstance(prompt, str):
+            self._send(400, {"error": "prompt must be a string"})
+            return
         match = re.search(r"\d+", prompt)
         if not match:
             self._send(200, {"result": "no order id found in the prompt"})

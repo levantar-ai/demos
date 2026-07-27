@@ -1,5 +1,5 @@
-# The gateway: fronts the tool Lambda as an MCP server, validating caller
-# JWTs against the Cognito user pool.
+# The gateway: fronts the tool Lambda as an MCP server, authenticating
+# callers with IAM SigV4.
 
 resource "aws_iam_role" "gateway" {
   name = "${local.name_prefix}-gateway"

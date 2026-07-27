@@ -4,7 +4,7 @@
 
 How to put AgentCore Gateway in front of an existing Lambda so an agent
 can call it as an MCP tool, with IAM doing the authentication so there are
-no credentials to manage anywhere.
+no static keys or client secrets to manage anywhere.
 
 SOURCE CODE - All code for this post is available at:
 https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway
@@ -67,13 +67,13 @@ are explicit about which to pick:
 > identity provider.
 
 So this demo uses `AWS_IAM`. The agent signs its gateway requests with
-the runtime execution role's credentials, the gateway checks the caller's
-IAM permission, and there is no client secret, token endpoint or key
-rotation anywhere in the stack, nothing to leak because nothing exists.
-`CUSTOM_JWT` is the right shape when external or end-user callers arrive
-with tokens from an identity provider, and the Identity post later in
-this series does that properly with AgentCore Identity holding the
-credentials.
+the runtime execution role's automatically rotated temporary credentials,
+the gateway checks the caller's IAM permission, and there is no static
+access key, client secret or token endpoint anywhere in the stack, the
+only credentials involved are the short-lived role credentials the
+platform issues and rotates itself. `CUSTOM_JWT` is the right shape when
+callers present JWTs issued by a configured external identity provider,
+which is where the Identity post later in this series picks up.
 
 ## 3 - The gateway and its target
 
@@ -207,8 +207,8 @@ the result.
   }
 ```
 
-The credentials the signature uses come from the runtime's own execution
-role, fetched from the environment the platform provides, they never
+The credentials the signature uses are the runtime execution role's
+temporary credentials, issued and rotated by the platform, they never
 appear in Terraform, state, or configuration.
 
 There is still no model in this agent, it extracts an order id from the
@@ -240,9 +240,9 @@ the microVM cold start, and the tool handles the miss case the same way:
 ## Conclusion
 
 One Lambda and two gateway resources turned a plain function into an MCP
-tool an agent can discover and call, with IAM in front of it, no
-credentials anywhere in the stack, and without writing or hosting an MCP
-server. The same target mechanism scales sideways, more Lambdas, OpenAPI
+tool an agent can discover and call, with IAM in front of it, no static
+or application-managed credentials anywhere in the stack, and without
+writing or hosting an MCP server. The same target mechanism scales sideways, more Lambdas, OpenAPI
 specs or API Gateway stages all join the same tool list behind the same
 endpoint.
 

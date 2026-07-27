@@ -87,7 +87,7 @@ resource "aws_iam_role_policy" "runtime" {
         Sid      = "InvokeGateway"
         Effect   = "Allow"
         Action   = ["bedrock-agentcore:InvokeGateway"]
-        Resource = "${aws_bedrockagentcore_gateway.orders.gateway_arn}*"
+        Resource = aws_bedrockagentcore_gateway.orders.gateway_arn
       }
     ]
   })
