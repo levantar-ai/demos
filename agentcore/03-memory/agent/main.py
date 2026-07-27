@@ -85,11 +85,11 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._send(400, {"error": "payload must be a JSON object"})
             return
-        actor = payload.get("actor", "")
-        session = payload.get("session", "")
-        prompt = payload.get("prompt", "")
-        if not actor or not session or not prompt:
-            self._send(400, {"error": "actor, session and prompt are required"})
+        actor = payload.get("actor")
+        session = payload.get("session")
+        prompt = payload.get("prompt")
+        if not all(isinstance(v, str) and v for v in (actor, session, prompt)):
+            self._send(400, {"error": "actor, session and prompt are required strings"})
             return
         try:
             if prompt.lower().startswith("remember"):

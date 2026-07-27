@@ -1,5 +1,5 @@
-# The gateway: fronts the tool Lambda as an MCP server, validating caller
-# JWTs against the Cognito user pool.
+# The gateway: fronts the tool Lambda as an MCP server, authenticating
+# callers with IAM SigV4.
 
 resource "aws_iam_role" "gateway" {
   name = "${local.name_prefix}-gateway"
@@ -49,15 +49,7 @@ resource "aws_bedrockagentcore_gateway" "orders" {
   name            = "${local.name_prefix}-gw"
   role_arn        = aws_iam_role.gateway.arn
   protocol_type   = "MCP"
-  authorizer_type = "CUSTOM_JWT"
-
-  authorizer_configuration {
-    custom_jwt_authorizer {
-      discovery_url   = local.discovery_url
-      allowed_clients = [aws_cognito_user_pool_client.agent.id]
-      allowed_scopes  = [local.scope]
-    }
-  }
+  authorizer_type = "AWS_IAM"
 }
 
 resource "aws_bedrockagentcore_gateway_target" "orders" {

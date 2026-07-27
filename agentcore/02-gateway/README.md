@@ -1,19 +1,17 @@
 # 02 — Giving your agent tools with AgentCore Gateway
 
 Puts AgentCore Gateway in front of a plain Lambda (`lookup_order`) so the
-agent can call it as an MCP tool, with Cognito client-credentials issuing
-the JWTs the gateway's authorizer requires. Copies demo 01 forward; the
-delta is the gateway, target, tool Lambda and Cognito resources plus the
-agent's MCP client functions.
+agent can call it as an MCP tool, authenticated with IAM SigV4 from the
+runtime execution role, no credentials anywhere. Copies demo 01 forward;
+the delta is the gateway, target and tool Lambda plus the agent's signed
+MCP client.
 
 ## What gets created
 
 - Everything from demo 01 (ECR repo, runtime execution role, runtime),
   namespaced `demos-agentcore-02-gateway-*`
 - Lambda `demos-agentcore-02-gateway-lookup-order` + role
-- Cognito user pool, domain, resource server (`demos-gateway/invoke`) and
-  client-credentials app client
-- AgentCore Gateway `demos-agentcore-02-gateway-gw` (MCP, CUSTOM_JWT) and
+- AgentCore Gateway `demos-agentcore-02-gateway-gw` (MCP, AWS_IAM) and
   the `orders` Lambda target
 
 ## Run it

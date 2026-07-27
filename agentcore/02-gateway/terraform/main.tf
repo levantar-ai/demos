@@ -28,5 +28,4 @@ locals {
   name_prefix  = "demos-agentcore-${local.demo_slug}"
   runtime_name = "demos_agentcore_02_gateway"
   ecr_repo     = "demos/agentcore/${local.demo_slug}"
-  scope        = "demos-gateway/invoke"
 }

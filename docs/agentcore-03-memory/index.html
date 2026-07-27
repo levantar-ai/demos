@@ -103,10 +103,18 @@ resource &quot;aws_bedrockagentcore_memory_strategy&quot; &quot;preferences&quot
 per actor at extraction time, so each user gets their own
 <code>/users/&lt;actor&gt;</code> shelf of preference records, and the agent retrieves
 from an actor-derived namespace.</p>
-<p>NOTE: the actor id is not an authorization boundary. This demo trusts the
-<code>actor</code> field in the request, which is fine for a demo, but a real
-application must derive it from an authenticated identity, because
-anything that can invoke the runtime can name any actor.</p>
+<p>NOTE: the actor id is not an authorization boundary, and AWS's
+<a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html">security best practices</a>
+put the mapping on your side of the shared responsibility model:</p>
+<blockquote>
+<p>AgentCore does not enforce session-to-user mappings. Your client
+backend must maintain the relationship between users and their session
+IDs.</p>
+</blockquote>
+<p>The same applies to actor ids. This demo takes <code>actor</code> from the request
+so the mechanics stay visible, a real application derives it from an
+authenticated identity (the caller's IAM principal or verified token
+claims), never from an arbitrary client-supplied value.</p>
 <p>NOTE: the memory store is the slowest resource in this series so far to
 create, 2m45s in this deployment, so create it once per environment and
 keep it, rather than per deploy. Don't share one store across

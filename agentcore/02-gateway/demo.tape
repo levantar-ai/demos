@@ -20,7 +20,7 @@ Type "unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/02-gat
 Enter
 Show
 
-Type "# a Lambda as an MCP tool behind AgentCore Gateway, with an agent calling it"
+Type "# a Lambda as an MCP tool behind AgentCore Gateway — IAM auth, no credentials anywhere"
 Enter
 Sleep 1.5s
 
@@ -33,7 +33,7 @@ Enter
 Wait
 Sleep 2s
 
-Type "# gateway, target, cognito, lambda and runtime are live — ask about an order"
+Type "# gateway, target, lambda and runtime are live — ask about an order"
 Enter
 Sleep 1s
 
@@ -51,7 +51,7 @@ Enter
 Wait
 Sleep 2s
 
-Type "# no token, no entry"
+Type "# unsigned request, no entry"
 Enter
 Sleep 1s
 
