@@ -93,8 +93,9 @@ an allow-list of client ids and the scope, so a token missing
 
 ## 3 - The gateway and its target
 
-Two resources. The gateway itself, which is the MCP endpoint plus the JWT
-authorizer, and a target, which maps a backend into the tool list:
+The gateway side is two resources, the gateway itself which is the MCP
+endpoint plus the JWT authorizer, and a target which maps a backend into
+the tool list:
 
 ```hcl
 resource "aws_bedrockagentcore_gateway" "orders" {
@@ -148,9 +149,9 @@ resource "aws_bedrockagentcore_gateway_target" "orders" {
 }
 ```
 
-The tool schema you declare here is what agents will see over MCP, so the
-description matters, it is what a model uses to decide when to call the
-tool.
+The tool schema you declare here is what agents will see over MCP, so it
+all matters, the name, description and input schema are what a model uses
+to decide when to call the tool and how to shape the arguments.
 
 Asking the gateway for its tool list shows the mapping in action:
 
@@ -181,8 +182,9 @@ Asking the gateway for its tool list shows the mapping in action:
 
 NOTE: the gateway namespaces tool names as `<target>___<tool>` (triple
 underscore), so `lookup_order` on the `orders` target becomes
-`orders___lookup_order`. Match on the suffix rather than hard-coding the
-full name.
+`orders___lookup_order`. Resolve that fully qualified name exactly, two
+targets can expose tools with the same short name and a fuzzy match will
+happily pick the wrong one.
 
 ## 4 - Teaching the agent to call it
 
@@ -193,8 +195,10 @@ environment variables from Terraform:
 ```python
 def lookup_order(order_id):
     token = get_token()
-    tools = mcp_request("tools/list", {}, token)["result"]["tools"]
-    tool_name = next(t["name"] for t in tools if t["name"].endswith("___lookup_order"))
+    tool_name = "orders___lookup_order"
+    tools = {t["name"] for t in mcp_request("tools/list", {}, token)["result"]["tools"]}
+    if tool_name not in tools:
+        raise RuntimeError(f"required tool not found: {tool_name}")
     result = mcp_request(
         "tools/call",
         {"name": tool_name, "arguments": {"order_id": order_id}},
@@ -206,7 +210,8 @@ def lookup_order(order_id):
 This is a minimal gateway-specific client, not a conforming MCP
 implementation, it skips the MCP initialize handshake and assumes single
 JSON responses rather than handling event streams. For a real agent use an
-MCP SDK and this plumbing disappears.
+MCP SDK for the protocol and transport, your application still owns
+getting the token, choosing the tool and interpreting the result.
 
 ```hcl
   environment_variables = {
@@ -219,8 +224,10 @@ MCP SDK and this plumbing disappears.
 ```
 
 NOTE: the client secret passes through Terraform state and lands in the
-runtime's environment, which is fine for a demo but in production means
-encrypting and restricting the state backend and rotating the credential.
+runtime's environment, which is fine for a demo. In production prefer an
+`AWS_IAM` authorizer (SigV4 from the runtime role, no secret at all) or
+fetch the secret from Secrets Manager at runtime, and restrict who can
+read runtime configuration as well as the state backend.
 
 There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
