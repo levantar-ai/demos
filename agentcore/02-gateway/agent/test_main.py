@@ -70,3 +70,14 @@ def test_tool_failure_returns_502(server_url):
         assert exc.value.code == 502
     finally:
         server.shutdown()
+
+
+def test_non_object_json_is_rejected(server_url):
+    req = urllib.request.Request(
+        f"{server_url}/invocations",
+        data=b'["not", "an", "object"]',
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req)
+    assert exc.value.code == 400

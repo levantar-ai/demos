@@ -101,6 +101,10 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
 }
 ```
 
+NOTE: `PUBLIC` is about the runtime's network connectivity (including
+outbound), it does not expose port 8080 to the internet. Invocation always
+goes through the AgentCore data-plane API under IAM.
+
 NOTE: Runtime names must start with a letter and may contain letters,
 digits and underscores, no hyphens (`[a-zA-Z][a-zA-Z0-9_]*`), unlike most
 AWS resources.
@@ -110,10 +114,15 @@ reference a git SHA rather than latest, and an execution role the runtime
 assumes to pull the image and write logs and telemetry, nothing more,
 because the echo agent needs nothing more. Five resources in total.
 
-Build, push, apply:
+The deploy is a three-step bootstrap, because the image has to exist in
+ECR before the runtime that references it:
 
 ```bash
+terraform apply -target=aws_ecr_repository.agent
+
+aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY"
 docker buildx build --platform linux/arm64 -t "$REPO:$GIT_SHA" --push agent/
+
 terraform apply -var="image_tag=$GIT_SHA"
 ```
 
@@ -121,8 +130,9 @@ The runtime creates in around 10 seconds and comes up READY. Describing it
 with `aws bedrock-agentcore-control get-agent-runtime` shows a few things
 you get without asking, a workload identity created automatically for the
 runtime, session lifecycle defaults of 900 seconds idle and 8 hours
-maximum, and built-in versioning where every image update bumps
-`agentRuntimeVersion` automatically.
+maximum, and built-in versioning, each runtime update creates a new
+`agentRuntimeVersion`, which here means every apply with a new SHA-tagged
+container URI.
 
 ## 3 - Invoking it
 
@@ -150,23 +160,26 @@ Here are four invocations across two sessions from one test run:
 | 3 | B (new) | 4.53s | a new session pays its own cold start |
 | 4 | B (warm) | 1.27s | roughly 0.5s server-side once warm |
 
-The third row is the one to understand. Runtime's isolation model is one
-microVM per session, so a new session cannot reuse another session's warm
-environment. The CloudWatch logs back this up, in this run the two sessions
-produced two `[runtime-logs]` streams in the runtime's log group, and the
-streams also show the platform polling `GET /ping` between invocations, so
-implement your health endpoint properly.
+The third row is the one to understand. AWS documents Runtime's isolation
+model as one microVM per session, so a new session cannot reuse another
+session's warm environment, and the observations here are consistent with
+that, each new session paid a cold start and, in this run, produced its
+own `[runtime-logs]` stream in the log group. The streams also show the
+platform polling `GET /ping` between invocations, so implement your
+health endpoint properly.
 
 NOTE: the isolation is compute isolation. AgentCore does not know which of
 your users owns a session id, so your application is still responsible for
-authorizing who may use each session.
+authorizing who may use each session. Also, the log group the service
+creates is not managed by your Terraform, it outlives a destroy and keeps
+logs indefinitely unless you set retention on it.
 
 ## Conclusion
 
 Runtime is a small surface to get started with. A 40 line stdlib Python
 server and five Terraform resources gets you a deployed agent with
-per-session microVM isolation that you can verify yourself in the timings
-and the log streams.
+per-session microVM isolation whose behaviour you can observe in the
+timings and the log streams.
 
 The next post gives the agent its first real capability, tools, by putting
 AgentCore Gateway in front of an existing API and letting the agent call it

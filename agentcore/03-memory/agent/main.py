@@ -82,6 +82,9 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._send(400, {"error": "invalid JSON"})
             return
+        if not isinstance(payload, dict):
+            self._send(400, {"error": "payload must be a JSON object"})
+            return
         actor = payload.get("actor", "")
         session = payload.get("session", "")
         prompt = payload.get("prompt", "")

@@ -66,3 +66,14 @@ def test_unknown_path_is_404(server_url):
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(f"{server_url}/nope")
     assert exc.value.code == 404
+
+
+def test_non_object_json_is_rejected(server_url):
+    req = urllib.request.Request(
+        f"{server_url}/invocations",
+        data=b'["not", "an", "object"]',
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req)
+    assert exc.value.code == 400

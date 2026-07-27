@@ -30,7 +30,7 @@ def get_token():
         data=data,
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read())["access_token"]
 
 
@@ -47,14 +47,16 @@ def mcp_request(method, params, token):
             "Authorization": f"Bearer {token}",
         },
     )
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read())
 
 
 def lookup_order(order_id):
     token = get_token()
-    tools = mcp_request("tools/list", {}, token)["result"]["tools"]
-    tool_name = next(t["name"] for t in tools if t["name"].endswith("___lookup_order"))
+    tool_name = "orders___lookup_order"
+    tools = {t["name"] for t in mcp_request("tools/list", {}, token)["result"]["tools"]}
+    if tool_name not in tools:
+        raise RuntimeError(f"required tool not found: {tool_name}")
     result = mcp_request(
         "tools/call",
         {"name": tool_name, "arguments": {"order_id": order_id}},
@@ -79,6 +81,9 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
             self._send(400, {"error": "invalid JSON"})
+            return
+        if not isinstance(payload, dict):
+            self._send(400, {"error": "payload must be a JSON object"})
             return
         prompt = payload.get("prompt", "")
         match = re.search(r"\d+", prompt)

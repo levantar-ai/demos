@@ -90,3 +90,14 @@ def test_missing_actor_is_rejected(server_url):
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(req)
     assert exc.value.code == 400
+
+
+def test_non_object_json_is_rejected(server_url):
+    req = urllib.request.Request(
+        f"{server_url}/invocations",
+        data=b'["not", "an", "object"]',
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req)
+    assert exc.value.code == 400
