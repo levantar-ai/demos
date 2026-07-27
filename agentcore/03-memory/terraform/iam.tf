@@ -91,10 +91,7 @@ resource "aws_iam_role_policy" "runtime" {
         Action = [
           "bedrock-agentcore:CreateEvent",
           "bedrock-agentcore:ListEvents",
-          "bedrock-agentcore:GetEvent",
-          "bedrock-agentcore:RetrieveMemoryRecords",
-          "bedrock-agentcore:ListMemoryRecords",
-          "bedrock-agentcore:GetMemoryRecord"
+          "bedrock-agentcore:RetrieveMemoryRecords"
         ]
         Resource = aws_bedrockagentcore_memory.agent.arn
       }

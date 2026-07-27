@@ -36,6 +36,21 @@ def remember(actor, session, text):
     )
 
 
+def recap(actor, session):
+    resp = client().list_events(
+        memoryId=os.environ["MEMORY_ID"],
+        actorId=actor,
+        sessionId=session,
+        maxResults=20,
+    )
+    return [
+        p["conversational"]["content"]["text"]
+        for e in resp.get("events", [])
+        for p in e.get("payload", [])
+        if "conversational" in p
+    ]
+
+
 def recall(actor, query):
     resp = client().retrieve_memory_records(
         memoryId=os.environ["MEMORY_ID"],
@@ -48,6 +63,7 @@ def recall(actor, query):
 
 class Handler(BaseHTTPRequestHandler):
     store = staticmethod(remember)
+    history = staticmethod(recap)
     search = staticmethod(recall)
 
     def do_GET(self):
@@ -69,18 +85,20 @@ class Handler(BaseHTTPRequestHandler):
         actor = payload.get("actor", "")
         session = payload.get("session", "")
         prompt = payload.get("prompt", "")
-        if not actor or not prompt:
-            self._send(400, {"error": "actor and prompt are required"})
+        if not actor or not session or not prompt:
+            self._send(400, {"error": "actor, session and prompt are required"})
             return
         try:
             if prompt.lower().startswith("remember"):
                 self.store(actor, session, prompt)
                 self._send(200, {"result": "noted"})
+            elif prompt.lower().startswith("recap"):
+                self._send(200, {"result": self.history(actor, session)})
             else:
-                records = self.search(actor, prompt)
-                self._send(200, {"result": records})
+                self._send(200, {"result": self.search(actor, prompt)})
         except Exception as exc:  # noqa: BLE001 — any memory failure becomes a 502
-            self._send(502, {"error": f"memory call failed: {exc}"})
+            print(f"memory call failed: {exc}")
+            self._send(502, {"error": "memory service request failed"})
 
     def _send(self, status, body):
         data = json.dumps(body).encode()

@@ -45,3 +45,18 @@ voice) confirmed six findings before external review, all fixed: missing
 `--query` on the list-events example, non-exhaustive strategy list
 (episodic exists), function count, elided invoke commands noted, and a
 banned sentence fragment (also present in post 02, fixed there too).
+
+## External review (gpt-5.6-sol via OpenAI API) and second cycle
+
+Nine findings, all accepted. Key changes: agent gained short-term recall
+("recap" via ListEvents), session validation, generic 502s (exception
+detail logged server-side only), IAM trimmed to the three actions used,
+actor-id-authorization NOTE, and the post's evidence redone so the shown
+events match the retrieved records.
+
+Second deploy verified the fixes and reproduced the activation-window
+behaviour decisively: events stored seconds after the strategy reported
+ACTIVE were never extracted (60+ minutes), while the same event stored
+once the strategy had settled extracted in 52 seconds. Before/after
+outputs for the same query captured for the post. All resources
+destroyed after; runtimes and memories confirmed empty.

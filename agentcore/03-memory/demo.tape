@@ -29,11 +29,11 @@ Enter
 Wait
 Sleep 2s
 
-Type "# short-term memory — the raw events, readable per session"
+Type "# short-term memory — the agent reads its own session events back with recap"
 Enter
 Sleep 1s
 
-Type `aws bedrock-agentcore list-events --memory-id "$MEMORY_ID" --actor-id andy --session-id session-a --region us-east-1 --query 'events[].payload[0].conversational.content.text'`
+Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id memory-video-session-a-00000000000001 --payload '{"actor": "andy", "session": "session-a", "prompt": "recap"}' --region us-east-1 /dev/stdout`
 Enter
 Wait
 Sleep 3s
@@ -42,7 +42,7 @@ Type "# long-term memory — ask from a DIFFERENT session, answered from extract
 Enter
 Sleep 1s
 
-Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id memory-video-session-b-00000000000002 --payload '{"actor": "andy", "session": "session-b", "prompt": "what do you know about my preferences?"}' --region us-east-1 /dev/stdout`
+Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id memory-video-session-b-00000000000002 --payload '{"actor": "andy", "session": "session-b", "prompt": "which delivery carrier do I prefer?"}' --region us-east-1 /dev/stdout`
 Enter
 Wait
 Sleep 5s

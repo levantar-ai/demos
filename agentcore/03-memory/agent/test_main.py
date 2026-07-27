@@ -13,6 +13,7 @@ stored = []
 
 class StubHandler(Handler):
     store = staticmethod(lambda actor, session, text: stored.append((actor, session, text)))
+    history = staticmethod(lambda actor, session: ["remember: I prefer DPD"])
     search = staticmethod(lambda actor, query: ["Prefers DPD deliveries"])
 
 
@@ -58,6 +59,26 @@ def test_question_returns_records(server_url):
     )
     assert status == 200
     assert body == {"result": ["Prefers DPD deliveries"]}
+
+
+def test_recap_returns_session_events(server_url):
+    status, body = post(
+        f"{server_url}/invocations",
+        {"actor": "andy", "session": "s1", "prompt": "recap"},
+    )
+    assert status == 200
+    assert body == {"result": ["remember: I prefer DPD"]}
+
+
+def test_missing_session_is_rejected(server_url):
+    req = urllib.request.Request(
+        f"{server_url}/invocations",
+        data=json.dumps({"actor": "andy", "prompt": "remember: x"}).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req)
+    assert exc.value.code == 400
 
 
 def test_missing_actor_is_rejected(server_url):
