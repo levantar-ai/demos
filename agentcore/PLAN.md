@@ -106,6 +106,37 @@ finished system.
 - [ ] Post drafted
 - [ ] Post published
 
+## Per-post definition of done
+
+1. Standalone demo dir (agent + contract tests, namespaced terraform,
+   diagram.py, demo.tape, README, POST.md, artifacts/); copies the
+   previous demo forward, the delta is the post's topic.
+2. Local gates: pytest (incl. invalid-JSON / non-object / type-guard
+   cases), pinned ruff, terraform fmt + validate, cspell.
+3. Security, nothing to critique: no static or application-managed
+   credentials anywhere (role-based IAM SigV4 by default; AgentCore
+   Identity or Secrets Manager if a secret is unavoidable);
+   least-privilege IAM with exact ARNs shown in the post as code;
+   SourceAccount + SourceArn on service trust policies; non-root
+   containers; pinned direct dependencies; generic client errors with
+   detail logged server-side; every security claim quoted from AWS docs.
+4. Deployed and tested for real: every output in the post captured from a
+   live run, negative paths exercised (401/400), evidence in
+   artifacts/README.md, everything destroyed after and the account
+   verified empty.
+5. Reviewed twice: internal adversarial panel (AWS facts, code/prose
+   consistency, voice), then gpt-5.6 via the OpenAI API; findings
+   verified against the real service before accepting; accepted fixes
+   redeployed and retested; re-review on material implementation change.
+6. Content: voice per ~/.claude/andy-rea-voice.md, happy path only,
+   NOTEs for blockers, no teardown sections; diagram PNG committed;
+   video recorded at the exact final commit with a real apply on camera,
+   clean poster, and narrative coherence, frame-verified; 1200x627
+   social card with og:image wired; page published unlisted until Andy
+   approves listing.
+7. Everything lands via a PR with CI green; PLAN.md ticked; the live
+   page verified serving the change.
+
 ## Series format
 
 - Happy path only, no edge-case deep-dives; blocking necessities get a
