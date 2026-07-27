@@ -28,7 +28,7 @@ Type "# an agent that remembers, with AgentCore Memory — store a preference in
 Enter
 Sleep 1.5s
 
-Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id memory-video-session-a-00000000000001 --payload '{"actor": "andy", "session": "session-a", "prompt": "remember: I prefer weekday morning deliveries"}' --region us-east-1 /dev/stdout`
+Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id memory-video-session-a-00000000000001 --payload '{"actor": "andy", "session": "session-a", "prompt": "remember: my name is Andy and I always prefer DPD for deliveries"}' --region us-east-1 /dev/stdout`
 Enter
 Wait
 Sleep 2s
@@ -42,7 +42,7 @@ Enter
 Wait
 Sleep 3s
 
-Type "# long-term memory — ask from a DIFFERENT session, answered from extracted records"
+Type "# long-term — extraction runs async server-side; ask from a DIFFERENT session"
 Enter
 Sleep 1s
 
