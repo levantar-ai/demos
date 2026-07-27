@@ -12,7 +12,6 @@ from diagrams.aws.network import APIGateway
 from diagrams.onprem.client import User
 from diagrams.programming.language import Python
 
-
 _BOOST = int(os.environ.get("DIAGRAM_FONT_BOOST", "0"))
 
 
