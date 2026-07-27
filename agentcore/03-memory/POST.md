@@ -55,10 +55,18 @@ per actor at extraction time, so each user gets their own
 `/users/<actor>` shelf of preference records, and the agent retrieves
 from an actor-derived namespace.
 
-NOTE: the actor id is not an authorization boundary. This demo trusts the
-`actor` field in the request, which is fine for a demo, but a real
-application must derive it from an authenticated identity, because
-anything that can invoke the runtime can name any actor.
+NOTE: the actor id is not an authorization boundary, and AWS's
+[security best practices](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html)
+put the mapping on your side of the shared responsibility model:
+
+> AgentCore does not enforce session-to-user mappings. Your client
+> backend must maintain the relationship between users and their session
+> IDs.
+
+The same applies to actor ids. This demo takes `actor` from the request
+so the mechanics stay visible, a real application derives it from an
+authenticated identity (the caller's IAM principal or verified token
+claims), never from an arbitrary client-supplied value.
 
 NOTE: the memory store is the slowest resource in this series so far to
 create, 2m45s in this deployment, so create it once per environment and

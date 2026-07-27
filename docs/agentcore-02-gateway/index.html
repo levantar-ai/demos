@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Giving your agent tools with AgentCore Gateway — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with Cognito issuing the tokens that get the agent through the door.">
+<meta name="description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with IAM doing the authentication so there are no credentials to manage anywhere.">
 <link rel="icon" type="image/png" href="../favicon.png">
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
@@ -60,9 +60,9 @@
       <h1>Giving your agent tools with AgentCore Gateway</h1>
       <div class="date">2026-07-24 · AgentCore series</div>
 <h2>TL;DR;</h2>
-<p>How to put AgentCore Gateway in front of an existing Lambda so an agent can
-call it as an MCP tool, with Cognito issuing the tokens that get the agent
-through the door.</p>
+<p>How to put AgentCore Gateway in front of an existing Lambda so an agent
+can call it as an MCP tool, with IAM doing the authentication so there are
+no credentials to manage anywhere.</p>
 <p>SOURCE CODE - All code for this post is available at:
 https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway</p>
 <h2>Longer version</h2>
@@ -104,52 +104,31 @@ style <code>body</code> and <code>pathParameters</code> for example, would need 
 <h2>2 - Auth in front of the gateway</h2>
 <p>The gateway supports three authorizer types, <code>CUSTOM_JWT</code>, <code>AWS_IAM</code> and
 <code>NONE</code>, and you want a real one in front of anything beyond a throwaway
-experiment. The simplest machine-to-machine setup is a Cognito user pool
-with a resource server scope and a client-credentials app client, which
-gives the agent a standard OAuth token endpoint to swap its client id and
-secret for a JWT:</p>
-<pre><code class="language-hcl">resource &quot;aws_cognito_resource_server&quot; &quot;gateway&quot; {
-  identifier   = &quot;demos-gateway&quot;
-  name         = &quot;gateway-tools&quot;
-  user_pool_id = aws_cognito_user_pool.gateway.id
-
-  scope {
-    scope_name        = &quot;invoke&quot;
-    scope_description = &quot;Invoke gateway tools&quot;
-  }
-}
-
-resource &quot;aws_cognito_user_pool_client&quot; &quot;agent&quot; {
-  name         = &quot;agent&quot;
-  user_pool_id = aws_cognito_user_pool.gateway.id
-
-  generate_secret                      = true
-  allowed_oauth_flows                  = [&quot;client_credentials&quot;]
-  allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_scopes                 = [&quot;demos-gateway/invoke&quot;]
-  supported_identity_providers         = [&quot;COGNITO&quot;]
-}
-</code></pre>
-<p>The gateway validates tokens against the pool's OIDC discovery document,
-an allow-list of client ids and the scope, so a token missing
-<code>demos-gateway/invoke</code> is refused at the door.</p>
+experiment. For an agent calling a gateway in the same account this is a
+service-to-service call, and AWS's <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html">security best practices for AgentCore Runtime</a>
+are explicit about which to pick:</p>
+<blockquote>
+<p>Use IAM SigV4 for service-to-service calls within AWS. Use JWT bearer
+token authentication when end users authenticate directly through an
+identity provider.</p>
+</blockquote>
+<p>So this demo uses <code>AWS_IAM</code>. The agent signs its gateway requests with
+the runtime execution role's credentials, the gateway checks the caller's
+IAM permission, and there is no client secret, token endpoint or key
+rotation anywhere in the stack, nothing to leak because nothing exists.
+<code>CUSTOM_JWT</code> is the right shape when external or end-user callers arrive
+with tokens from an identity provider, and the Identity post later in
+this series does that properly with AgentCore Identity holding the
+credentials.</p>
 <h2>3 - The gateway and its target</h2>
 <p>The gateway side is two resources, the gateway itself which is the MCP
-endpoint plus the JWT authorizer, and a target which maps a backend into
-the tool list:</p>
+endpoint plus its authorizer, and a target which maps a backend into the
+tool list:</p>
 <pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_gateway&quot; &quot;orders&quot; {
   name            = &quot;demos-agentcore-02-gateway-gw&quot;
   role_arn        = aws_iam_role.gateway.arn
   protocol_type   = &quot;MCP&quot;
-  authorizer_type = &quot;CUSTOM_JWT&quot;
-
-  authorizer_configuration {
-    custom_jwt_authorizer {
-      discovery_url   = local.discovery_url
-      allowed_clients = [aws_cognito_user_pool_client.agent.id]
-      allowed_scopes  = [local.scope]
-    }
-  }
+  authorizer_type = &quot;AWS_IAM&quot;
 }
 
 resource &quot;aws_bedrockagentcore_gateway_target&quot; &quot;orders&quot; {
@@ -190,7 +169,7 @@ resource &quot;aws_bedrockagentcore_gateway_target&quot; &quot;orders&quot; {
 <p>The tool schema you declare here is what agents will see over MCP, so it
 all matters, the name, description and input schema are what a model uses
 to decide when to call the tool and how to shape the arguments.</p>
-<p>Asking the gateway for its tool list shows the mapping in action:</p>
+<p>The agent's <code>tools/list</code> call shows the mapping in action:</p>
 <pre><code class="language-json">{
   &quot;jsonrpc&quot;: &quot;2.0&quot;,
   &quot;id&quot;: 1,
@@ -214,56 +193,51 @@ to decide when to call the tool and how to shape the arguments.</p>
   }
 }
 </code></pre>
+<p>The runtime role gets one extra permission, <code>bedrock-agentcore:InvokeGateway</code>
+scoped to this gateway's ARN, which is the entire auth setup.</p>
 <p>NOTE: the gateway namespaces tool names as <code>&lt;target&gt;___&lt;tool&gt;</code> (triple
 underscore), so <code>lookup_order</code> on the <code>orders</code> target becomes
 <code>orders___lookup_order</code>. Resolve that fully qualified name exactly, two
 targets can expose tools with the same short name and a fuzzy match will
 happily pick the wrong one.</p>
 <h2>4 - Teaching the agent to call it</h2>
-<p>The agent gains two small functions, one to fetch a token and one to make
-MCP calls, and the runtime passes the endpoints and credentials in as
-environment variables from Terraform:</p>
-<pre><code class="language-python">def lookup_order(order_id):
-    token = get_token()
+<p>The agent gains one function that signs MCP requests with SigV4 using the
+runtime role's own credentials (botocore is its first dependency), and
+the only configuration the runtime passes in is the gateway URL:</p>
+<pre><code class="language-python">def mcp_request(method, params):
+    body = json.dumps({&quot;jsonrpc&quot;: &quot;2.0&quot;, &quot;id&quot;: 1, &quot;method&quot;: method, &quot;params&quot;: params})
+    request = AWSRequest(method=&quot;POST&quot;, url=os.environ[&quot;GATEWAY_URL&quot;], data=body,
+                         headers={&quot;Content-Type&quot;: &quot;application/json&quot;,
+                                  &quot;Accept&quot;: &quot;application/json, text/event-stream&quot;})
+    SigV4Auth(credentials(), &quot;bedrock-agentcore&quot;, os.environ[&quot;AWS_REGION&quot;]).add_auth(request)
+    req = urllib.request.Request(request.url, data=body.encode(),
+                                 headers=dict(request.headers), method=&quot;POST&quot;)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read())
+
+
+def lookup_order(order_id):
     tool_name = &quot;orders___lookup_order&quot;
-    tools = {t[&quot;name&quot;] for t in mcp_request(&quot;tools/list&quot;, {}, token)[&quot;result&quot;][&quot;tools&quot;]}
+    tools = {t[&quot;name&quot;] for t in mcp_request(&quot;tools/list&quot;, {})[&quot;result&quot;][&quot;tools&quot;]}
     if tool_name not in tools:
         raise RuntimeError(f&quot;required tool not found: {tool_name}&quot;)
-    result = mcp_request(
-        &quot;tools/call&quot;,
-        {&quot;name&quot;: tool_name, &quot;arguments&quot;: {&quot;order_id&quot;: order_id}},
-        token,
-    )
+    result = mcp_request(&quot;tools/call&quot;,
+                         {&quot;name&quot;: tool_name, &quot;arguments&quot;: {&quot;order_id&quot;: order_id}})
     return result[&quot;result&quot;][&quot;content&quot;][0][&quot;text&quot;]
 </code></pre>
 <p>This is a minimal gateway-specific client, not a conforming MCP
 implementation, it skips the MCP initialize handshake and assumes single
 JSON responses rather than handling event streams. For a real agent use an
 MCP SDK for the protocol and transport, your application still owns
-getting the token, choosing the tool and interpreting the result.</p>
+signing or authenticating the calls, choosing the tool and interpreting
+the result.</p>
 <pre><code class="language-hcl">  environment_variables = {
-    GATEWAY_URL           = aws_bedrockagentcore_gateway.orders.gateway_url
-    COGNITO_TOKEN_URL     = local.token_url
-    COGNITO_CLIENT_ID     = aws_cognito_user_pool_client.agent.id
-    COGNITO_CLIENT_SECRET = aws_cognito_user_pool_client.agent.client_secret
-    TOOL_SCOPE            = &quot;demos-gateway/invoke&quot;
+    GATEWAY_URL = aws_bedrockagentcore_gateway.orders.gateway_url
   }
 </code></pre>
-<p>NOTE: the client secret passes through Terraform state and lands in the
-runtime's environment as plaintext, which is a demo shortcut, not the
-blessed path. AWS's <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html">security best practices for AgentCore Runtime</a>
-are direct about where credentials like this belong:</p>
-<blockquote>
-<p>Use AgentCore Identity for outbound authentication — AgentCore Identity
-manages OAuth credentials and API keys securely, preventing credential
-exposure in agent code or logs.</p>
-</blockquote>
-<p>The same page notes that anything running inside the microVM can read the
-environment and the execution role credentials, the microVM is the
-isolation boundary. So in production either use an <code>AWS_IAM</code> authorizer
-(SigV4 from the runtime role, no secret at all), or hold the client
-credentials in AgentCore Identity's token vault via an OAuth2 credential
-provider, which the Identity post later in this series covers properly.</p>
+<p>The credentials the signature uses come from the runtime's own execution
+role, fetched from the environment the platform provides, they never
+appear in Terraform, state, or configuration.</p>
 <p>There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
 path, not the reasoning. A model slots into exactly this shape later in
@@ -278,17 +252,18 @@ the series.</p>
 cat response.json
 {&quot;result&quot;: &quot;order 42: {\&quot;status\&quot;:\&quot;shipped\&quot;,\&quot;carrier\&quot;:\&quot;DPD\&quot;,\&quot;eta\&quot;:\&quot;2026-07-28\&quot;}&quot;}
 </code></pre>
-<p>The full round trip, agent to token endpoint to gateway to Lambda and
-back, came in at 2.74 seconds in one run on a fresh session including the
-microVM cold start, and the tool handles the miss case the same way:</p>
+<p>The full round trip, agent to gateway to Lambda and back with SigV4 on
+each hop, came in at 7.39 seconds in one run on a fresh session including
+the microVM cold start, and the tool handles the miss case the same way:</p>
 <pre><code>&quot;is order 99 ok?&quot;  -&gt;  {&quot;result&quot;: &quot;order 99: {\&quot;error\&quot;:\&quot;order 99 not found\&quot;}&quot;}
 </code></pre>
 <h2>Conclusion</h2>
-<p>One Lambda, two gateway resources and a Cognito client turned a plain
-function into an MCP tool an agent can discover and call, with JWT auth in
-front of it and without writing or hosting an MCP server. The same target
-mechanism scales sideways, more Lambdas, OpenAPI specs or API Gateway
-stages all join the same tool list behind the same endpoint.</p>
+<p>One Lambda and two gateway resources turned a plain function into an MCP
+tool an agent can discover and call, with IAM in front of it, no
+credentials anywhere in the stack, and without writing or hosting an MCP
+server. The same target mechanism scales sideways, more Lambdas, OpenAPI
+specs or API Gateway stages all join the same tool list behind the same
+endpoint.</p>
 <p>The next post gives the agent somewhere to keep what it learns, short-term
 session context and long-term extracted memory with AgentCore Memory.</p>
 <p>References:</p>

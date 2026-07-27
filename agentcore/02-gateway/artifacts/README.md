@@ -43,3 +43,13 @@ to the gateway returned HTTP 401. Destroyed after.
 - The tool Lambda receives the tool arguments as its event; the runtime
   passes gateway endpoint + credentials to the agent as environment
   variables from Terraform.
+
+## Security rework (2026-07-24, third cycle)
+
+Cognito and the client secret removed entirely; gateway switched to the
+AWS_IAM authorizer and the agent signs MCP calls with SigV4 from the
+runtime execution role (bedrock-agentcore:InvokeGateway scoped to the
+gateway ARN). Verified live: 11-resource apply, order 42 answered end to
+end (7.39s fresh session), unsigned request rejected with HTTP 401.
+Video re-recorded against this stack. No credentials exist in code,
+Terraform, state, or the runtime environment.
