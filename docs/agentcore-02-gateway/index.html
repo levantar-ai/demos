@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Giving your agent tools with AgentCore Gateway — Levantar Demos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with Cognito issuing the tokens that get the agent through the door.">
+<link rel="icon" type="image/png" href="../favicon.png">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-7C1NXQ0H0E');
+</script>
+<style>
+  :root {
+    --bg: #0b1120; --card: #152037; --line: #243352; --fg: #e7edf7;
+    --muted: #93a4c3; --accent: #22d3ee; --hl: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 24px 80px; color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%) var(--bg);
+    line-height: 1.7;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+  .top a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  .top a:hover { color: var(--accent); }
+  .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--fg) !important; font-weight: 600; font-size: 15px; }
+  .brand img { height: 32px; }
+  article h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.25; margin: 0 0 6px; }
+  article .date { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+  article h2 { font-size: 21px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  article p, article li { color: #c6d2e6; font-size: 16px; }
+  article a { color: var(--accent); text-decoration: none; }
+  article a:hover { text-decoration: underline; }
+  article img { max-width: 100%; border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 10px; margin: 10px 0; }
+  article code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; }
+  article pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow-x: auto; }
+  article pre code { background: none; border: none; padding: 0; font-size: 13.5px; line-height: 1.6; color: #d8e2f3; }
+  article table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
+  article th, article td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  article th { background: var(--card); }
+  article blockquote { border-left: 3px solid var(--accent); margin: 0; padding: 2px 18px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
+        <img src="../levantar-logo-white.png" alt="Levantar"><span>Levantar</span>
+      </a>
+      <a href="../">← All demos</a>
+    </div>
+    <article>
+      <h1>Giving your agent tools with AgentCore Gateway</h1>
+      <div class="date">2026-07-24 · AgentCore series</div>
+<h2>TL;DR;</h2>
+<p>How to put AgentCore Gateway in front of an existing Lambda so an agent can
+call it as an MCP tool, with Cognito issuing the tokens that get the agent
+through the door.</p>
+<p>SOURCE CODE - All code for this post is available at:
+https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway</p>
+<h2>Longer version</h2>
+<p>The agent from the first post could only echo. The way agents become useful
+is tools, and the way tools have standardised is MCP. The problem is that
+the systems agents need to reach, your internal APIs, your Lambdas, your
+SaaS integrations, are not MCP servers and nobody wants to write and host a
+fleet of them.</p>
+<p>That is the job of AgentCore Gateway. You point it at things you already
+have (Lambdas, OpenAPI specs, API Gateway stages) and it presents them to
+agents as a single MCP server, handling the protocol, the auth and the tool
+schemas. The agent sees a list of tools, the gateway routes each call to
+the right backend.</p>
+<p>This post puts a gateway in front of one Lambda, an order lookup, and has
+the agent from post 01 answer order questions with it:</p>
+<p><img alt="Architecture" src="architecture.png" /></p>
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
+<h2>1 - The tool</h2>
+<p>The backend is a plain Lambda, no MCP anywhere in it. It takes an order id
+and returns what it knows:</p>
+<pre><code class="language-python">ORDERS = {
+    &quot;42&quot;: {&quot;status&quot;: &quot;shipped&quot;, &quot;carrier&quot;: &quot;DPD&quot;, &quot;eta&quot;: &quot;2026-07-28&quot;},
+    &quot;43&quot;: {&quot;status&quot;: &quot;picking&quot;, &quot;carrier&quot;: None, &quot;eta&quot;: &quot;2026-07-30&quot;},
+    &quot;44&quot;: {&quot;status&quot;: &quot;delivered&quot;, &quot;carrier&quot;: &quot;Royal Mail&quot;, &quot;eta&quot;: None},
+}
+
+
+def handler(event, context):
+    order_id = str(event.get(&quot;order_id&quot;, &quot;&quot;))
+    order = ORDERS.get(order_id)
+    if order is None:
+        return {&quot;error&quot;: f&quot;order {order_id} not found&quot;}
+    return order
+</code></pre>
+<p>The gateway invokes it with the tool arguments as the event, so a Lambda
+that already takes its inputs as top-level event fields and returns JSON
+needs no changes. A Lambda written for another event shape, API Gateway
+style <code>body</code> and <code>pathParameters</code> for example, would need an adapter.</p>
+<h2>2 - Auth in front of the gateway</h2>
+<p>The gateway supports three authorizer types, <code>CUSTOM_JWT</code>, <code>AWS_IAM</code> and
+<code>NONE</code>, and you want a real one in front of anything beyond a throwaway
+experiment. The simplest machine-to-machine setup is a Cognito user pool
+with a resource server scope and a client-credentials app client, which
+gives the agent a standard OAuth token endpoint to swap its client id and
+secret for a JWT:</p>
+<pre><code class="language-hcl">resource &quot;aws_cognito_resource_server&quot; &quot;gateway&quot; {
+  identifier   = &quot;demos-gateway&quot;
+  name         = &quot;gateway-tools&quot;
+  user_pool_id = aws_cognito_user_pool.gateway.id
+
+  scope {
+    scope_name        = &quot;invoke&quot;
+    scope_description = &quot;Invoke gateway tools&quot;
+  }
+}
+
+resource &quot;aws_cognito_user_pool_client&quot; &quot;agent&quot; {
+  name         = &quot;agent&quot;
+  user_pool_id = aws_cognito_user_pool.gateway.id
+
+  generate_secret                      = true
+  allowed_oauth_flows                  = [&quot;client_credentials&quot;]
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_scopes                 = [&quot;demos-gateway/invoke&quot;]
+  supported_identity_providers         = [&quot;COGNITO&quot;]
+}
+</code></pre>
+<p>The gateway validates tokens against the pool's OIDC discovery document,
+an allow-list of client ids and the scope, so a token missing
+<code>demos-gateway/invoke</code> is refused at the door.</p>
+<h2>3 - The gateway and its target</h2>
+<p>The gateway side is two resources, the gateway itself which is the MCP
+endpoint plus the JWT authorizer, and a target which maps a backend into
+the tool list:</p>
+<pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_gateway&quot; &quot;orders&quot; {
+  name            = &quot;demos-agentcore-02-gateway-gw&quot;
+  role_arn        = aws_iam_role.gateway.arn
+  protocol_type   = &quot;MCP&quot;
+  authorizer_type = &quot;CUSTOM_JWT&quot;
+
+  authorizer_configuration {
+    custom_jwt_authorizer {
+      discovery_url   = local.discovery_url
+      allowed_clients = [aws_cognito_user_pool_client.agent.id]
+      allowed_scopes  = [local.scope]
+    }
+  }
+}
+
+resource &quot;aws_bedrockagentcore_gateway_target&quot; &quot;orders&quot; {
+  gateway_identifier = aws_bedrockagentcore_gateway.orders.gateway_id
+  name               = &quot;orders&quot;
+
+  credential_provider_configuration {
+    gateway_iam_role {}
+  }
+
+  target_configuration {
+    mcp {
+      lambda {
+        lambda_arn = aws_lambda_function.tool.arn
+
+        tool_schema {
+          inline_payload {
+            name        = &quot;lookup_order&quot;
+            description = &quot;Look up the status of an order by its order id&quot;
+
+            input_schema {
+              type = &quot;object&quot;
+
+              property {
+                name        = &quot;order_id&quot;
+                type        = &quot;string&quot;
+                description = &quot;The order id to look up&quot;
+                required    = true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+</code></pre>
+<p>The tool schema you declare here is what agents will see over MCP, so the
+description matters, it is what a model uses to decide when to call the
+tool.</p>
+<p>Asking the gateway for its tool list shows the mapping in action:</p>
+<pre><code class="language-json">{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;id&quot;: 1,
+  &quot;result&quot;: {
+    &quot;tools&quot;: [
+      {
+        &quot;name&quot;: &quot;orders___lookup_order&quot;,
+        &quot;description&quot;: &quot;Look up the status of an order by its order id&quot;,
+        &quot;inputSchema&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;order_id&quot;: {
+              &quot;description&quot;: &quot;The order id to look up&quot;,
+              &quot;type&quot;: &quot;string&quot;
+            }
+          },
+          &quot;required&quot;: [&quot;order_id&quot;]
+        }
+      }
+    ]
+  }
+}
+</code></pre>
+<p>NOTE: the gateway namespaces tool names as <code>&lt;target&gt;___&lt;tool&gt;</code> (triple
+underscore), so <code>lookup_order</code> on the <code>orders</code> target becomes
+<code>orders___lookup_order</code>. Match on the suffix rather than hard-coding the
+full name.</p>
+<h2>4 - Teaching the agent to call it</h2>
+<p>The agent gains two small functions, one to fetch a token and one to make
+MCP calls, and the runtime passes the endpoints and credentials in as
+environment variables from Terraform:</p>
+<pre><code class="language-python">def lookup_order(order_id):
+    token = get_token()
+    tools = mcp_request(&quot;tools/list&quot;, {}, token)[&quot;result&quot;][&quot;tools&quot;]
+    tool_name = next(t[&quot;name&quot;] for t in tools if t[&quot;name&quot;].endswith(&quot;___lookup_order&quot;))
+    result = mcp_request(
+        &quot;tools/call&quot;,
+        {&quot;name&quot;: tool_name, &quot;arguments&quot;: {&quot;order_id&quot;: order_id}},
+        token,
+    )
+    return result[&quot;result&quot;][&quot;content&quot;][0][&quot;text&quot;]
+</code></pre>
+<p>This is a minimal gateway-specific client, not a conforming MCP
+implementation, it skips the MCP initialize handshake and assumes single
+JSON responses rather than handling event streams. For a real agent use an
+MCP SDK and this plumbing disappears.</p>
+<pre><code class="language-hcl">  environment_variables = {
+    GATEWAY_URL           = aws_bedrockagentcore_gateway.orders.gateway_url
+    COGNITO_TOKEN_URL     = local.token_url
+    COGNITO_CLIENT_ID     = aws_cognito_user_pool_client.agent.id
+    COGNITO_CLIENT_SECRET = aws_cognito_user_pool_client.agent.client_secret
+    TOOL_SCOPE            = &quot;demos-gateway/invoke&quot;
+  }
+</code></pre>
+<p>NOTE: the client secret passes through Terraform state and lands in the
+runtime's environment, which is fine for a demo but in production means
+encrypting and restricting the state backend and rotating the credential.</p>
+<p>There is still no model in this agent, it extracts an order id from the
+prompt with a regex, because the thing under demonstration is the tool
+path, not the reasoning. A model slots into exactly this shape later in
+the series.</p>
+<h2>5 - Asking it questions</h2>
+<pre><code class="language-bash">aws bedrock-agentcore invoke-agent-runtime \
+  --cli-binary-format raw-in-base64-out \
+  --agent-runtime-arn &quot;$RUNTIME_ARN&quot; \
+  --runtime-session-id &quot;$SESSION_ID&quot; \
+  --payload '{&quot;prompt&quot;: &quot;where is order 42?&quot;}' response.json
+
+cat response.json
+{&quot;result&quot;: &quot;order 42: {\&quot;status\&quot;:\&quot;shipped\&quot;,\&quot;carrier\&quot;:\&quot;DPD\&quot;,\&quot;eta\&quot;:\&quot;2026-07-28\&quot;}&quot;}
+</code></pre>
+<p>The full round trip, agent to token endpoint to gateway to Lambda and
+back, came in at 2.74 seconds in one run on a fresh session including the
+microVM cold start, and the tool handles the miss case the same way:</p>
+<pre><code>&quot;is order 99 ok?&quot;  -&gt;  {&quot;result&quot;: &quot;order 99: {\&quot;error\&quot;:\&quot;order 99 not found\&quot;}&quot;}
+</code></pre>
+<h2>Conclusion</h2>
+<p>One Lambda, two gateway resources and a Cognito client turned a plain
+function into an MCP tool an agent can discover and call, with JWT auth in
+front of it and without writing or hosting an MCP server. The same target
+mechanism scales sideways, more Lambdas, OpenAPI specs or API Gateway
+stages all join the same tool list behind the same endpoint.</p>
+<p>The next post gives the agent somewhere to keep what it learns, short-term
+session context and long-term extracted memory with AgentCore Memory.</p>
+<p>References:</p>
+<ul>
+<li>https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway</li>
+<li>https://docs.aws.amazon.com/bedrock-agentcore/</li>
+<li>https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_gateway</li>
+<li>https://modelcontextprotocol.io/</li>
+</ul>
+    </article>
+  </div>
+</body>
+</html>

@@ -18,6 +18,10 @@ Enter
 Sleep 2s
 Type "unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/03-memory && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && export ARN=$(terraform -chdir=terraform output -raw runtime_arn) MEMORY_ID=$(terraform -chdir=terraform output -raw memory_id) && clear"
 Enter
+Sleep 10s
+Type "clear"
+Enter
+Sleep 1s
 Show
 
 Type "# an agent that remembers, with AgentCore Memory — store a preference in session A"

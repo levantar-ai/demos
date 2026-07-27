@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Giving your agent memory that survives the session — Levantar Demos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How to add AgentCore Memory to an agent so it keeps short-term conversation events within a session and recalls extracted user preferences across sessions, with the extraction happening asynchronously on the service side.">
+<link rel="icon" type="image/png" href="../favicon.png">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-7C1NXQ0H0E');
+</script>
+<style>
+  :root {
+    --bg: #0b1120; --card: #152037; --line: #243352; --fg: #e7edf7;
+    --muted: #93a4c3; --accent: #22d3ee; --hl: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 24px 80px; color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%) var(--bg);
+    line-height: 1.7;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+  .top a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  .top a:hover { color: var(--accent); }
+  .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--fg) !important; font-weight: 600; font-size: 15px; }
+  .brand img { height: 32px; }
+  article h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.25; margin: 0 0 6px; }
+  article .date { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+  article h2 { font-size: 21px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  article p, article li { color: #c6d2e6; font-size: 16px; }
+  article a { color: var(--accent); text-decoration: none; }
+  article a:hover { text-decoration: underline; }
+  article img { max-width: 100%; border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 10px; margin: 10px 0; }
+  article code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; }
+  article pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow-x: auto; }
+  article pre code { background: none; border: none; padding: 0; font-size: 13.5px; line-height: 1.6; color: #d8e2f3; }
+  article table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
+  article th, article td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  article th { background: var(--card); }
+  article blockquote { border-left: 3px solid var(--accent); margin: 0; padding: 2px 18px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
+        <img src="../levantar-logo-white.png" alt="Levantar"><span>Levantar</span>
+      </a>
+      <a href="../">← All demos</a>
+    </div>
+    <article>
+      <h1>Giving your agent memory that survives the session</h1>
+      <div class="date">2026-07-24 · AgentCore series</div>
+<h2>TL;DR;</h2>
+<p>How to add AgentCore Memory to an agent so it keeps short-term
+conversation events within a session and recalls extracted user
+preferences across sessions, with the extraction happening asynchronously
+on the service side.</p>
+<p>SOURCE CODE - All code for this post is available at:
+https://github.com/levantar-ai/demos/tree/main/agentcore/03-memory</p>
+<h2>Longer version</h2>
+<p>The agent from the first post forgets everything the moment a session
+ends, which is what most agents do by default and what makes them feel
+like strangers every time. Session state on its own does not fix this,
+because the useful things a user tells you (their name, their
+preferences, how they like to be contacted) belong to the user, not to
+the session they happened to say them in.</p>
+<p>AgentCore Memory splits this into two layers. Events are raw conversation
+turns you write per actor and session, they expire after a configurable
+number of days and behave as short-term memory. Strategies watch those
+events and asynchronously extract structured records into namespaces,
+which is the long-term memory that survives across sessions. The service
+ships built-in strategies including semantic facts, summaries, user
+preferences and episodic memory, plus custom strategies where you control
+the extraction, and this post uses the user-preference one.</p>
+<p><img alt="Architecture" src="architecture.png" /></p>
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
+<h2>1 - The memory store</h2>
+<p>The memory side is two resources, the store itself with an expiry that
+defines how long raw events live, and a strategy that tells the service
+what to extract and where to put it:</p>
+<pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_memory&quot; &quot;agent&quot; {
+  name                  = &quot;demos_agentcore_03_memory&quot;
+  event_expiry_duration = 7
+}
+
+resource &quot;aws_bedrockagentcore_memory_strategy&quot; &quot;preferences&quot; {
+  memory_id  = aws_bedrockagentcore_memory.agent.id
+  name       = &quot;UserPreferences&quot;
+  type       = &quot;USER_PREFERENCE&quot;
+  namespaces = [&quot;/users/{actorId}&quot;]
+}
+</code></pre>
+<p>The namespace template is the interesting part. <code>{actorId}</code> is filled in
+per actor at extraction time, so each user gets their own
+<code>/users/&lt;actor&gt;</code> shelf of preference records, and the agent retrieves
+from an actor-derived namespace.</p>
+<p>NOTE: the actor id is not an authorization boundary. This demo trusts the
+<code>actor</code> field in the request, which is fine for a demo, but a real
+application must derive it from an authenticated identity, because
+anything that can invoke the runtime can name any actor.</p>
+<p>NOTE: the memory store is the slowest resource in this series so far to
+create, 2m45s in this deployment, so create it once per environment and
+keep it, rather than per deploy. Don't share one store across
+environments or security boundaries though, stale records from one test
+will happily turn up in the next.</p>
+<h2>2 - The agent</h2>
+<p>The agent from post 01 gains a cached boto3 client and three functions,
+which is also this agent's first dependency, because memory is a
+data-plane API rather than something the runtime injects:</p>
+<pre><code class="language-python">def remember(actor, session, text):
+    client().create_event(
+        memoryId=os.environ[&quot;MEMORY_ID&quot;],
+        actorId=actor,
+        sessionId=session,
+        eventTimestamp=datetime.now(timezone.utc),
+        payload=[{&quot;conversational&quot;: {&quot;content&quot;: {&quot;text&quot;: text}, &quot;role&quot;: &quot;USER&quot;}}],
+    )
+
+
+def recap(actor, session):
+    resp = client().list_events(
+        memoryId=os.environ[&quot;MEMORY_ID&quot;],
+        actorId=actor,
+        sessionId=session,
+        maxResults=20,
+    )
+    return [
+        p[&quot;conversational&quot;][&quot;content&quot;][&quot;text&quot;]
+        for e in resp.get(&quot;events&quot;, [])
+        for p in e.get(&quot;payload&quot;, [])
+        if &quot;conversational&quot; in p
+    ]
+
+
+def recall(actor, query):
+    resp = client().retrieve_memory_records(
+        memoryId=os.environ[&quot;MEMORY_ID&quot;],
+        namespace=f&quot;/users/{actor}&quot;,
+        searchCriteria={&quot;searchQuery&quot;: query},
+        maxResults=5,
+    )
+    return [r[&quot;content&quot;][&quot;text&quot;] for r in resp.get(&quot;memoryRecordSummaries&quot;, [])]
+</code></pre>
+<p>Prompts starting with "remember" are stored as events, "recap" reads the
+current session's events back, and anything else returns the matching
+extracted preference records. The runtime role gets exactly those three
+data-plane actions (CreateEvent, ListEvents, RetrieveMemoryRecords)
+scoped to this one memory store, and Terraform passes the memory id in
+as an environment variable.</p>
+<h2>3 - Teaching it something</h2>
+<p>The invoke command is the same <code>aws bedrock-agentcore invoke-agent-runtime</code>
+call as post 01, so the examples below show just the payloads and
+responses. Session A, actor <code>andy</code>:</p>
+<pre><code class="language-bash">--payload '{&quot;actor&quot;: &quot;andy&quot;, &quot;session&quot;: &quot;session-a&quot;,
+            &quot;prompt&quot;: &quot;remember: my name is Andy and I always prefer DPD for deliveries&quot;}'
+{&quot;result&quot;: &quot;noted&quot;}
+
+--payload '{&quot;actor&quot;: &quot;andy&quot;, &quot;session&quot;: &quot;session-a&quot;,
+            &quot;prompt&quot;: &quot;remember: I like order updates by email, never SMS&quot;}'
+{&quot;result&quot;: &quot;noted&quot;}
+</code></pre>
+<p>The events land immediately and are the short-term layer, which the agent
+reads back itself with "recap":</p>
+<pre><code class="language-bash">--payload '{&quot;actor&quot;: &quot;andy&quot;, &quot;session&quot;: &quot;session-a&quot;, &quot;prompt&quot;: &quot;recap&quot;}'
+{&quot;result&quot;: [&quot;remember: I like order updates by email, never SMS&quot;,
+            &quot;remember: my name is Andy and I always prefer DPD for deliveries&quot;]}
+</code></pre>
+<h2>4 - Asking from a different session</h2>
+<p>The same question from a new session, asked immediately and then again
+once extraction had run. In this run the immediate answer was empty
+because the extracted record did not exist yet, extraction is
+asynchronous, so don't design against a fixed delay:</p>
+<pre><code class="language-bash">--payload '{&quot;actor&quot;: &quot;andy&quot;, &quot;session&quot;: &quot;session-b&quot;,
+            &quot;prompt&quot;: &quot;which delivery carrier do I prefer?&quot;}'
+{&quot;result&quot;: []}
+</code></pre>
+<p>The same payload, asked again once the strategy had done its work:</p>
+<pre><code class="language-bash">--payload '{&quot;actor&quot;: &quot;andy&quot;, &quot;session&quot;: &quot;session-b&quot;,
+            &quot;prompt&quot;: &quot;which delivery carrier do I prefer?&quot;}'
+{&quot;result&quot;: [
+  &quot;{\&quot;context\&quot;:\&quot;The user explicitly stated they always prefer DPD for deliveries.\&quot;,
+    \&quot;preference\&quot;:\&quot;Always prefers DPD for deliveries\&quot;,
+    \&quot;categories\&quot;:[\&quot;shopping\&quot;,\&quot;delivery\&quot;]}&quot;
+]}
+</code></pre>
+<p>The service turned a raw "remember:" sentence into a structured record
+with the preference, the context it was stated in and categories, without
+any extraction code on our side. In this run the record appeared
+under a minute after the event it was extracted from.</p>
+<p>NOTE: give a newly created strategy a few minutes before storing anything
+you care about. In two separate deployments of this demo, events stored in
+the first moments after the strategy was created, even with <code>get-memory</code>
+already reporting it ACTIVE, were never extracted, while the same event
+stored again once the strategy had settled was extracted in under a
+minute. The missed events stay readable in short-term, they just never
+become records.</p>
+<p>That answer came from a different session to the one the preferences were
+stored in, which is the whole point. The extracted records are attached
+to the actor, not the session, so any future session for <code>andy</code> can
+retrieve them.</p>
+<h2>Conclusion</h2>
+<p>Memory in AgentCore is two deliberate layers rather than one magic box.
+Events give you cheap, immediate, per-session recall with an expiry date,
+and strategies turn those events into long-term records per user, ones
+that survive session end and event expiry, without
+you running any extraction pipeline yourself. The trade to design around
+is the asynchronous gap between storing and recalling, an agent that
+needs to use a fact in the same breath it learned it should read its own
+session events, and lean on the extracted records for everything that
+comes later.</p>
+<p>The next post gives the agent the built-in tools, Code Interpreter and
+Browser, and looks at the security model of letting an agent execute
+code.</p>
+<p>References:</p>
+<ul>
+<li>https://github.com/levantar-ai/demos/tree/main/agentcore/03-memory</li>
+<li>https://docs.aws.amazon.com/bedrock-agentcore/</li>
+<li>https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_memory</li>
+</ul>
+    </article>
+  </div>
+</body>
+</html>
