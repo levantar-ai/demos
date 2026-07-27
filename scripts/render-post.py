@@ -103,6 +103,17 @@ def main():
     for png in re.findall(r"!\[[^\]]*\]\(([^)]+\.png)\)", text):
         shutil.copy(pathlib.Path(demo) / png, out_dir / pathlib.Path(png).name)
 
+    # Auto-link bare URLs (outside fenced code blocks) so the SOURCE CODE
+    # line and References render as clickable anchors.
+    linked, in_fence = [], False
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            in_fence = not in_fence
+        elif not in_fence:
+            line = re.sub(r"(?<![(<`\[])(https?://[^\s)>\"]+)", r"<\1>", line)
+        linked.append(line)
+    text = "\n".join(linked)
+
     body = markdown.markdown(text, extensions=["fenced_code", "tables"])
 
     # If the demo has a recorded terminal video, place it after the diagram.
