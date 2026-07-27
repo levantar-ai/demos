@@ -224,10 +224,20 @@ getting the token, choosing the tool and interpreting the result.
 ```
 
 NOTE: the client secret passes through Terraform state and lands in the
-runtime's environment, which is fine for a demo. In production prefer an
-`AWS_IAM` authorizer (SigV4 from the runtime role, no secret at all) or
-fetch the secret from Secrets Manager at runtime, and restrict who can
-read runtime configuration as well as the state backend.
+runtime's environment as plaintext, which is a demo shortcut, not the
+blessed path. AWS's [security best practices for AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html)
+are direct about where credentials like this belong:
+
+> Use AgentCore Identity for outbound authentication — AgentCore Identity
+> manages OAuth credentials and API keys securely, preventing credential
+> exposure in agent code or logs.
+
+The same page notes that anything running inside the microVM can read the
+environment and the execution role credentials, the microVM is the
+isolation boundary. So in production either use an `AWS_IAM` authorizer
+(SigV4 from the runtime role, no secret at all), or hold the client
+credentials in AgentCore Identity's token vault via an OAuth2 credential
+provider, which the Identity post later in this series covers properly.
 
 There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
