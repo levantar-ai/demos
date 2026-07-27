@@ -21,6 +21,13 @@ TEMPLATE = """<!DOCTYPE html>
 <title>{title} — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="{description}">
+<meta property="og:type" content="article">
+<meta property="og:title" content="{title}">
+<meta property="og:description" content="{description}">
+<meta property="og:image" content="https://levantar-ai.github.io/demos/{slug}/social.png">
+<meta property="og:url" content="https://levantar-ai.github.io/demos/{slug}/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://levantar-ai.github.io/demos/{slug}/social.png">
 <link rel="icon" type="image/png" href="../favicon.png">
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
@@ -103,6 +110,10 @@ def main():
     for png in re.findall(r"!\[[^\]]*\]\(([^)]+\.png)\)", text):
         shutil.copy(pathlib.Path(demo) / png, out_dir / pathlib.Path(png).name)
 
+    social = pathlib.Path(demo) / "social.png"
+    if social.exists():
+        shutil.copy(social, out_dir / "social.png")
+
     # Auto-link bare URLs (outside fenced code blocks) so the SOURCE CODE
     # line and References render as clickable anchors.
     linked, in_fence = [], False
@@ -131,7 +142,7 @@ def main():
             body,
             count=1,
         )
-    html = TEMPLATE.format(title=title, description=description, date=date, body=body)
+    html = TEMPLATE.format(title=title, description=description, date=date, body=body, slug=slug)
     (out_dir / "index.html").write_text(html)
     print(f"rendered {src} -> {out_dir}/index.html")
 
