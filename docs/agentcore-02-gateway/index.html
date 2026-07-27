@@ -187,9 +187,9 @@ resource &quot;aws_bedrockagentcore_gateway_target&quot; &quot;orders&quot; {
   }
 }
 </code></pre>
-<p>The tool schema you declare here is what agents will see over MCP, so the
-description matters, it is what a model uses to decide when to call the
-tool.</p>
+<p>The tool schema you declare here is what agents will see over MCP, so it
+all matters, the name, description and input schema are what a model uses
+to decide when to call the tool and how to shape the arguments.</p>
 <p>Asking the gateway for its tool list shows the mapping in action:</p>
 <pre><code class="language-json">{
   &quot;jsonrpc&quot;: &quot;2.0&quot;,
@@ -216,16 +216,19 @@ tool.</p>
 </code></pre>
 <p>NOTE: the gateway namespaces tool names as <code>&lt;target&gt;___&lt;tool&gt;</code> (triple
 underscore), so <code>lookup_order</code> on the <code>orders</code> target becomes
-<code>orders___lookup_order</code>. Match on the suffix rather than hard-coding the
-full name.</p>
+<code>orders___lookup_order</code>. Resolve that fully qualified name exactly, two
+targets can expose tools with the same short name and a fuzzy match will
+happily pick the wrong one.</p>
 <h2>4 - Teaching the agent to call it</h2>
 <p>The agent gains two small functions, one to fetch a token and one to make
 MCP calls, and the runtime passes the endpoints and credentials in as
 environment variables from Terraform:</p>
 <pre><code class="language-python">def lookup_order(order_id):
     token = get_token()
-    tools = mcp_request(&quot;tools/list&quot;, {}, token)[&quot;result&quot;][&quot;tools&quot;]
-    tool_name = next(t[&quot;name&quot;] for t in tools if t[&quot;name&quot;].endswith(&quot;___lookup_order&quot;))
+    tool_name = &quot;orders___lookup_order&quot;
+    tools = {t[&quot;name&quot;] for t in mcp_request(&quot;tools/list&quot;, {}, token)[&quot;result&quot;][&quot;tools&quot;]}
+    if tool_name not in tools:
+        raise RuntimeError(f&quot;required tool not found: {tool_name}&quot;)
     result = mcp_request(
         &quot;tools/call&quot;,
         {&quot;name&quot;: tool_name, &quot;arguments&quot;: {&quot;order_id&quot;: order_id}},
@@ -236,7 +239,8 @@ environment variables from Terraform:</p>
 <p>This is a minimal gateway-specific client, not a conforming MCP
 implementation, it skips the MCP initialize handshake and assumes single
 JSON responses rather than handling event streams. For a real agent use an
-MCP SDK and this plumbing disappears.</p>
+MCP SDK for the protocol and transport, your application still owns
+getting the token, choosing the tool and interpreting the result.</p>
 <pre><code class="language-hcl">  environment_variables = {
     GATEWAY_URL           = aws_bedrockagentcore_gateway.orders.gateway_url
     COGNITO_TOKEN_URL     = local.token_url
@@ -246,8 +250,10 @@ MCP SDK and this plumbing disappears.</p>
   }
 </code></pre>
 <p>NOTE: the client secret passes through Terraform state and lands in the
-runtime's environment, which is fine for a demo but in production means
-encrypting and restricting the state backend and rotating the credential.</p>
+runtime's environment, which is fine for a demo. In production prefer an
+<code>AWS_IAM</code> authorizer (SigV4 from the runtime role, no secret at all) or
+fetch the secret from Secrets Manager at runtime, and restrict who can
+read runtime configuration as well as the state backend.</p>
 <p>There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
 path, not the reasoning. A model slots into exactly this shape later in
