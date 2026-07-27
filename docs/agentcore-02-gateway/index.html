@@ -193,8 +193,19 @@ to decide when to call the tool and how to shape the arguments.</p>
   }
 }
 </code></pre>
-<p>The runtime role gets one extra permission, <code>bedrock-agentcore:InvokeGateway</code>
-scoped to this gateway's ARN, which is the entire auth setup.</p>
+<p>The runtime role gets one extra permission, and this statement is the
+entire auth setup, least privilege in its clearest form, one action on
+one resource:</p>
+<pre><code class="language-hcl">{
+  Sid      = &quot;InvokeGateway&quot;
+  Effect   = &quot;Allow&quot;
+  Action   = [&quot;bedrock-agentcore:InvokeGateway&quot;]
+  Resource = aws_bedrockagentcore_gateway.orders.gateway_arn
+}
+</code></pre>
+<p>The same principle runs through the other two roles, the gateway's role
+can invoke exactly one Lambda, and the runtime role can otherwise only
+pull its own image and write its own logs and telemetry.</p>
 <p>NOTE: the gateway namespaces tool names as <code>&lt;target&gt;___&lt;tool&gt;</code> (triple
 underscore), so <code>lookup_order</code> on the <code>orders</code> target becomes
 <code>orders___lookup_order</code>. Resolve that fully qualified name exactly, two
