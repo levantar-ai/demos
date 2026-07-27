@@ -118,10 +118,24 @@ def recall(actor, query):
 
 Prompts starting with "remember" are stored as events, "recap" reads the
 current session's events back, and anything else returns the matching
-extracted preference records. The runtime role gets exactly those three
-data-plane actions (CreateEvent, ListEvents, RetrieveMemoryRecords)
-scoped to this one memory store, and Terraform passes the memory id in
-as an environment variable.
+extracted preference records. The runtime role gets exactly the three
+data-plane actions those functions use, scoped to this one memory store,
+least privilege for the whole memory layer in one statement:
+
+```hcl
+{
+  Sid    = "Memory"
+  Effect = "Allow"
+  Action = [
+    "bedrock-agentcore:CreateEvent",
+    "bedrock-agentcore:ListEvents",
+    "bedrock-agentcore:RetrieveMemoryRecords"
+  ]
+  Resource = aws_bedrockagentcore_memory.agent.arn
+}
+```
+
+Terraform passes the memory id in as an environment variable.
 
 ## 3 - Teaching it something
 
