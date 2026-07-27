@@ -20,11 +20,7 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   }
 
   environment_variables = {
-    GATEWAY_URL           = aws_bedrockagentcore_gateway.orders.gateway_url
-    COGNITO_TOKEN_URL     = local.token_url
-    COGNITO_CLIENT_ID     = aws_cognito_user_pool_client.agent.id
-    COGNITO_CLIENT_SECRET = aws_cognito_user_pool_client.agent.client_secret
-    TOOL_SCOPE            = local.scope
+    GATEWAY_URL = aws_bedrockagentcore_gateway.orders.gateway_url
   }
 
   tags = {

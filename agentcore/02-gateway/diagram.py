@@ -7,7 +7,6 @@ Produces architecture.png referenced by POST.md.
 from diagrams import Cluster, Diagram, Edge
 from diagrams.aws.compute import Lambda
 from diagrams.aws.network import APIGateway
-from diagrams.aws.security import Cognito
 from diagrams.onprem.client import User
 from diagrams.programming.language import Python
 
@@ -39,7 +38,6 @@ with Diagram(
     edge_attr=edge_attr,
 ):
     caller = User("caller")
-    cognito = Cognito("Cognito\n(client credentials)")
 
     with Cluster(
         "AgentCore Runtime",
@@ -56,6 +54,5 @@ with Diagram(
     tool = Lambda("lookup_order")
 
     caller >> Edge(label="invoke") >> agent
-    cognito >> Edge(label="JWT", style="dashed") >> agent
-    agent >> Edge(label="tools/call") >> gateway
+    agent >> Edge(label="tools/call, SigV4\n(runtime role)") >> gateway
     gateway >> Edge(label="invoke") >> tool
