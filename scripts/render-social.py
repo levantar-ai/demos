@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render a 1200x627 social card (LinkedIn link format) for a post.
 
-Usage: python3 scripts/render-social.py agentcore/01-first-agent
+Usage: python3 scripts/render-social.py agentcore/01-first-agent [square]
 
 Reads the post title from POST.md, composes the demo's architecture
 diagram onto a dark branded canvas, and writes social.png into the demo
@@ -17,7 +17,7 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-W, H = 1200, 627
+W, H = 1200, 627  # overridden to 1200x1200 when "square" is passed
 BG = (11, 17, 32)        # site background #0b1120
 ACCENT = (34, 211, 238)  # site accent #22d3ee
 MUTED = (147, 164, 195)  # site muted #93a4c3
@@ -44,6 +44,10 @@ def wrap(draw, text, fnt, max_width):
 
 
 def main():
+    global W, H
+    square = len(sys.argv) > 2 and sys.argv[2] == "square"
+    if square:
+        W, H = 1200, 1200
     demo = pathlib.Path(sys.argv[1].rstrip("/"))
     title = re.match(r"# (.+)\n", (demo / "POST.md").read_text()).group(1)
 
@@ -78,7 +82,7 @@ def main():
     draw.text((W - 60 - draw.textlength("levantar.ai", font=font("DejaVuSans-Bold", 16)), 44),
               "levantar.ai", font=font("DejaVuSans-Bold", 16), fill=MUTED)
 
-    out = demo / "social.png"
+    out = demo / ("social-square.png" if square else "social.png")
     canvas.save(out)
     print(f"rendered {out}")
 
