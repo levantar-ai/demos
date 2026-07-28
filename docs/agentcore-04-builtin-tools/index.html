@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Letting an agent run code, without letting it run loose — Levantar Demos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Letting an agent run code, without letting it run loose">
+<meta property="og:description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to.">
+<meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png">
+<meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png">
+<link rel="icon" type="image/png" href="../favicon.png">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-7C1NXQ0H0E');
+</script>
+<style>
+  :root {
+    --bg: #0b1120; --card: #152037; --line: #243352; --fg: #e7edf7;
+    --muted: #93a4c3; --accent: #22d3ee; --hl: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 24px 80px; color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%) var(--bg);
+    line-height: 1.7;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+  .top a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  .top a:hover { color: var(--accent); }
+  .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--fg) !important; font-weight: 600; font-size: 15px; }
+  .brand img { height: 32px; }
+  article h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.25; margin: 0 0 6px; }
+  article .date { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+  article h2 { font-size: 21px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  article p, article li { color: #c6d2e6; font-size: 16px; }
+  article a { color: var(--accent); text-decoration: none; }
+  article a:hover { text-decoration: underline; }
+  article img { max-width: 100%; border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 10px; margin: 10px 0; }
+  article code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; }
+  article pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow-x: auto; }
+  article pre code { background: none; border: none; padding: 0; font-size: 13.5px; line-height: 1.6; color: #d8e2f3; }
+  article table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
+  article th, article td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  article th { background: var(--card); }
+  article blockquote { border-left: 3px solid var(--accent); margin: 0; padding: 2px 18px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
+        <img src="../levantar-logo-white.png" alt="Levantar"><span>Levantar</span>
+      </a>
+      <a href="../">← All demos</a>
+    </div>
+    <article>
+      <h1>Letting an agent run code, without letting it run loose</h1>
+      <div class="date">2026-07-28 · AgentCore series</div>
+<h2>TL;DR;</h2>
+<p>How to give an agent a real Python sandbox with AgentCore Code
+Interpreter, so it can analyse data it was handed rather than guess at
+it, and what the sandbox does and does not have access to.</p>
+<p>SOURCE CODE - All code for this post is available at:
+<a href="https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools">https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools</a></p>
+<h2>Longer version</h2>
+<p>Ask a language model to compute statistics over a few hundred rows and it
+will produce numbers that look right. Give it somewhere to actually run
+pandas and it produces numbers that are right. That is the whole argument
+for code execution as a tool, and it is why every serious agent framework
+ends up needing one.</p>
+<p>The problem is obvious the moment you say it out loud. You are taking
+input from a user, generating or running code against it, and executing
+that inside your own infrastructure. Do that in the agent's own process
+and any prompt injection or malicious CSV is executing next to your
+credentials.</p>
+<p>AgentCore Code Interpreter is a managed sandbox for exactly this. Your
+agent writes files into a session and runs code there, the code runs
+somewhere it cannot reach your account, and the results come back as
+text. This post wires one up and then pokes at the walls to see what the
+sandbox can actually touch.</p>
+<p><img alt="Architecture" src="architecture.png" /></p>
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
+<h2>1 - The sandbox</h2>
+<p>One resource, and the network mode is the whole security story:</p>
+<pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_code_interpreter&quot; &quot;sandbox&quot; {
+  name        = &quot;demos_agentcore_04_interpreter&quot;
+  description = &quot;Sandboxed pandas analysis for the demos series&quot;
+
+  network_configuration {
+    network_mode = &quot;SANDBOX&quot;
+  }
+}
+</code></pre>
+<p><code>SANDBOX</code> means the session has no network access at all. The other
+option is <code>PUBLIC</code>, which gives the sandbox outbound internet access, and
+you want to be deliberate about choosing it, because that is the mode
+where a malicious payload could exfiltrate whatever it can see.</p>
+<p>The runtime role gets the three actions the agent actually calls, scoped
+to this one sandbox:</p>
+<pre><code class="language-hcl">{
+  Sid    = &quot;CodeInterpreter&quot;
+  Effect = &quot;Allow&quot;
+  Action = [
+    &quot;bedrock-agentcore:StartCodeInterpreterSession&quot;,
+    &quot;bedrock-agentcore:InvokeCodeInterpreter&quot;,
+    &quot;bedrock-agentcore:StopCodeInterpreterSession&quot;
+  ]
+  Resource = aws_bedrockagentcore_code_interpreter.sandbox.code_interpreter_arn
+}
+</code></pre>
+<h2>2 - The agent</h2>
+<p>The agent's job is to move data in, run code, and read results out. It
+never parses the CSV itself:</p>
+<pre><code class="language-python">def analyse(csv_text, session_id):
+    interpreter = os.environ[&quot;CODE_INTERPRETER_ID&quot;]
+    call = client().invoke_code_interpreter
+    call(
+        codeInterpreterIdentifier=interpreter,
+        sessionId=session_id,
+        name=&quot;writeFiles&quot;,
+        arguments={&quot;content&quot;: [{&quot;path&quot;: &quot;data.csv&quot;, &quot;text&quot;: csv_text}]},
+    )
+    return _text(
+        call(
+            codeInterpreterIdentifier=interpreter,
+            sessionId=session_id,
+            name=&quot;executeCode&quot;,
+            arguments={&quot;language&quot;: &quot;python&quot;, &quot;code&quot;: ANALYSIS},
+        )
+    )
+</code></pre>
+<p><code>invoke_code_interpreter</code> takes a tool name and its arguments, the useful
+ones being <code>writeFiles</code>, <code>executeCode</code>, <code>executeCommand</code>, <code>readFiles</code> and
+<code>listFiles</code>. Responses arrive as a stream of content items, so there is a
+small helper that pulls the text out.</p>
+<p>NOTE: files land in the session's working directory, not in <code>/tmp</code>. Write
+to <code>data.csv</code> and read <code>data.csv</code>, and resist the urge to be clever with
+absolute paths.</p>
+<p>NOTE: sessions outlive the call that created them, up to
+<code>sessionTimeoutSeconds</code>. A sandbox with live sessions refuses to delete
+(<code>ConflictException: ... cannot be deleted. There are 2 active
+sessions</code>), so stop sessions when you are done with them rather than
+leaving them to time out.</p>
+<h2>3 - Analysing something</h2>
+<p>Post a CSV to the agent and the numbers come back computed rather than
+imagined:</p>
+<pre><code class="language-bash">--payload '{&quot;csv&quot;: &quot;order_id,items,total\n1001,3,42.50\n1002,1,12.00\n...&quot;}'
+</code></pre>
+<pre><code>order_id     items       total
+count     5.000000  5.000000    5.000000
+mean   1003.000000  3.600000   60.570000
+std       1.581139  2.408319   48.863299
+min    1001.000000  1.000000   12.000000
+25%    1002.000000  2.000000   28.400000
+50%    1003.000000  3.000000   42.500000
+75%    1004.000000  5.000000   88.200000
+max    1005.000000  7.000000  131.750000
+
+rows: 5
+</code></pre>
+<p>Pandas is already installed in the sandbox image, as are the usual data
+libraries, so there is no dependency management to do for straightforward
+analysis.</p>
+<h2>4 - Testing the walls</h2>
+<p>The interesting part is what happens when code in the sandbox tries to
+reach out. Running this inside a <code>SANDBOX</code> session:</p>
+<pre><code class="language-python">import urllib.request
+urllib.request.urlopen(&quot;https://example.com&quot;, timeout=8)
+</code></pre>
+<pre><code>blocked: URLError &lt;urlopen error [Errno -2] Name or service not known&gt;
+</code></pre>
+<p>No DNS, so nothing resolves. Checking for credentials and the metadata
+endpoint that would hand them over:</p>
+<pre><code class="language-python">keys = [k for k in os.environ if &quot;AWS&quot; in k or &quot;TOKEN&quot; in k]
+urllib.request.urlopen(&quot;http://169.254.169.254/latest/meta-data/&quot;, timeout=5)
+</code></pre>
+<pre><code>aws-ish env vars: []
+metadata blocked: HTTPError
+</code></pre>
+<p>No credentials in the environment, and the metadata service is not
+reachable. That is the property worth designing around, code you did not
+write runs somewhere it cannot phone home from and cannot borrow your
+identity.</p>
+<h2>Conclusion</h2>
+<p>A managed sandbox turns "the model says the mean is about sixty" into a
+computed answer, and it moves execution of untrusted input off your
+agent's microVM into a session with no network and no credentials. One
+Terraform resource, three IAM actions and a couple of API calls, with the
+security boundary set by a single <code>network_mode</code>.</p>
+<p>The next post gives the agent an identity of its own, inbound
+authentication for callers and outbound OAuth so it can act on a user's
+behalf.</p>
+<p>References:</p>
+<ul>
+<li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools">https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html</a></li>
+<li><a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_code_interpreter">https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_code_interpreter</a></li>
+</ul>
+    </article>
+  </div>
+</body>
+</html>

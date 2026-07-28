@@ -50,13 +50,17 @@ Demo: agent recalls user preferences across separate sessions.
   with video and social cards; externally reviewed
 - [ ] Post listed on the homepage (awaiting Andy's approval)
 
-### 04 — Code Interpreter and Browser built-in tools
-Sandboxed execution and cloud browser; the security model of agent-run code.
-Demo: agent analyses an uploaded CSV and completes a live web task.
-- [ ] Demo built (`04-builtin-tools/`)
-- [ ] Demo deployed and invocable
-- [ ] Post drafted
-- [ ] Post published
+### 04 — Letting an agent run code, without letting it run loose
+Code Interpreter sandbox; the security model of agent-run code.
+Demo: agent analyses a caller-supplied CSV with pandas inside a SANDBOX
+session, with the isolation (no network, no credentials) probed directly.
+- [x] Demo built (`04-builtin-tools/`)
+- [x] Demo deployed and invoked; sandbox isolation probed; artifacts in
+  `04-builtin-tools/artifacts/`; video recorded; resources destroyed after
+- [x] Post drafted (`04-builtin-tools/POST.md`); live as an unlisted
+  preview with video and social cards
+- [ ] Externally reviewed (gpt-5.6)
+- [ ] Post listed on the homepage (awaiting Andy's approval)
 
 ### 05 — Identity: who is your agent acting as?
 Inbound auth (Cognito/OIDC) and outbound OAuth token vaulting.
