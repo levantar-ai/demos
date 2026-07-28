@@ -12,3 +12,6 @@ megalinter-reports/
 *.tfvars
 *.tfplan
 tfplan
+
+# Private planning (kept out of this public repo)
+agentcore/PLAN.md
