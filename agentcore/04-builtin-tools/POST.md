@@ -170,7 +170,7 @@ urllib.request.urlopen("http://169.254.169.254/latest/meta-data/", timeout=5)
 
 ```
 aws-ish env vars: []
-metadata request denied: HTTP 403
+metadata request denied: HTTP 401
 ```
 
 No AWS- or token-named environment variables, and the metadata request

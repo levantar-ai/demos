@@ -29,7 +29,8 @@ With `network_mode = "SANDBOX"`:
 - outbound internet: `URLError <urlopen error [Errno -2] Name or service
   not known>` — no DNS at all
 - AWS-ish environment variables inside the sandbox: `[]`
-- instance metadata endpoint (169.254.169.254): `HTTPError`, unreachable
+- instance metadata endpoint (169.254.169.254): request denied,
+  `HTTP 401` (measured; a denial, not proof the address is unreachable)
 
 ## Gotchas
 
@@ -43,3 +44,17 @@ With `network_mode = "SANDBOX"`:
 
 All resources destroyed; `list-code-interpreters` and
 `list-agent-runtimes` both empty afterwards.
+
+## External review (gpt-5.6) and second cycle
+
+Six findings, all actioned: sessions were never stopped (leak, and it
+contradicted the post's own NOTE) — now stopped in a `finally` with a
+test; every tool stream consumed with `isError` raised; Content-Length
+validated and the body capped at 2MB; the post reframed as trusted code
+processing untrusted data rather than untrusted code execution; probe
+conclusions softened to what they actually prove; `network_mode`
+described as the egress control rather than the whole boundary.
+
+Verified after the fixes: analysis still correct, and
+`list-code-interpreter-sessions` returns 0 active sessions immediately
+after an invocation. The metadata probe returns HTTP 401 (measured).

@@ -59,7 +59,9 @@ session, with the isolation (no network, no credentials) probed directly.
   `04-builtin-tools/artifacts/`; video recorded; resources destroyed after
 - [x] Post drafted (`04-builtin-tools/POST.md`); live as an unlisted
   preview with video and social cards
-- [ ] Externally reviewed (gpt-5.6)
+- [x] Externally reviewed (gpt-5.6): six findings, all actioned and
+  re-verified live (session leak fixed, stream errors surfaced, body
+  capped, framing and probe claims corrected)
 - [ ] Post listed on the homepage (awaiting Andy's approval)
 
 ### 05 — Identity: who is your agent acting as?

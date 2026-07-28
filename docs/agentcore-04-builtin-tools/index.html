@@ -78,20 +78,22 @@ will produce numbers that look right. Give it somewhere to actually run
 pandas and it produces numbers that are right. That is the whole argument
 for code execution as a tool, and it is why every serious agent framework
 ends up needing one.</p>
-<p>The problem is obvious the moment you say it out loud. You are taking
-input from a user, generating or running code against it, and executing
-that inside your own infrastructure. Do that in the agent's own process
-and any prompt injection or malicious CSV is executing next to your
-credentials.</p>
+<p>The problem is where that execution happens. Parsing a stranger's CSV
+with pandas inside your agent's own process puts a parser you did not
+write, working on data you do not control, right next to your
+credentials. Go a step further and execute model-generated code there and
+the exposure is worse again.</p>
 <p>AgentCore Code Interpreter is a managed sandbox for exactly this. Your
-agent writes files into a session and runs code there, the code runs
-somewhere it cannot reach your account, and the results come back as
-text. This post wires one up and then pokes at the walls to see what the
-sandbox can actually touch.</p>
+agent writes files into a session, runs code there, and reads results
+back as text. This demo keeps the code fixed and author-written, so what
+is being isolated is the <em>processing of untrusted data</em>, which is the
+common case; the same mechanism is what you would use for
+model-generated code, with more input and output controls on top. This
+post wires one up and then pokes at the walls.</p>
 <p><img alt="Architecture" src="architecture.png" /></p>
 <video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
 <h2>1 - The sandbox</h2>
-<p>One resource, and the network mode is the whole security story:</p>
+<p>One resource, and the network mode is the control that matters most:</p>
 <pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_code_interpreter&quot; &quot;sandbox&quot; {
   name        = &quot;demos_agentcore_04_interpreter&quot;
   description = &quot;Sandboxed pandas analysis for the demos series&quot;
@@ -101,10 +103,15 @@ sandbox can actually touch.</p>
   }
 }
 </code></pre>
-<p><code>SANDBOX</code> means the session has no network access at all. The other
-option is <code>PUBLIC</code>, which gives the sandbox outbound internet access, and
-you want to be deliberate about choosing it, because that is the mode
-where a malicious payload could exfiltrate whatever it can see.</p>
+<p><code>SANDBOX</code> means the session gets no network access. The other option is
+<code>PUBLIC</code>, which gives the sandbox outbound internet access, and you want
+to be deliberate about choosing it, because that is the mode where a
+malicious payload could exfiltrate whatever it can see.</p>
+<p>NOTE: <code>SANDBOX</code> is the egress control, not the whole boundary. IAM
+decides who can start and invoke a session, you decide what data goes
+into one, and your agent decides what comes back out to the caller.
+Isolating the network does not make everything in the session safe to
+return.</p>
 <p>The runtime role gets the three actions the agent actually calls, scoped
 to this one sandbox:</p>
 <pre><code class="language-hcl">{
@@ -141,16 +148,19 @@ never parses the CSV itself:</p>
 </code></pre>
 <p><code>invoke_code_interpreter</code> takes a tool name and its arguments, the useful
 ones being <code>writeFiles</code>, <code>executeCode</code>, <code>executeCommand</code>, <code>readFiles</code> and
-<code>listFiles</code>. Responses arrive as a stream of content items, so there is a
-small helper that pulls the text out.</p>
+<code>listFiles</code>. Responses arrive as an event stream, so there is a small
+helper that drains every stream and raises when a tool sets <code>isError</code>,
+which is easy to skip and then wonder why a failed run looks like a
+successful empty one.</p>
+<p>Sessions are the thing to be careful with. The agent stops its session in
+a <code>finally</code> block, because a session lives until its timeout otherwise.</p>
 <p>NOTE: files land in the session's working directory, not in <code>/tmp</code>. Write
 to <code>data.csv</code> and read <code>data.csv</code>, and resist the urge to be clever with
 absolute paths.</p>
 <p>NOTE: sessions outlive the call that created them, up to
-<code>sessionTimeoutSeconds</code>. A sandbox with live sessions refuses to delete
-(<code>ConflictException: ... cannot be deleted. There are 2 active
-sessions</code>), so stop sessions when you are done with them rather than
-leaving them to time out.</p>
+<code>sessionTimeoutSeconds</code>, and a sandbox with live sessions refuses to
+delete (<code>ConflictException: ... cannot be deleted. There are 2 active
+sessions</code>). I hit exactly that on the first teardown of this demo.</p>
 <h2>3 - Analysing something</h2>
 <p>Post a CSV to the agent and the numbers come back computed rather than
 imagined:</p>
@@ -179,24 +189,26 @@ urllib.request.urlopen(&quot;https://example.com&quot;, timeout=8)
 </code></pre>
 <pre><code>blocked: URLError &lt;urlopen error [Errno -2] Name or service not known&gt;
 </code></pre>
-<p>No DNS, so nothing resolves. Checking for credentials and the metadata
-endpoint that would hand them over:</p>
+<p>No DNS, so nothing resolves. Checking for credentials in the environment
+and for the metadata endpoint that would hand them over:</p>
 <pre><code class="language-python">keys = [k for k in os.environ if &quot;AWS&quot; in k or &quot;TOKEN&quot; in k]
 urllib.request.urlopen(&quot;http://169.254.169.254/latest/meta-data/&quot;, timeout=5)
 </code></pre>
 <pre><code>aws-ish env vars: []
-metadata blocked: HTTPError
+metadata request denied: HTTP 401
 </code></pre>
-<p>No credentials in the environment, and the metadata service is not
-reachable. That is the property worth designing around, code you did not
-write runs somewhere it cannot phone home from and cannot borrow your
-identity.</p>
+<p>No AWS- or token-named environment variables, and the metadata request
+was denied rather than answered. Treat those as corroboration rather than
+proof; the guarantee to design against is the documented <code>SANDBOX</code>
+behaviour, which is that the session has no network egress. What you get
+is code running on untrusted data somewhere it cannot phone home from.</p>
 <h2>Conclusion</h2>
 <p>A managed sandbox turns "the model says the mean is about sixty" into a
-computed answer, and it moves execution of untrusted input off your
-agent's microVM into a session with no network and no credentials. One
-Terraform resource, three IAM actions and a couple of API calls, with the
-security boundary set by a single <code>network_mode</code>.</p>
+computed answer, and it moves the processing of untrusted data off your
+agent's microVM into a session with no network egress. One Terraform
+resource, three IAM actions and a couple of API calls, with <code>SANDBOX</code> as
+the egress control and IAM, session lifecycle and what you return to the
+caller making up the rest of the boundary.</p>
 <p>The next post gives the agent an identity of its own, inbound
 authentication for callers and outbound OAuth so it can act on a user's
 behalf.</p>
