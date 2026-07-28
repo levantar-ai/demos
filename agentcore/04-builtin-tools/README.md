@@ -1,0 +1,38 @@
+# 04 — Letting an agent run code, without letting it run loose
+
+Gives the agent a managed Python sandbox (AgentCore Code Interpreter) and
+has it analyse a caller-supplied CSV with pandas inside that sandbox,
+rather than parsing untrusted input in the agent's own microVM.
+
+## What gets created
+
+- Everything from demo 01 (ECR repo, runtime execution role, runtime),
+  namespaced `demos-agentcore-04-builtin-tools-*`
+- Code Interpreter `demos_agentcore_04_interpreter` in `SANDBOX` network
+  mode (no network access from the sandbox at all)
+- Runtime role scoped to three actions on that one sandbox
+
+## Run it
+
+```bash
+make demo-init demo-apply DEMO=agentcore/04-builtin-tools
+```
+
+Analyse a CSV:
+
+```bash
+aws-vault exec lev:andy.rea -- aws bedrock-agentcore invoke-agent-runtime \
+  --cli-binary-format raw-in-base64-out \
+  --agent-runtime-arn "$(cd terraform && terraform output -raw runtime_arn)" \
+  --runtime-session-id "any-session-id-of-33-chars-or-more-04a" \
+  --payload file://payload.json --region us-east-1 /dev/stdout
+```
+
+## Tear down
+
+```bash
+make demo-destroy DEMO=agentcore/04-builtin-tools
+```
+
+NOTE: stop any live code interpreter sessions first, a sandbox with
+active sessions refuses to delete.

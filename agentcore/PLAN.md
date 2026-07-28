@@ -24,7 +24,8 @@ contract, microVM session isolation, invocation.
 - [x] Demo deployed and invoked; blog artifacts in `01-first-agent/artifacts/`
   (timings, gotchas, logs, runtime description); resources destroyed after
 - [x] Post drafted (`01-first-agent/POST.md`)
-- [ ] Post published
+- [x] Post published and listed on the homepage (2026-07-24), with video,
+  social cards (1200x627 og:image + 1200x1200 square) and clickable links
 
 ### 02 — Giving your agent tools with AgentCore Gateway
 APIs and Lambdas as MCP tools via Gateway targets.
@@ -33,8 +34,10 @@ target, with Cognito client-credentials JWT auth.
 - [x] Demo built (`02-gateway/`)
 - [x] Demo deployed and invoked end to end (agent → token → gateway →
   Lambda); artifacts in `02-gateway/artifacts/`; resources destroyed after
-- [x] Post drafted (`02-gateway/POST.md`) — NOT yet on the series list
-- [ ] Post published
+- [x] Post drafted (`02-gateway/POST.md`); live as an unlisted preview
+  with video and social cards; externally reviewed twice (incl. the
+  AWS_IAM no-secrets rework)
+- [ ] Post listed on the homepage (awaiting Andy's approval)
 
 ### 03 — Short-term and long-term memory
 Session context vs. extracted long-term memory, strategies, namespaces.
@@ -43,16 +46,23 @@ Demo: agent recalls user preferences across separate sessions.
 - [x] Demo deployed and invoked end to end (events stored session A,
   extracted USER_PREFERENCE records recalled from session B); artifacts in
   `03-memory/artifacts/`; video recorded; resources destroyed after
-- [x] Post drafted (`03-memory/POST.md`) — NOT yet on the series list
-- [ ] Post published
+- [x] Post drafted (`03-memory/POST.md`); live as an unlisted preview
+  with video and social cards; externally reviewed
+- [ ] Post listed on the homepage (awaiting Andy's approval)
 
-### 04 — Code Interpreter and Browser built-in tools
-Sandboxed execution and cloud browser; the security model of agent-run code.
-Demo: agent analyses an uploaded CSV and completes a live web task.
-- [ ] Demo built (`04-builtin-tools/`)
-- [ ] Demo deployed and invocable
-- [ ] Post drafted
-- [ ] Post published
+### 04 — Letting an agent run code, without letting it run loose
+Code Interpreter sandbox; the security model of agent-run code.
+Demo: agent analyses a caller-supplied CSV with pandas inside a SANDBOX
+session, with the isolation (no network, no credentials) probed directly.
+- [x] Demo built (`04-builtin-tools/`)
+- [x] Demo deployed and invoked; sandbox isolation probed; artifacts in
+  `04-builtin-tools/artifacts/`; video recorded; resources destroyed after
+- [x] Post drafted (`04-builtin-tools/POST.md`); live as an unlisted
+  preview with video and social cards
+- [x] Externally reviewed (gpt-5.6): six findings, all actioned and
+  re-verified live (session leak fixed, stream errors surfaced, body
+  capped, framing and probe claims corrected)
+- [ ] Post listed on the homepage (awaiting Andy's approval)
 
 ### 05 — Identity: who is your agent acting as?
 Inbound auth (Cognito/OIDC) and outbound OAuth token vaulting.
@@ -131,9 +141,10 @@ finished system.
 6. Content: voice per ~/.claude/andy-rea-voice.md, happy path only,
    NOTEs for blockers, no teardown sections; diagram PNG committed;
    video recorded at the exact final commit with a real apply on camera,
-   clean poster, and narrative coherence, frame-verified; 1200x627
-   social card with og:image wired; page published unlisted until Andy
-   approves listing.
+   clean poster, and narrative coherence, frame-verified; social cards
+   in both formats (1200x627 wired as og:image, 1200x1200 square for
+   native feed posts) published with the page; page published unlisted
+   until Andy approves listing.
 7. Everything lands via a PR with CI green; PLAN.md ticked; the live
    page verified serving the change.
 
