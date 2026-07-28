@@ -110,9 +110,10 @@ def main():
     for png in re.findall(r"!\[[^\]]*\]\(([^)]+\.png)\)", text):
         shutil.copy(pathlib.Path(demo) / png, out_dir / pathlib.Path(png).name)
 
-    social = pathlib.Path(demo) / "social.png"
-    if social.exists():
-        shutil.copy(social, out_dir / "social.png")
+    for name in ("social.png", "social-square.png"):
+        card = pathlib.Path(demo) / name
+        if card.exists():
+            shutil.copy(card, out_dir / name)
 
     # Auto-link bare URLs (outside fenced code blocks) so the SOURCE CODE
     # line and References render as clickable anchors.
