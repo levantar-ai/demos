@@ -117,7 +117,7 @@ absolute paths.
 NOTE: sessions outlive the call that created them, up to
 `sessionTimeoutSeconds`, and a sandbox with live sessions refuses to
 delete (`ConflictException: ... cannot be deleted. There are 2 active
-sessions`). I hit exactly that on the first teardown of this demo.
+sessions`), so stop sessions rather than waiting them out.
 
 ## 3 - Analysing something
 

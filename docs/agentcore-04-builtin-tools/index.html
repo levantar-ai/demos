@@ -160,7 +160,7 @@ absolute paths.</p>
 <p>NOTE: sessions outlive the call that created them, up to
 <code>sessionTimeoutSeconds</code>, and a sandbox with live sessions refuses to
 delete (<code>ConflictException: ... cannot be deleted. There are 2 active
-sessions</code>). I hit exactly that on the first teardown of this demo.</p>
+sessions</code>), so stop sessions rather than waiting them out.</p>
 <h2>3 - Analysing something</h2>
 <p>Post a CSV to the agent and the numbers come back computed rather than
 imagined:</p>
