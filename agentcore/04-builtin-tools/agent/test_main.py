@@ -9,6 +9,7 @@ import pytest
 from main import Handler
 
 calls = []
+stopped = []
 
 
 class StubHandler(Handler):
@@ -16,6 +17,7 @@ class StubHandler(Handler):
     run = staticmethod(
         lambda csv_text, session_id: calls.append((csv_text, session_id)) or "rows: 3"
     )
+    stop = staticmethod(lambda interpreter, session_id: stopped.append(session_id))
 
 
 @pytest.fixture(scope="module")
@@ -48,6 +50,12 @@ def test_csv_is_analysed_in_the_sandbox(server_url):
     assert status == 200
     assert body == {"result": "rows: 3"}
     assert calls[-1] == ("a,b\n1,2\n", "session-123")
+
+
+def test_session_is_stopped_after_use(server_url):
+    stopped.clear()
+    post(f"{server_url}/invocations", {"csv": "a,b\n1,2\n"})
+    assert stopped == ["session-123"]
 
 
 def test_missing_csv_is_rejected(server_url):

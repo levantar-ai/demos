@@ -17,23 +17,25 @@ pandas and it produces numbers that are right. That is the whole argument
 for code execution as a tool, and it is why every serious agent framework
 ends up needing one.
 
-The problem is obvious the moment you say it out loud. You are taking
-input from a user, generating or running code against it, and executing
-that inside your own infrastructure. Do that in the agent's own process
-and any prompt injection or malicious CSV is executing next to your
-credentials.
+The problem is where that execution happens. Parsing a stranger's CSV
+with pandas inside your agent's own process puts a parser you did not
+write, working on data you do not control, right next to your
+credentials. Go a step further and execute model-generated code there and
+the exposure is worse again.
 
 AgentCore Code Interpreter is a managed sandbox for exactly this. Your
-agent writes files into a session and runs code there, the code runs
-somewhere it cannot reach your account, and the results come back as
-text. This post wires one up and then pokes at the walls to see what the
-sandbox can actually touch.
+agent writes files into a session, runs code there, and reads results
+back as text. This demo keeps the code fixed and author-written, so what
+is being isolated is the *processing of untrusted data*, which is the
+common case; the same mechanism is what you would use for
+model-generated code, with more input and output controls on top. This
+post wires one up and then pokes at the walls.
 
 ![Architecture](architecture.png)
 
 ## 1 - The sandbox
 
-One resource, and the network mode is the whole security story:
+One resource, and the network mode is the control that matters most:
 
 ```hcl
 resource "aws_bedrockagentcore_code_interpreter" "sandbox" {
@@ -46,10 +48,16 @@ resource "aws_bedrockagentcore_code_interpreter" "sandbox" {
 }
 ```
 
-`SANDBOX` means the session has no network access at all. The other
-option is `PUBLIC`, which gives the sandbox outbound internet access, and
-you want to be deliberate about choosing it, because that is the mode
-where a malicious payload could exfiltrate whatever it can see.
+`SANDBOX` means the session gets no network access. The other option is
+`PUBLIC`, which gives the sandbox outbound internet access, and you want
+to be deliberate about choosing it, because that is the mode where a
+malicious payload could exfiltrate whatever it can see.
+
+NOTE: `SANDBOX` is the egress control, not the whole boundary. IAM
+decides who can start and invoke a session, you decide what data goes
+into one, and your agent decides what comes back out to the caller.
+Isolating the network does not make everything in the session safe to
+return.
 
 The runtime role gets the three actions the agent actually calls, scoped
 to this one sandbox:
@@ -94,18 +102,22 @@ def analyse(csv_text, session_id):
 
 `invoke_code_interpreter` takes a tool name and its arguments, the useful
 ones being `writeFiles`, `executeCode`, `executeCommand`, `readFiles` and
-`listFiles`. Responses arrive as a stream of content items, so there is a
-small helper that pulls the text out.
+`listFiles`. Responses arrive as an event stream, so there is a small
+helper that drains every stream and raises when a tool sets `isError`,
+which is easy to skip and then wonder why a failed run looks like a
+successful empty one.
+
+Sessions are the thing to be careful with. The agent stops its session in
+a `finally` block, because a session lives until its timeout otherwise.
 
 NOTE: files land in the session's working directory, not in `/tmp`. Write
 to `data.csv` and read `data.csv`, and resist the urge to be clever with
 absolute paths.
 
 NOTE: sessions outlive the call that created them, up to
-`sessionTimeoutSeconds`. A sandbox with live sessions refuses to delete
-(`ConflictException: ... cannot be deleted. There are 2 active
-sessions`), so stop sessions when you are done with them rather than
-leaving them to time out.
+`sessionTimeoutSeconds`, and a sandbox with live sessions refuses to
+delete (`ConflictException: ... cannot be deleted. There are 2 active
+sessions`). I hit exactly that on the first teardown of this demo.
 
 ## 3 - Analysing something
 
@@ -148,8 +160,8 @@ urllib.request.urlopen("https://example.com", timeout=8)
 blocked: URLError <urlopen error [Errno -2] Name or service not known>
 ```
 
-No DNS, so nothing resolves. Checking for credentials and the metadata
-endpoint that would hand them over:
+No DNS, so nothing resolves. Checking for credentials in the environment
+and for the metadata endpoint that would hand them over:
 
 ```python
 keys = [k for k in os.environ if "AWS" in k or "TOKEN" in k]
@@ -158,21 +170,23 @@ urllib.request.urlopen("http://169.254.169.254/latest/meta-data/", timeout=5)
 
 ```
 aws-ish env vars: []
-metadata blocked: HTTPError
+metadata request denied: HTTP 403
 ```
 
-No credentials in the environment, and the metadata service is not
-reachable. That is the property worth designing around, code you did not
-write runs somewhere it cannot phone home from and cannot borrow your
-identity.
+No AWS- or token-named environment variables, and the metadata request
+was denied rather than answered. Treat those as corroboration rather than
+proof; the guarantee to design against is the documented `SANDBOX`
+behaviour, which is that the session has no network egress. What you get
+is code running on untrusted data somewhere it cannot phone home from.
 
 ## Conclusion
 
 A managed sandbox turns "the model says the mean is about sixty" into a
-computed answer, and it moves execution of untrusted input off your
-agent's microVM into a session with no network and no credentials. One
-Terraform resource, three IAM actions and a couple of API calls, with the
-security boundary set by a single `network_mode`.
+computed answer, and it moves the processing of untrusted data off your
+agent's microVM into a session with no network egress. One Terraform
+resource, three IAM actions and a couple of API calls, with `SANDBOX` as
+the egress control and IAM, session lifecycle and what you return to the
+caller making up the rest of the boundary.
 
 The next post gives the agent an identity of its own, inbound
 authentication for callers and outbound OAuth so it can act on a user's

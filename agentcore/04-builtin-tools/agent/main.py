@@ -34,13 +34,20 @@ def client():
     return _client
 
 
-def _text(response):
+def _consume(response):
+    """Drain a tool response stream, raising if the tool reported an error."""
     chunks = []
     for event in response.get("stream", []):
-        result = event.get("result", {})
-        for item in result.get("content", []):
-            if item.get("type") == "text":
-                chunks.append(item["text"])
+        result = event.get("result")
+        if not result:
+            continue
+        text = "\n".join(
+            item["text"] for item in result.get("content", []) if item.get("type") == "text"
+        )
+        if result.get("isError"):
+            raise RuntimeError(text or "code interpreter tool failed")
+        if text:
+            chunks.append(text)
     return "\n".join(chunks).strip()
 
 
@@ -48,19 +55,27 @@ def analyse(csv_text, session_id):
     """Write the CSV into a sandbox session and describe it with pandas."""
     interpreter = os.environ["CODE_INTERPRETER_ID"]
     call = client().invoke_code_interpreter
-    call(
-        codeInterpreterIdentifier=interpreter,
-        sessionId=session_id,
-        name="writeFiles",
-        arguments={"content": [{"path": "data.csv", "text": csv_text}]},
+    _consume(
+        call(
+            codeInterpreterIdentifier=interpreter,
+            sessionId=session_id,
+            name="writeFiles",
+            arguments={"content": [{"path": "data.csv", "text": csv_text}]},
+        )
     )
-    return _text(
+    return _consume(
         call(
             codeInterpreterIdentifier=interpreter,
             sessionId=session_id,
             name="executeCode",
             arguments={"language": "python", "code": ANALYSIS},
         )
+    )
+
+
+def stop_session(interpreter, session_id):
+    client().stop_code_interpreter_session(
+        codeInterpreterIdentifier=interpreter, sessionId=session_id
     )
 
 
@@ -73,9 +88,13 @@ def session_for(interpreter, name):
     return resp["sessionId"]
 
 
+MAX_BODY_BYTES = 2 * 1024 * 1024
+
+
 class Handler(BaseHTTPRequestHandler):
     start = staticmethod(session_for)
     run = staticmethod(analyse)
+    stop = staticmethod(stop_session)
 
     def do_GET(self):
         if self.path == "/ping":
@@ -87,7 +106,14 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/invocations":
             self._send(404, {"error": "not found"})
             return
-        length = int(self.headers.get("Content-Length", 0))
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send(400, {"error": "invalid Content-Length"})
+            return
+        if length <= 0 or length > MAX_BODY_BYTES:
+            self._send(413, {"error": "request body must be 1..2MB"})
+            return
         try:
             payload = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
@@ -100,12 +126,20 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(csv_text, str) or not csv_text:
             self._send(400, {"error": "csv must be a non-empty string"})
             return
+        interpreter = os.environ.get("CODE_INTERPRETER_ID", "")
+        session_id = None
         try:
-            session_id = self.start(os.environ.get("CODE_INTERPRETER_ID", ""), "analysis")
+            session_id = self.start(interpreter, "analysis")
             self._send(200, {"result": self.run(csv_text, session_id)})
         except Exception as exc:  # noqa: BLE001 — any sandbox failure becomes a 502
             print(f"code interpreter call failed: {exc}")
             self._send(502, {"error": "code interpreter request failed"})
+        finally:
+            if session_id is not None:
+                try:
+                    self.stop(interpreter, session_id)
+                except Exception as exc:  # noqa: BLE001 — cleanup must not mask the result
+                    print(f"failed to stop session {session_id}: {exc}")
 
     def _send(self, status, body):
         data = json.dumps(body).encode()
