@@ -6,8 +6,8 @@ How to give an agent a real Python sandbox with AgentCore Code
 Interpreter, so it can analyse data it was handed rather than guess at
 it, and what the sandbox does and does not have access to.
 
-SOURCE CODE - All code for this post is available at:
-https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools
+> SOURCE CODE - All code for this post is available at:
+> https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools
 
 ## Longer version
 

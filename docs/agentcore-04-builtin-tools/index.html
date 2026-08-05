@@ -4,18 +4,69 @@
 <meta charset="utf-8">
 <title>Letting an agent run code, without letting it run loose — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to.">
+<meta name="description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to. >">
+<link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/">
+<meta name="author" content="Andy Rea">
+<meta name="robots" content="index, follow, max-image-preview:large">
 <meta property="og:type" content="article">
+<meta property="og:site_name" content="Levantar">
+<meta property="og:locale" content="en_GB">
 <meta property="og:title" content="Letting an agent run code, without letting it run loose">
-<meta property="og:description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to.">
+<meta property="og:description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to. >">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+<meta property="og:image:alt" content="Letting an agent run code, without letting it run loose">
 <meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/">
 <meta property="article:published_time" content="2026-07-28">
 <meta property="article:author" content="Andy Rea">
-<meta name="author" content="Andy Rea">
+<meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Letting an agent run code, without letting it run loose">
+<meta name="twitter:description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to. >">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png">
+<meta name="twitter:image:alt" content="Letting an agent run code, without letting it run loose">
 <link rel="icon" type="image/png" href="../favicon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Letting an agent run code, without letting it run loose",
+  "description": "How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to. >",
+  "image": "https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png",
+  "datePublished": "2026-07-28",
+  "dateModified": "2026-07-28",
+  "wordCount": 800,
+  "inLanguage": "en-GB",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "Andy Rea",
+    "jobTitle": "Co-Founder & CTO",
+    "worksFor": {
+      "@type": "Organization",
+      "name": "Levantar",
+      "url": "https://levantar.ai"
+    }
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Levantar",
+    "url": "https://levantar.ai",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://levantar-ai.github.io/demos/levantar-logo-white.png"
+    }
+  },
+  "isPartOf": {
+    "@type": "CreativeWorkSeries",
+    "name": "AgentCore series"
+  }
+}
+</script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
 <script>
@@ -74,6 +125,8 @@
   .post-meta a.name:hover svg { color: var(--accent); }
   .post-meta .name svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
   .post-meta .role { color: var(--muted); font-size: 13.5px; }
+  .post-meta .role a.org { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .post-meta .role a.org:hover { color: var(--accent); border-bottom-color: var(--accent); }
   .post-meta .facts { color: var(--muted); font-size: 13px; }
   .post-meta .facts .sep { padding: 0 5px; opacity: 0.45; }
   .series-nav a {
@@ -119,7 +172,7 @@
         <img class="avatar" src="../avatar.jpg" alt="Andy Rea" width="52" height="52">
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
-          <div class="role">Co-Founder &amp; CTO, Levantar</div>
+          <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
           <div class="facts"><time datetime="2026-07-28">28 July 2026</time><span class="sep">·</span>4 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
@@ -133,8 +186,10 @@
 <p>How to give an agent a real Python sandbox with AgentCore Code
 Interpreter, so it can analyse data it was handed rather than guess at
 it, and what the sandbox does and does not have access to.</p>
+<blockquote>
 <p>SOURCE CODE - All code for this post is available at:
 <a href="https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools">https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools</a></p>
+</blockquote>
 <h2>Longer version</h2>
 <p>Ask a language model to compute statistics over a few hundred rows and it
 will produce numbers that look right. Give it somewhere to actually run
