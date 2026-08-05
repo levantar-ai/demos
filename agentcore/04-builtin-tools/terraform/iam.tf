@@ -92,6 +92,22 @@ resource "aws_iam_role_policy" "runtime" {
           "bedrock-agentcore:StopCodeInterpreterSession"
         ]
         Resource = aws_bedrockagentcore_code_interpreter.sandbox.code_interpreter_arn
+      },
+      {
+        Sid    = "Memory"
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:CreateEvent",
+          "bedrock-agentcore:ListEvents",
+          "bedrock-agentcore:RetrieveMemoryRecords"
+        ]
+        Resource = aws_bedrockagentcore_memory.agent.arn
+      },
+      {
+        Sid      = "ReadClientCredentials"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = aws_secretsmanager_secret.agent_client.arn
       }
     ]
   })

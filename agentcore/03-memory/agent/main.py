@@ -9,12 +9,17 @@ environment variable set by Terraform on the runtime.
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import boto3
+from gateway import lookup_order
 
 PORT = 8080
+
+# Anchored on the word "order" so a stray number in the prompt is ignored.
+ORDER_RE = re.compile(r"\border\s*#?\s*(\d+)\b", re.IGNORECASE)
 
 _client = None
 
@@ -65,6 +70,7 @@ class Handler(BaseHTTPRequestHandler):
     store = staticmethod(remember)
     history = staticmethod(recap)
     search = staticmethod(recall)
+    tool = staticmethod(lookup_order)
 
     def do_GET(self):
         if self.path == "/ping":
@@ -92,11 +98,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "actor, session and prompt are required strings"})
             return
         try:
+            order = ORDER_RE.search(prompt)
             if prompt.lower().startswith("remember"):
                 self.store(actor, session, prompt)
                 self._send(200, {"result": "noted"})
             elif prompt.lower().startswith("recap"):
                 self._send(200, {"result": self.history(actor, session)})
+            elif order:
+                # Carried forward from post 02, the tool still works here.
+                self._send(200, {"result": self.tool(order.group(1))})
             else:
                 self._send(200, {"result": self.search(actor, prompt)})
         except Exception as exc:  # noqa: BLE001 — any memory failure becomes a 502

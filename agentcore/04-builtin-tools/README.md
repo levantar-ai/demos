@@ -1,13 +1,24 @@
 # 04 — Letting an agent run code, without letting it run loose
 
-Gives the agent a managed Python sandbox (AgentCore Code Interpreter) and
+Extends the demo 03 agent with a managed Python sandbox (AgentCore Code Interpreter) and
 has it analyse a caller-supplied CSV with pandas inside that sandbox,
 rather than parsing untrusted input in the agent's own microVM.
+
+Each demo in the series is independently deployable and carries the
+previous one forward, so the gateway, its Cognito pool and the tool
+Lambda are all here too. They are not re-explained, the post they
+belong to covers them.
 
 ## What gets created
 
 - Everything from demo 01 (ECR repo, runtime execution role, runtime),
   namespaced `demos-agentcore-04-builtin-tools-*`
+- Everything from demo 02, so the tool path still works here, a Lambda
+  behind an AgentCore Gateway with a Cognito pool issuing the JWT the
+  gateway validates. Post 02 covers it, this demo just carries it forward
+- Everything from demo 03, an AgentCore Memory store and its
+  `UserPreferences` strategy, again carried forward rather than
+  re-explained
 - Code Interpreter `demos_agentcore_04_interpreter` in `SANDBOX` network
   mode (no network access from the sandbox at all)
 - Runtime role scoped to three actions on that one sandbox

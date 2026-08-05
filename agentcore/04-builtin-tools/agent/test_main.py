@@ -18,6 +18,10 @@ class StubHandler(Handler):
         lambda csv_text, session_id: calls.append((csv_text, session_id)) or "rows: 3"
     )
     stop = staticmethod(lambda interpreter, session_id: stopped.append(session_id))
+    tool = staticmethod(lambda order_id: f'order {order_id}: {{"status": "shipped"}}')
+    store = staticmethod(lambda actor, session, text: None)
+    history = staticmethod(lambda actor, session: ["remembered"])
+    search = staticmethod(lambda actor, query: ["a preference"])
 
 
 @pytest.fixture(scope="module")
@@ -58,15 +62,27 @@ def test_session_is_stopped_after_use(server_url):
     assert stopped == ["session-123"]
 
 
-def test_missing_csv_is_rejected(server_url):
+def test_neither_csv_nor_prompt_is_rejected(server_url):
     req = urllib.request.Request(
         f"{server_url}/invocations",
-        data=json.dumps({"prompt": "hello"}).encode(),
+        data=json.dumps({"actor": "andy"}).encode(),
         headers={"Content-Type": "application/json"},
     )
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(req)
     assert exc.value.code == 400
+
+
+def test_order_prompt_uses_the_gateway_tool(server_url):
+    status, body = post(f"{server_url}/invocations", {"prompt": "where is order 42?"})
+    assert status == 200
+    assert body == {"result": 'order 42: {"status": "shipped"}'}
+
+
+def test_remember_prompt_uses_memory(server_url):
+    status, body = post(f"{server_url}/invocations", {"prompt": "remember: I like DPD"})
+    assert status == 200
+    assert body == {"result": "noted"}
 
 
 def test_non_string_csv_is_rejected(server_url):
