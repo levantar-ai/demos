@@ -1,66 +1,84 @@
 """Agent for post 02: answers order questions by calling an MCP tool
 through AgentCore Gateway.
 
-Runtime HTTP contract as post 01 (POST /invocations, GET /ping). Gateway
-calls are signed with SigV4 using the runtime execution role, so there
-are no credentials to configure anywhere. The gateway endpoint arrives as
-an environment variable set by Terraform on the runtime.
+Runtime HTTP contract as post 01 (POST /invocations, GET /ping). Tool
+calls go through the MCP Python SDK over a bearer token from Cognito.
+The client secret is read from Secrets Manager with the runtime
+execution role, never passed in as configuration. Endpoints arrive as
+environment variables set by Terraform.
 """
 
+import asyncio
 import json
 import os
 import re
+import time
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import botocore.session
-from botocore.auth import SigV4Auth
-from botocore.awsrequest import AWSRequest
+import boto3
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 
 PORT = 8080
 
-_session = None
+# The gateway namespaces tool names as <target>___<tool>, three underscores.
+TOOL_NAME = "orders___lookup_order"
+
+# Tokens are reused until shortly before they expire.
+EXPIRY_MARGIN = 60
+_token = {"value": None, "expires_at": 0.0}
 
 
-def credentials():
-    global _session
-    if _session is None:
-        _session = botocore.session.Session()
-    creds = _session.get_credentials()
-    if creds is None:
-        raise RuntimeError("AWS credentials are unavailable")
-    return creds.get_frozen_credentials()
+def _client_credentials():
+    secret = boto3.client("secretsmanager").get_secret_value(
+        SecretId=os.environ["CLIENT_SECRET_ARN"]
+    )
+    credentials = json.loads(secret["SecretString"])
+    return credentials["client_id"], credentials["client_secret"]
 
 
-def mcp_request(method, params):
-    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
-    request = AWSRequest(
+def access_token():
+    if _token["value"] and time.time() < _token["expires_at"]:
+        return _token["value"]
+
+    client_id, client_secret = _client_credentials()
+    form = urllib.parse.urlencode(
+        {
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scope": os.environ["TOKEN_SCOPE"],
+        }
+    ).encode()
+    request = urllib.request.Request(
+        os.environ["TOKEN_URL"],
+        data=form,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
         method="POST",
-        url=os.environ["GATEWAY_URL"],
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/event-stream",
-        },
     )
-    SigV4Auth(credentials(), "bedrock-agentcore", os.environ["AWS_REGION"]).add_auth(request)
-    req = urllib.request.Request(
-        request.url, data=body.encode(), headers=dict(request.headers), method="POST"
-    )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read())
+    with urllib.request.urlopen(request, timeout=10) as response:
+        payload = json.loads(response.read())
+
+    _token["value"] = payload["access_token"]
+    _token["expires_at"] = time.time() + payload["expires_in"] - EXPIRY_MARGIN
+    return _token["value"]
+
+
+async def _call_tool(order_id):
+    headers = {"Authorization": f"Bearer {access_token()}"}
+    async with (
+        streamablehttp_client(os.environ["GATEWAY_URL"], headers=headers) as (read, write, _),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
+        result = await session.call_tool(TOOL_NAME, {"order_id": order_id})
+        return result.content[0].text
 
 
 def lookup_order(order_id):
-    tool_name = "orders___lookup_order"
-    tools = {t["name"] for t in mcp_request("tools/list", {})["result"]["tools"]}
-    if tool_name not in tools:
-        raise RuntimeError(f"required tool not found: {tool_name}")
-    result = mcp_request(
-        "tools/call",
-        {"name": tool_name, "arguments": {"order_id": order_id}},
-    )
-    return result["result"]["content"][0]["text"]
+    return asyncio.run(_call_tool(order_id))
 
 
 class Handler(BaseHTTPRequestHandler):

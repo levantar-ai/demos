@@ -19,8 +19,13 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     server_protocol = "HTTP"
   }
 
+  # Endpoints and identifiers only. The client secret is not here, the
+  # agent reads it from Secrets Manager with this role.
   environment_variables = {
-    GATEWAY_URL = aws_bedrockagentcore_gateway.orders.gateway_url
+    GATEWAY_URL       = aws_bedrockagentcore_gateway.orders.gateway_url
+    TOKEN_URL         = "https://${aws_cognito_user_pool_domain.agents.domain}.auth.${var.aws_region}.amazoncognito.com/oauth2/token"
+    TOKEN_SCOPE       = "${aws_cognito_resource_server.orders.identifier}/invoke"
+    CLIENT_SECRET_ARN = aws_secretsmanager_secret.agent_client.arn
   }
 
   tags = {

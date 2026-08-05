@@ -12,6 +12,7 @@
     "nojekyll",
     "overscroll",
     "pycache",
+    "streamable",
     "streamablehttp",
     "repoint",
     "subcaption",

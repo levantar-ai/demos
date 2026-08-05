@@ -20,7 +20,7 @@ Type "unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/02-gat
 Enter
 Show
 
-Type "# a Lambda as an MCP tool behind AgentCore Gateway — IAM auth, no credentials anywhere"
+Type "# a Lambda as an MCP tool behind AgentCore Gateway — Cognito JWT on every call"
 Enter
 Sleep 1.5s
 

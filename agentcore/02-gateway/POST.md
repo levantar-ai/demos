@@ -3,8 +3,8 @@
 ## TL;DR;
 
 How to put AgentCore Gateway in front of an existing Lambda so an agent
-can call it as an MCP tool, with IAM doing the authentication so there are
-no static keys or client secrets to manage anywhere.
+can call it as an MCP tool, with Cognito issuing the JWT the gateway
+validates, so the endpoint is authenticated from the first deployment.
 
 SOURCE CODE - All code for this post is available at:
 https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway
@@ -57,23 +57,54 @@ style `body` and `pathParameters` for example, would need an adapter.
 ## 2 - Auth in front of the gateway
 
 The gateway supports three authorizer types, `CUSTOM_JWT`, `AWS_IAM` and
-`NONE`, and you want a real one in front of anything beyond a throwaway
-experiment. For an agent calling a gateway in the same account this is a
-service-to-service call, and AWS's [security best practices for AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html)
-are explicit about which to pick:
+`NONE`. This demo uses `CUSTOM_JWT`, so the gateway validates a bearer
+token on every call.
 
-> Use IAM SigV4 for service-to-service calls within AWS. Use JWT bearer
-> token authentication when end users authenticate directly through an
-> identity provider.
+> IMPORTANT: this post deliberately keeps auth to the smallest thing that
+> is actually secure, a Cognito pool and a bearer token. It is not the
+> identity post. Agent identity, end-user delegation and outbound OAuth
+> so the agent can act on someone's behalf all get their own post later
+> in the series, which builds on what is set up here rather than
+> repeating it. Each post covers one topic, and this one is about tools.
 
-So this demo uses `AWS_IAM`. The agent signs its gateway requests with
-the runtime execution role's automatically rotated temporary credentials,
-the gateway checks the caller's IAM permission, and there is no static
-access key, client secret or token endpoint anywhere in the stack, the
-only credentials involved are the short-lived role credentials the
-platform issues and rotates itself. `CUSTOM_JWT` is the right shape when
-callers present JWTs issued by a configured external identity provider,
-which is where the Identity post later in this series picks up.
+The agent is a machine with no human behind it, so it is a confidential
+client using the OAuth `client_credentials` grant. Four Cognito resources
+cover it, a user pool, a domain to host the token endpoint, a resource
+server declaring the scope, and an app client:
+
+```hcl
+resource "aws_cognito_user_pool_client" "agent" {
+  name         = "demos-agentcore-02-gateway-agent"
+  user_pool_id = aws_cognito_user_pool.agents.id
+
+  generate_secret                      = true
+  allowed_oauth_flows                  = ["client_credentials"]
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_scopes                 = aws_cognito_resource_server.orders.scope_identifiers
+}
+```
+
+`generate_secret` matters. The `client_credentials` grant is only for
+confidential clients, so there is a secret, and it needs somewhere to
+live. It goes into Secrets Manager and the runtime reads it with its
+execution role, which keeps it out of the container image, out of the
+environment variables and out of anything you would `cat` by accident:
+
+```hcl
+environment_variables = {
+  GATEWAY_URL       = aws_bedrockagentcore_gateway.orders.gateway_url
+  TOKEN_URL         = "https://${domain}.auth.${region}.amazoncognito.com/oauth2/token"
+  TOKEN_SCOPE       = "orders-api/invoke"
+  CLIENT_SECRET_ARN = aws_secretsmanager_secret.agent_client.arn
+}
+```
+
+Endpoints and identifiers in configuration, the secret behind an IAM
+permission. `AWS_IAM` is the other reasonable choice here and needs no
+secret at all, because it uses the runtime role's own rotating
+credentials. It is the better fit when the caller is always AWS. JWT is
+the shape that keeps working when the caller is not, which is where this
+series is heading.
 
 ## 3 - The gateway and its target
 
@@ -86,7 +117,14 @@ resource "aws_bedrockagentcore_gateway" "orders" {
   name            = "demos-agentcore-02-gateway-gw"
   role_arn        = aws_iam_role.gateway.arn
   protocol_type   = "MCP"
-  authorizer_type = "AWS_IAM"
+  authorizer_type = "CUSTOM_JWT"
+
+  authorizer_configuration {
+    custom_jwt_authorizer {
+      discovery_url   = "https://cognito-idp.${region}.amazonaws.com/${pool_id}/.well-known/openid-configuration"
+      allowed_clients = [aws_cognito_user_pool_client.agent.id]
+    }
+  }
 }
 
 resource "aws_bedrockagentcore_gateway_target" "orders" {
@@ -156,16 +194,16 @@ The agent's `tools/list` call shows the mapping in action:
 }
 ```
 
-The runtime role gets one extra permission, and this statement is the
-entire auth setup, least privilege in its clearest form, one action on
-one resource:
+The runtime role gets one extra permission, to read the client secret and
+nothing else, least privilege in its clearest form, one action on one
+resource:
 
 ```hcl
 {
-  Sid      = "InvokeGateway"
+  Sid      = "ReadClientCredentials"
   Effect   = "Allow"
-  Action   = ["bedrock-agentcore:InvokeGateway"]
-  Resource = aws_bedrockagentcore_gateway.orders.gateway_arn
+  Action   = ["secretsmanager:GetSecretValue"]
+  Resource = aws_secretsmanager_secret.agent_client.arn
 }
 ```
 
@@ -181,49 +219,46 @@ happily pick the wrong one.
 
 ## 4 - Teaching the agent to call it
 
-The agent gains one function that signs MCP requests with SigV4 using the
-runtime role's own credentials (botocore is its first dependency), and
-the only configuration the runtime passes in is the gateway URL:
+The agent uses the MCP Python SDK, and because the gateway takes a bearer
+token there is nothing gateway-specific about the client at all. It is
+the stock streamable HTTP transport with an `Authorization` header:
 
 ```python
-def mcp_request(method, params):
-    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
-    request = AWSRequest(method="POST", url=os.environ["GATEWAY_URL"], data=body,
-                         headers={"Content-Type": "application/json",
-                                  "Accept": "application/json, text/event-stream"})
-    SigV4Auth(credentials(), "bedrock-agentcore", os.environ["AWS_REGION"]).add_auth(request)
-    req = urllib.request.Request(request.url, data=body.encode(),
-                                 headers=dict(request.headers), method="POST")
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read())
-
-
-def lookup_order(order_id):
-    tool_name = "orders___lookup_order"
-    tools = {t["name"] for t in mcp_request("tools/list", {})["result"]["tools"]}
-    if tool_name not in tools:
-        raise RuntimeError(f"required tool not found: {tool_name}")
-    result = mcp_request("tools/call",
-                         {"name": tool_name, "arguments": {"order_id": order_id}})
-    return result["result"]["content"][0]["text"]
+async def _call_tool(order_id):
+    headers = {"Authorization": f"Bearer {access_token()}"}
+    async with (
+        streamablehttp_client(os.environ["GATEWAY_URL"], headers=headers) as (read, write, _),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
+        result = await session.call_tool(TOOL_NAME, {"order_id": order_id})
+        return result.content[0].text
 ```
 
-This is a minimal gateway-specific client, not a conforming MCP
-implementation, it skips the MCP initialize handshake and assumes single
-JSON responses rather than handling event streams. For a real agent use an
-MCP SDK for the protocol and transport, your application still owns
-signing or authenticating the calls, choosing the tool and interpreting
-the result.
+No signing code, no JSON-RPC to assemble, no handshake to remember, the
+SDK does the protocol. Do not hand-roll any of this, and in particular do
+not reach into `botocore.auth` to sign requests yourself, that is
+reimplementing with private APIs what a supported client already does.
 
-```hcl
-  environment_variables = {
-    GATEWAY_URL = aws_bedrockagentcore_gateway.orders.gateway_url
-  }
+Getting the token is the standard `client_credentials` exchange, and the
+only part worth care is caching it, because otherwise every tool call
+buys a Secrets Manager read and a token round trip:
+
+```python
+def access_token():
+    if _token["value"] and time.time() < _token["expires_at"]:
+        return _token["value"]
+
+    client_id, client_secret = _client_credentials()
+    ...
+    _token["expires_at"] = time.time() + payload["expires_in"] - EXPIRY_MARGIN
+    return _token["value"]
 ```
 
-The credentials the signature uses are the runtime execution role's
-temporary credentials, issued and rotated by the platform, they never
-appear in Terraform, state, or configuration.
+`_client_credentials` reads the secret from Secrets Manager with the
+runtime execution role. The client secret is the one long-lived
+credential in the stack, which is the honest cost of JWT over IAM, and
+Secrets Manager is where it belongs rather than in configuration.
 
 There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
@@ -243,9 +278,11 @@ cat response.json
 {"result": "order 42: {\"status\":\"shipped\",\"carrier\":\"DPD\",\"eta\":\"2026-07-28\"}"}
 ```
 
-The full round trip, agent to gateway to Lambda and back with SigV4 on
-each hop, came in at 7.39 seconds in one run on a fresh session including
-the microVM cold start, and the tool handles the miss case the same way:
+TODO: re-measure the round trip after deploying the Cognito version. The
+previous 7.39s figure was for the SigV4 build and no longer applies, and
+the first call now also pays a Secrets Manager read and a token exchange.
+
+The tool handles the miss case the same way:
 
 ```
 "is order 99 ok?"  ->  {"result": "order 99: {\"error\":\"order 99 not found\"}"}
@@ -254,18 +291,22 @@ the microVM cold start, and the tool handles the miss case the same way:
 ## Conclusion
 
 One Lambda and two gateway resources turned a plain function into an MCP
-tool an agent can discover and call, with IAM in front of it, no static
-or application-managed credentials anywhere in the stack, and without
-writing or hosting an MCP server. The same target mechanism scales sideways, more Lambdas, OpenAPI
-specs or API Gateway stages all join the same tool list behind the same
-endpoint.
+tool an agent can discover and call, without writing or hosting an MCP
+server, and a Cognito pool put a validated bearer token in front of it so
+the endpoint was never open. The client stayed a stock MCP client, which
+is the point, the auth is a header. The same target mechanism scales
+sideways, more Lambdas, OpenAPI specs or API Gateway stages all join the
+same tool list behind the same endpoint.
 
 The next post gives the agent somewhere to keep what it learns, short-term
 session context and long-term extracted memory with AgentCore Memory.
+Agent identity proper, end-user delegation and outbound OAuth build on the
+pool set up here.
 
 References:
 
 - https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway
 - https://docs.aws.amazon.com/bedrock-agentcore/
 - https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_gateway
+- https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-app-idp-settings.html
 - https://modelcontextprotocol.io/

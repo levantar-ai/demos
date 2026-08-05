@@ -84,10 +84,10 @@ resource "aws_iam_role_policy" "runtime" {
         }
       },
       {
-        Sid      = "InvokeGateway"
+        Sid      = "ReadClientCredentials"
         Effect   = "Allow"
-        Action   = ["bedrock-agentcore:InvokeGateway"]
-        Resource = aws_bedrockagentcore_gateway.orders.gateway_arn
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = aws_secretsmanager_secret.agent_client.arn
       }
     ]
   })

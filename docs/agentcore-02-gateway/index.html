@@ -4,12 +4,15 @@
 <meta charset="utf-8">
 <title>Giving your agent tools with AgentCore Gateway — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with IAM doing the authentication so there are no static keys or client secrets to manage anywhere.">
+<meta name="description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with Cognito issuing the JWT the gateway validates, so the endpoint is authenticated from the first deployment.">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Giving your agent tools with AgentCore Gateway">
-<meta property="og:description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with IAM doing the authentication so there are no static keys or client secrets to manage anywhere.">
+<meta property="og:description" content="How to put AgentCore Gateway in front of an existing Lambda so an agent can call it as an MCP tool, with Cognito issuing the JWT the gateway validates, so the endpoint is authenticated from the first deployment.">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-02-gateway/social.png">
 <meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-02-gateway/">
+<meta property="article:published_time" content="2026-07-24">
+<meta property="article:author" content="Andy Rea">
+<meta name="author" content="Andy Rea">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-02-gateway/social.png">
 <link rel="icon" type="image/png" href="../favicon.png">
@@ -27,11 +30,12 @@
     --muted: #93a4c3; --accent: #22d3ee; --hl: #fbbf24;
   }
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0; min-height: 100vh; padding: 48px 24px 80px; color: var(--fg);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%) var(--bg);
-    line-height: 1.7;
+    line-height: 1.7; overflow-wrap: break-word;
   }
   .wrap { max-width: 820px; margin: 0 auto; }
   .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
@@ -40,19 +44,49 @@
   .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--fg) !important; font-weight: 600; font-size: 15px; }
   .brand img { height: 32px; }
   article h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.25; margin: 0 0 6px; }
-  article .date { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
   article h2 { font-size: 21px; margin: 40px 0 12px; letter-spacing: -0.01em; }
   article p, article li { color: #c6d2e6; font-size: 16px; }
-  article a { color: var(--accent); text-decoration: none; }
+  article a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
   article a:hover { text-decoration: underline; }
-  article img { max-width: 100%; border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 10px; margin: 10px 0; }
-  article code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; }
-  article pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow-x: auto; }
-  article pre code { background: none; border: none; padding: 0; font-size: 13.5px; line-height: 1.6; color: #d8e2f3; }
-  article table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
+  article img { max-width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 10px; margin: 10px 0; }
+  article code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; overflow-wrap: anywhere; }
+  article pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  article pre code { background: none; border: none; padding: 0; font-size: 13.5px; line-height: 1.6; color: #d8e2f3; overflow-wrap: normal; }
+  .table-wrap { max-width: 100%; margin: 14px 0; overflow-x: auto; overscroll-behavior-x: contain; }
+  article table { border-collapse: collapse; width: 100%; margin: 0; font-size: 14.5px; }
   article th, article td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
   article th { background: var(--card); }
   article blockquote { border-left: 3px solid var(--accent); margin: 0; padding: 2px 18px; color: var(--muted); }
+  .post-meta {
+    display: flex; align-items: center; gap: 14px;
+    margin: 16px 0 34px; padding-bottom: 22px; border-bottom: 1px solid var(--line);
+  }
+  .post-meta .avatar {
+    width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%;
+    object-fit: cover; border: 1px solid var(--line); background: var(--card);
+  }
+  .post-meta .who { min-width: 0; line-height: 1.45; }
+  .post-meta .name {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--fg); font-weight: 600; font-size: 15px; text-decoration: none;
+  }
+  .post-meta a.name:hover { color: var(--accent); text-decoration: none; }
+  .post-meta a.name:hover svg { color: var(--accent); }
+  .post-meta .name svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
+  .post-meta .role { color: var(--muted); font-size: 13.5px; }
+  .post-meta .facts { color: var(--muted); font-size: 13px; }
+  .post-meta .facts .sep { padding: 0 5px; opacity: 0.45; }
+  @media (max-width: 640px) {
+    body { padding: 32px 16px 64px; }
+    .top { margin-bottom: 28px; }
+    article h1 { font-size: 25px; }
+    article h2 { font-size: 19px; margin: 32px 0 10px; }
+    article p, article li { font-size: 15.5px; }
+    article pre { padding: 14px 15px; border-radius: 10px; }
+    article pre code { font-size: 12.5px; }
+    .post-meta { gap: 12px; margin-bottom: 28px; }
+    .post-meta .avatar { width: 46px; height: 46px; flex-basis: 46px; }
+  }
 </style>
 </head>
 <body>
@@ -65,11 +99,18 @@
     </div>
     <article>
       <h1>Giving your agent tools with AgentCore Gateway</h1>
-      <div class="date">2026-07-24 · AgentCore series</div>
+      <div class="post-meta">
+        <img class="avatar" src="../avatar.jpg" alt="Andy Rea" width="52" height="52">
+        <div class="who">
+          <div><span class="name">Andy Rea</span></div>
+          <div class="role">Founder, Levantar</div>
+          <div class="facts"><time datetime="2026-07-24">24 July 2026</time><span class="sep">·</span>6 min read<span class="sep">·</span>AgentCore series</div>
+        </div>
+      </div>
 <h2>TL;DR;</h2>
 <p>How to put AgentCore Gateway in front of an existing Lambda so an agent
-can call it as an MCP tool, with IAM doing the authentication so there are
-no static keys or client secrets to manage anywhere.</p>
+can call it as an MCP tool, with Cognito issuing the JWT the gateway
+validates, so the endpoint is authenticated from the first deployment.</p>
 <p>SOURCE CODE - All code for this post is available at:
 <a href="https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway">https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway</a></p>
 <h2>Longer version</h2>
@@ -110,23 +151,48 @@ needs no changes. A Lambda written for another event shape, API Gateway
 style <code>body</code> and <code>pathParameters</code> for example, would need an adapter.</p>
 <h2>2 - Auth in front of the gateway</h2>
 <p>The gateway supports three authorizer types, <code>CUSTOM_JWT</code>, <code>AWS_IAM</code> and
-<code>NONE</code>, and you want a real one in front of anything beyond a throwaway
-experiment. For an agent calling a gateway in the same account this is a
-service-to-service call, and AWS's <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html">security best practices for AgentCore Runtime</a>
-are explicit about which to pick:</p>
+<code>NONE</code>. This demo uses <code>CUSTOM_JWT</code>, so the gateway validates a bearer
+token on every call.</p>
 <blockquote>
-<p>Use IAM SigV4 for service-to-service calls within AWS. Use JWT bearer
-token authentication when end users authenticate directly through an
-identity provider.</p>
+<p>IMPORTANT: this post deliberately keeps auth to the smallest thing that
+is actually secure, a Cognito pool and a bearer token. It is not the
+identity post. Agent identity, end-user delegation and outbound OAuth
+so the agent can act on someone's behalf all get their own post later
+in the series, which builds on what is set up here rather than
+repeating it. Each post covers one topic, and this one is about tools.</p>
 </blockquote>
-<p>So this demo uses <code>AWS_IAM</code>. The agent signs its gateway requests with
-the runtime execution role's automatically rotated temporary credentials,
-the gateway checks the caller's IAM permission, and there is no static
-access key, client secret or token endpoint anywhere in the stack, the
-only credentials involved are the short-lived role credentials the
-platform issues and rotates itself. <code>CUSTOM_JWT</code> is the right shape when
-callers present JWTs issued by a configured external identity provider,
-which is where the Identity post later in this series picks up.</p>
+<p>The agent is a machine with no human behind it, so it is a confidential
+client using the OAuth <code>client_credentials</code> grant. Four Cognito resources
+cover it, a user pool, a domain to host the token endpoint, a resource
+server declaring the scope, and an app client:</p>
+<pre><code class="language-hcl">resource &quot;aws_cognito_user_pool_client&quot; &quot;agent&quot; {
+  name         = &quot;demos-agentcore-02-gateway-agent&quot;
+  user_pool_id = aws_cognito_user_pool.agents.id
+
+  generate_secret                      = true
+  allowed_oauth_flows                  = [&quot;client_credentials&quot;]
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_scopes                 = aws_cognito_resource_server.orders.scope_identifiers
+}
+</code></pre>
+<p><code>generate_secret</code> matters. The <code>client_credentials</code> grant is only for
+confidential clients, so there is a secret, and it needs somewhere to
+live. It goes into Secrets Manager and the runtime reads it with its
+execution role, which keeps it out of the container image, out of the
+environment variables and out of anything you would <code>cat</code> by accident:</p>
+<pre><code class="language-hcl">environment_variables = {
+  GATEWAY_URL       = aws_bedrockagentcore_gateway.orders.gateway_url
+  TOKEN_URL         = &quot;https://${domain}.auth.${region}.amazoncognito.com/oauth2/token&quot;
+  TOKEN_SCOPE       = &quot;orders-api/invoke&quot;
+  CLIENT_SECRET_ARN = aws_secretsmanager_secret.agent_client.arn
+}
+</code></pre>
+<p>Endpoints and identifiers in configuration, the secret behind an IAM
+permission. <code>AWS_IAM</code> is the other reasonable choice here and needs no
+secret at all, because it uses the runtime role's own rotating
+credentials. It is the better fit when the caller is always AWS. JWT is
+the shape that keeps working when the caller is not, which is where this
+series is heading.</p>
 <h2>3 - The gateway and its target</h2>
 <p>The gateway side is two resources, the gateway itself which is the MCP
 endpoint plus its authorizer, and a target which maps a backend into the
@@ -135,7 +201,14 @@ tool list:</p>
   name            = &quot;demos-agentcore-02-gateway-gw&quot;
   role_arn        = aws_iam_role.gateway.arn
   protocol_type   = &quot;MCP&quot;
-  authorizer_type = &quot;AWS_IAM&quot;
+  authorizer_type = &quot;CUSTOM_JWT&quot;
+
+  authorizer_configuration {
+    custom_jwt_authorizer {
+      discovery_url   = &quot;https://cognito-idp.${region}.amazonaws.com/${pool_id}/.well-known/openid-configuration&quot;
+      allowed_clients = [aws_cognito_user_pool_client.agent.id]
+    }
+  }
 }
 
 resource &quot;aws_bedrockagentcore_gateway_target&quot; &quot;orders&quot; {
@@ -200,14 +273,14 @@ to decide when to call the tool and how to shape the arguments.</p>
   }
 }
 </code></pre>
-<p>The runtime role gets one extra permission, and this statement is the
-entire auth setup, least privilege in its clearest form, one action on
-one resource:</p>
+<p>The runtime role gets one extra permission, to read the client secret and
+nothing else, least privilege in its clearest form, one action on one
+resource:</p>
 <pre><code class="language-hcl">{
-  Sid      = &quot;InvokeGateway&quot;
+  Sid      = &quot;ReadClientCredentials&quot;
   Effect   = &quot;Allow&quot;
-  Action   = [&quot;bedrock-agentcore:InvokeGateway&quot;]
-  Resource = aws_bedrockagentcore_gateway.orders.gateway_arn
+  Action   = [&quot;secretsmanager:GetSecretValue&quot;]
+  Resource = aws_secretsmanager_secret.agent_client.arn
 }
 </code></pre>
 <p>The same principle runs through the other two roles, the gateway's role
@@ -219,43 +292,39 @@ underscore), so <code>lookup_order</code> on the <code>orders</code> target beco
 targets can expose tools with the same short name and a fuzzy match will
 happily pick the wrong one.</p>
 <h2>4 - Teaching the agent to call it</h2>
-<p>The agent gains one function that signs MCP requests with SigV4 using the
-runtime role's own credentials (botocore is its first dependency), and
-the only configuration the runtime passes in is the gateway URL:</p>
-<pre><code class="language-python">def mcp_request(method, params):
-    body = json.dumps({&quot;jsonrpc&quot;: &quot;2.0&quot;, &quot;id&quot;: 1, &quot;method&quot;: method, &quot;params&quot;: params})
-    request = AWSRequest(method=&quot;POST&quot;, url=os.environ[&quot;GATEWAY_URL&quot;], data=body,
-                         headers={&quot;Content-Type&quot;: &quot;application/json&quot;,
-                                  &quot;Accept&quot;: &quot;application/json, text/event-stream&quot;})
-    SigV4Auth(credentials(), &quot;bedrock-agentcore&quot;, os.environ[&quot;AWS_REGION&quot;]).add_auth(request)
-    req = urllib.request.Request(request.url, data=body.encode(),
-                                 headers=dict(request.headers), method=&quot;POST&quot;)
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read())
-
-
-def lookup_order(order_id):
-    tool_name = &quot;orders___lookup_order&quot;
-    tools = {t[&quot;name&quot;] for t in mcp_request(&quot;tools/list&quot;, {})[&quot;result&quot;][&quot;tools&quot;]}
-    if tool_name not in tools:
-        raise RuntimeError(f&quot;required tool not found: {tool_name}&quot;)
-    result = mcp_request(&quot;tools/call&quot;,
-                         {&quot;name&quot;: tool_name, &quot;arguments&quot;: {&quot;order_id&quot;: order_id}})
-    return result[&quot;result&quot;][&quot;content&quot;][0][&quot;text&quot;]
+<p>The agent uses the MCP Python SDK, and because the gateway takes a bearer
+token there is nothing gateway-specific about the client at all. It is
+the stock streamable HTTP transport with an <code>Authorization</code> header:</p>
+<pre><code class="language-python">async def _call_tool(order_id):
+    headers = {&quot;Authorization&quot;: f&quot;Bearer {access_token()}&quot;}
+    async with (
+        streamablehttp_client(os.environ[&quot;GATEWAY_URL&quot;], headers=headers) as (read, write, _),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
+        result = await session.call_tool(TOOL_NAME, {&quot;order_id&quot;: order_id})
+        return result.content[0].text
 </code></pre>
-<p>This is a minimal gateway-specific client, not a conforming MCP
-implementation, it skips the MCP initialize handshake and assumes single
-JSON responses rather than handling event streams. For a real agent use an
-MCP SDK for the protocol and transport, your application still owns
-signing or authenticating the calls, choosing the tool and interpreting
-the result.</p>
-<pre><code class="language-hcl">  environment_variables = {
-    GATEWAY_URL = aws_bedrockagentcore_gateway.orders.gateway_url
-  }
+<p>No signing code, no JSON-RPC to assemble, no handshake to remember, the
+SDK does the protocol. Do not hand-roll any of this, and in particular do
+not reach into <code>botocore.auth</code> to sign requests yourself, that is
+reimplementing with private APIs what a supported client already does.</p>
+<p>Getting the token is the standard <code>client_credentials</code> exchange, and the
+only part worth care is caching it, because otherwise every tool call
+buys a Secrets Manager read and a token round trip:</p>
+<pre><code class="language-python">def access_token():
+    if _token[&quot;value&quot;] and time.time() &lt; _token[&quot;expires_at&quot;]:
+        return _token[&quot;value&quot;]
+
+    client_id, client_secret = _client_credentials()
+    ...
+    _token[&quot;expires_at&quot;] = time.time() + payload[&quot;expires_in&quot;] - EXPIRY_MARGIN
+    return _token[&quot;value&quot;]
 </code></pre>
-<p>The credentials the signature uses are the runtime execution role's
-temporary credentials, issued and rotated by the platform, they never
-appear in Terraform, state, or configuration.</p>
+<p><code>_client_credentials</code> reads the secret from Secrets Manager with the
+runtime execution role. The client secret is the one long-lived
+credential in the stack, which is the honest cost of JWT over IAM, and
+Secrets Manager is where it belongs rather than in configuration.</p>
 <p>There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
 path, not the reasoning. A model slots into exactly this shape later in
@@ -270,25 +339,30 @@ the series.</p>
 cat response.json
 {&quot;result&quot;: &quot;order 42: {\&quot;status\&quot;:\&quot;shipped\&quot;,\&quot;carrier\&quot;:\&quot;DPD\&quot;,\&quot;eta\&quot;:\&quot;2026-07-28\&quot;}&quot;}
 </code></pre>
-<p>The full round trip, agent to gateway to Lambda and back with SigV4 on
-each hop, came in at 7.39 seconds in one run on a fresh session including
-the microVM cold start, and the tool handles the miss case the same way:</p>
+<p>TODO: re-measure the round trip after deploying the Cognito version. The
+previous 7.39s figure was for the SigV4 build and no longer applies, and
+the first call now also pays a Secrets Manager read and a token exchange.</p>
+<p>The tool handles the miss case the same way:</p>
 <pre><code>&quot;is order 99 ok?&quot;  -&gt;  {&quot;result&quot;: &quot;order 99: {\&quot;error\&quot;:\&quot;order 99 not found\&quot;}&quot;}
 </code></pre>
 <h2>Conclusion</h2>
 <p>One Lambda and two gateway resources turned a plain function into an MCP
-tool an agent can discover and call, with IAM in front of it, no static
-or application-managed credentials anywhere in the stack, and without
-writing or hosting an MCP server. The same target mechanism scales sideways, more Lambdas, OpenAPI
-specs or API Gateway stages all join the same tool list behind the same
-endpoint.</p>
+tool an agent can discover and call, without writing or hosting an MCP
+server, and a Cognito pool put a validated bearer token in front of it so
+the endpoint was never open. The client stayed a stock MCP client, which
+is the point, the auth is a header. The same target mechanism scales
+sideways, more Lambdas, OpenAPI specs or API Gateway stages all join the
+same tool list behind the same endpoint.</p>
 <p>The next post gives the agent somewhere to keep what it learns, short-term
-session context and long-term extracted memory with AgentCore Memory.</p>
+session context and long-term extracted memory with AgentCore Memory.
+Agent identity proper, end-user delegation and outbound OAuth build on the
+pool set up here.</p>
 <p>References:</p>
 <ul>
 <li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway">https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway</a></li>
 <li><a href="https://docs.aws.amazon.com/bedrock-agentcore/">https://docs.aws.amazon.com/bedrock-agentcore/</a></li>
 <li><a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_gateway">https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_gateway</a></li>
+<li><a href="https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-app-idp-settings.html">https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-app-idp-settings.html</a></li>
 <li><a href="https://modelcontextprotocol.io/">https://modelcontextprotocol.io/</a></li>
 </ul>
     </article>
