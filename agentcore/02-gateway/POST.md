@@ -67,8 +67,8 @@ with its execution role.
 That is deliberately all the identity this post carries. Agent identity,
 end-user delegation and outbound OAuth so the agent can act on someone's
 behalf get their own post later in the series, which builds on this pool
-rather than repeating it. One thing to hold until then: every call here
-carries the same workload identity, so the gateway establishes that a
+rather than repeating it. One thing worth holding until then, every call
+here carries the same workload identity, so the gateway establishes that a
 legitimate client is calling, not that it is entitled to a particular order.
 
 NOTE: `authorizer_type` is immutable. A gateway created with `NONE` cannot
