@@ -54,6 +54,43 @@ end (7.39s fresh session), unsigned request rejected with HTTP 401.
 Video re-recorded against this stack. No credentials exist in code,
 Terraform, state, or the runtime environment.
 
+## Back to Cognito, and its review (gpt-5.6, fifth cycle, 2026-08-05)
+
+Reverted the third-cycle IAM rework: the hand-rolled SigV4 client was
+replaced with the stock MCP SDK over a Cognito bearer token, so the
+gateway is `CUSTOM_JWT` again. Deployed and verified live: order 42
+answered end to end (8s fresh session, 2s warm), order 99 missing,
+unauthenticated and bogus-token requests both rejected with HTTP 401.
+
+Seventeen review findings, actioned:
+
+- **high** the client secret sat in Terraform state twice. Secrets Manager
+  version now written with `secret_string_wo` (write-only), removing one
+  copy. `aws_cognito_user_pool_client.client_secret` is a computed
+  attribute and cannot be suppressed, so one copy remains and the post
+  now says so instead of implying the problem is solved
+- `allowed_scopes` restored on the authorizer (regressed from cycle two)
+- token cache guarded by a lock with double-checked expiry, since the
+  server is threaded and a burst at expiry would stampede
+- client credentials moved to `Authorization: Basic`, out of the form body
+- `result.isError` and non-text content handled; a tool error was being
+  returned to the caller as an answer
+- `Content-Length` validated, 64KB cap, 413 on oversize
+- order regex anchored on the word "order": "in 2 days, where is order
+  42?" previously looked up order **2**
+- prose: authenticated is not authorised (same workload identity for every
+  call, no per-order entitlement); gateway-level scopes mean a accepted
+  token reaches every target; the agent invokes a known tool name rather
+  than discovering it; the MCP client does not sign SigV4; least-privilege
+  claim narrowed to what the published code shows
+- the 401 test now uses `tools/call` rather than `tools/list`, which never
+  reaches a backend even when it succeeds, so rejecting one proved less
+  than the post claimed
+
+Not actioned: a missing order still returns as a successful tool result
+rather than a protocol error, which reads as the correct modelling for a
+domain-level miss.
+
 ## Re-review of the IAM rework (gpt-5.6, fourth cycle)
 
 Seven findings, all actioned: credentials wording corrected (rotated

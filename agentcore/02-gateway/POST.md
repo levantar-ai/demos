@@ -12,7 +12,8 @@ https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway
 ## Longer version
 
 The agent from the first post could only echo. The way agents become useful
-is tools, and the way tools have standardised is MCP. The problem is that
+is tools, and the protocol most of the ecosystem has converged on for
+them is MCP. The problem is that
 the systems agents need to reach, your internal APIs, your Lambdas, your
 SaaS integrations, are not MCP servers and nobody wants to write and host a
 fleet of them.
@@ -76,11 +77,20 @@ after this one builds on a gateway that was authenticated from the first
 `apply`.
 
 > IMPORTANT: this post deliberately keeps auth to the smallest thing that
-> is actually secure, a Cognito pool and a bearer token. It is not the
-> identity post. Agent identity, end-user delegation and outbound OAuth
-> so the agent can act on someone's behalf all get their own post later
-> in the series, which builds on the pool set up here rather than
+> is genuinely authenticated, a Cognito pool and a bearer token. It is not
+> the identity post. Agent identity, end-user delegation and outbound
+> OAuth so the agent can act on someone's behalf all get their own post
+> later in the series, which builds on the pool set up here rather than
 > repeating it. Each post covers one topic, and this one is about tools.
+
+Authenticated is not the same as authorised, and the difference matters
+here. Every call carries the same workload identity, so the gateway
+establishes that a legitimate client is calling, not that the caller is
+entitled to a particular order. An agent that can look up order 42 can
+look up any order the Lambda will return. For anything user-specific or
+tenant-specific you need the caller's identity carried through and a
+check in the backend, which is the delegation problem the Identity post
+takes on.
 
 The agent is a machine with no human behind it, so it is a confidential
 client using the OAuth `client_credentials` grant. Four Cognito resources
@@ -102,8 +112,8 @@ resource "aws_cognito_user_pool_client" "agent" {
 `generate_secret` matters. The `client_credentials` grant is only for
 confidential clients, so there is a secret, and it needs somewhere to
 live. It goes into Secrets Manager and the runtime reads it with its
-execution role, which keeps it out of the container image, out of the
-environment variables and out of anything you would `cat` by accident:
+execution role, which keeps it out of the container image and out of the
+runtime's environment variables:
 
 ```hcl
 environment_variables = {
@@ -115,11 +125,24 @@ environment_variables = {
 ```
 
 Endpoints and identifiers in configuration, the secret behind an IAM
-permission. `AWS_IAM` is the other reasonable choice here and needs no
-secret at all, because it uses the runtime role's own rotating
-credentials. It is the better fit when the caller is always AWS. JWT is
-the shape that keeps working when the caller is not, which is where this
-series is heading.
+permission.
+
+It is worth being precise about what that does and does not achieve,
+because it is easy to overstate. The Secrets Manager version is written
+with `secret_string_wo`, a write-only argument, so that value never lands
+in Terraform state. What does land in state is
+`aws_cognito_user_pool_client.agent.client_secret`, because the provider
+reads it back as a computed attribute and there is no way to suppress it
+while Terraform manages the app client. So the secret is out of the image,
+out of the runtime environment and out of one of the two places it would
+otherwise sit in state, and your state backend is still secret-bearing.
+Encrypted, versioned, access-controlled, never local.
+
+That is the honest cost of the `client_credentials` grant. `AWS_IAM` is
+the other reasonable choice and has no secret anywhere, because it uses
+the runtime role's own rotating credentials, and it is the better fit when
+every caller is AWS. JWT is the shape that keeps working when they are
+not, which is where this series is heading.
 
 ## 3 - The gateway and its target
 
@@ -138,6 +161,7 @@ resource "aws_bedrockagentcore_gateway" "orders" {
     custom_jwt_authorizer {
       discovery_url   = "https://cognito-idp.${region}.amazonaws.com/${pool_id}/.well-known/openid-configuration"
       allowed_clients = [aws_cognito_user_pool_client.agent.id]
+      allowed_scopes  = aws_cognito_resource_server.orders.scope_identifiers
     }
   }
 }
@@ -182,7 +206,8 @@ The tool schema you declare here is what agents will see over MCP, so it
 all matters, the name, description and input schema are what a model uses
 to decide when to call the tool and how to shape the arguments.
 
-The agent's `tools/list` call shows the mapping in action:
+Asking the gateway for its tool list, with `curl` and a client-credentials
+token, shows the mapping in action:
 
 ```json
 {
@@ -222,9 +247,14 @@ resource:
 }
 ```
 
-The same principle runs through the other two roles, the gateway's role
-can invoke exactly one Lambda, and the runtime role can otherwise only
-pull its own image and write its own logs and telemetry.
+The same principle runs through the gateway's role, whose identity policy
+allows `lambda:InvokeFunction` on exactly one function ARN. Its trust
+policy is looser than that, mind, the `aws:SourceArn` condition matches
+any AgentCore resource in the account rather than this gateway alone, so
+control who can pass the role. The runtime role otherwise carries what it
+needs to pull its image and write its own logs and telemetry, which
+includes `ecr:GetAuthorizationToken` on `*` because ECR requires it. The
+full policies are in the repo rather than reproduced here.
 
 NOTE: the gateway namespaces tool names as `<target>___<tool>` (triple
 underscore), so `lookup_order` on the `orders` target becomes
@@ -251,9 +281,19 @@ async def _call_tool(order_id):
 ```
 
 No signing code, no JSON-RPC to assemble, no handshake to remember, the
-SDK does the protocol. Do not hand-roll any of this, and in particular do
-not reach into `botocore.auth` to sign requests yourself, that is
-reimplementing with private APIs what a supported client already does.
+SDK does the protocol. This agent does not discover tools, it invokes a
+name it already knows, because the thing being demonstrated is the tool
+path rather than tool selection. A model-driven agent would call
+`session.list_tools()` first and choose from what came back.
+
+Worth being clear about what the stock client does and does not give you.
+It handles MCP framing and transport, and with `CUSTOM_JWT` that is all
+you need, since the credential is an ordinary `Authorization` header. An
+`AWS_IAM` gateway is different, it expects SigV4, and the MCP client does
+not sign anything for you, so you need an AWS-aware signing layer such as
+`mcp-proxy-for-aws`. What you should not do either way is reach into
+`botocore.auth` and assemble signed requests by hand, which is
+reimplementing a supported integration with private APIs.
 
 Getting the token is the standard `client_credentials` exchange, and the
 only part worth care is caching it, because otherwise every tool call
@@ -277,8 +317,10 @@ Secrets Manager is where it belongs rather than in configuration.
 
 There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
-path, not the reasoning. A model slots into exactly this shape later in
-the series.
+path, not the reasoning. This transport and client become one part of a
+model-driven tool loop later in the series, which also needs tool
+selection, result handling, retries, limits and a view on prompt
+injection.
 
 ## 5 - Asking it questions
 
@@ -306,13 +348,17 @@ The tool handles the miss case the same way:
 ```
 
 The gateway endpoint is public, so it is worth checking that the
-authorizer is actually doing something. Posting a valid MCP request to it
-with no token, and again with a made-up one:
+authorizer is actually doing something. Use a `tools/call` rather than a
+`tools/list` for this, because `tools/list` never reaches a backend even
+when it succeeds, so rejecting one proves less than it looks. This is the
+request that would invoke the Lambda:
 
 ```bash
 curl -s -o /dev/null -w "HTTP %{http_code}\n" -X POST "$GATEWAY_URL" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"orders___lookup_order",
+                 "arguments":{"order_id":"42"}}}'
 ```
 
 ```
@@ -320,7 +366,7 @@ no token:      HTTP 401
 bogus token:   HTTP 401
 ```
 
-The request never reaches the Lambda. That is the whole reason for
+Rejected before the Lambda is invoked. That is the whole reason for
 setting this up now rather than later, the endpoint was authenticated
 before it ever answered anything.
 
@@ -332,7 +378,11 @@ server, and a Cognito pool put a validated bearer token in front of it so
 the endpoint was never open. The client stayed a stock MCP client, which
 is the point, the auth is a header. The same target mechanism scales
 sideways, more Lambdas, OpenAPI specs or API Gateway stages all join the
-same tool list behind the same endpoint.
+same tool list behind the same endpoint. Note what that means for access
+though, the scopes and allowed clients are set on the gateway, not per
+target, so a token the gateway accepts can reach every tool behind it.
+Tools with different trust boundaries want separate gateways, or checks
+in their own backends.
 
 The next post gives the agent somewhere to keep what it learns, short-term
 session context and long-term extracted memory with AgentCore Memory.

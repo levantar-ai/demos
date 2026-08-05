@@ -67,17 +67,24 @@ def main():
         y += 44
     draw.rectangle([60, y + 8, 180, y + 12], fill=ACCENT)
 
-    # diagram on a white rounded card filling the lower area
+    # Diagram on a white rounded card sized to the artwork, not to the canvas.
+    # Filling the lower area leaves a tall empty panel on the square card,
+    # because the diagrams are much wider than they are high.
     top = y + 34
-    card = [40, top, W - 40, H - 40]
-    draw.rounded_rectangle(card, radius=18, fill=(255, 255, 255))
+    pad_x, pad_y = 20, 15
+    area_w, area_h = W - 80, H - 40 - top
+
     art = Image.open(demo / "architecture-social.png").convert("RGB")
     (demo / "architecture-social.png").unlink()
-    max_w, max_h = card[2] - card[0] - 40, card[3] - card[1] - 30
-    scale = min(max_w / art.width, max_h / art.height)
+    scale = min((area_w - 2 * pad_x) / art.width, (area_h - 2 * pad_y) / art.height)
     art = art.resize((int(art.width * scale), int(art.height * scale)), Image.LANCZOS)
-    canvas.paste(art, (card[0] + (card[2] - card[0] - art.width) // 2,
-                       card[1] + (card[3] - card[1] - art.height) // 2))
+
+    card_w, card_h = art.width + 2 * pad_x, art.height + 2 * pad_y
+    card_x, card_y = (W - card_w) // 2, top + (area_h - card_h) // 2
+    draw.rounded_rectangle(
+        [card_x, card_y, card_x + card_w, card_y + card_h], radius=18, fill=(255, 255, 255)
+    )
+    canvas.paste(art, (card_x + pad_x, card_y + pad_y))
 
     draw.text((W - 60 - draw.textlength("levantar.ai", font=font("DejaVuSans-Bold", 16)), 44),
               "levantar.ai", font=font("DejaVuSans-Bold", 16), fill=MUTED)

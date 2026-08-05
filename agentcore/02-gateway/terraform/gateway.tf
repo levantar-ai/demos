@@ -59,6 +59,7 @@ resource "aws_bedrockagentcore_gateway" "orders" {
     custom_jwt_authorizer {
       discovery_url   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.agents.id}/.well-known/openid-configuration"
       allowed_clients = [aws_cognito_user_pool_client.agent.id]
+      allowed_scopes  = aws_cognito_resource_server.orders.scope_identifiers
     }
   }
 }

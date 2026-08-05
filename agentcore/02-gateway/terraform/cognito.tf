@@ -11,8 +11,8 @@ resource "aws_cognito_user_pool" "agents" {
   }
 }
 
-# The token endpoint lives on this domain. The prefix is globally unique
-# across all of Cognito, hence the account id suffix.
+# The token endpoint lives on this domain. The prefix must be unique among
+# Cognito user pool domains in the Region, hence the account id suffix.
 resource "aws_cognito_user_pool_domain" "agents" {
   domain       = "${local.name_prefix}-${data.aws_caller_identity.current.account_id}"
   user_pool_id = aws_cognito_user_pool.agents.id
@@ -44,7 +44,11 @@ resource "aws_cognito_user_pool_client" "agent" {
 # The client secret never reaches the runtime as configuration. It goes
 # in Secrets Manager and the agent reads it with its execution role.
 resource "aws_secretsmanager_secret" "agent_client" {
-  name                    = "${local.name_prefix}-agent-client"
+  name = "${local.name_prefix}-agent-client"
+
+  # Demo setting so teardown is immediate and leaves nothing to collide with
+  # on the next apply. Use the default 30 day window anywhere real, where an
+  # accidental delete should be recoverable.
   recovery_window_in_days = 0
 
   tags = {
@@ -56,8 +60,18 @@ resource "aws_secretsmanager_secret" "agent_client" {
 resource "aws_secretsmanager_secret_version" "agent_client" {
   secret_id = aws_secretsmanager_secret.agent_client.id
 
-  secret_string = jsonencode({
+  # Write-only: the value is sent to Secrets Manager but never persisted in
+  # Terraform state. Bump the version to push a new value.
+  #
+  # This removes one of the two copies that would otherwise sit in state.
+  # The other is aws_cognito_user_pool_client.agent.client_secret, which the
+  # provider reads back as a computed attribute and which cannot be
+  # suppressed while Terraform manages the app client. Treat the state
+  # backend as secret-bearing regardless: encrypted, versioned, tightly
+  # scoped, never local.
+  secret_string_wo = jsonencode({
     client_id     = aws_cognito_user_pool_client.agent.id
     client_secret = aws_cognito_user_pool_client.agent.client_secret
   })
+  secret_string_wo_version = 1
 }
