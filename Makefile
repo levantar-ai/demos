@@ -1,6 +1,12 @@
+# State lives in its own bucket, encrypted with a customer-managed KMS key.
+# Demo state carries real secrets (a Cognito app client secret in 02), so
+# reading it requires kms:Decrypt as well as s3:GetObject, and decrypts are
+# audited in CloudTrail. The bucket denies non-TLS requests and any write
+# not encrypted with that key.
 AWS_PROFILE ?= lev:andy.rea
-TF_STATE_BUCKET ?= opptora-state
+TF_STATE_BUCKET ?= levantar-demos-tfstate
 TF_STATE_REGION ?= eu-west-2
+TF_STATE_KMS_KEY ?= alias/levantar-demos-tfstate
 DEMO ?= agentcore/01-first-agent
 
 .PHONY: demo-init demo-plan demo-apply demo-destroy fmt fmt-check validate
@@ -9,7 +15,9 @@ demo-init:
 	cd $(DEMO)/terraform && aws-vault exec $(AWS_PROFILE) -- terraform init \
 		-backend-config="bucket=$(TF_STATE_BUCKET)" \
 		-backend-config="key=terraform/demos/$(DEMO)/terraform.tfstate" \
-		-backend-config="region=$(TF_STATE_REGION)"
+		-backend-config="region=$(TF_STATE_REGION)" \
+		-backend-config="encrypt=true" \
+		-backend-config="kms_key_id=$(TF_STATE_KMS_KEY)"
 
 demo-plan:
 	cd $(DEMO)/terraform && aws-vault exec $(AWS_PROFILE) -- terraform plan
