@@ -91,6 +91,22 @@ Not actioned: a missing order still returns as a successful tool result
 rather than a protocol error, which reads as the correct modelling for a
 domain-level miss.
 
+### Video re-record and `tools/list` provenance (2026-08-05)
+
+The first re-record was taken against a deployed stack, so its
+`terraform apply` printed "No changes" and read as a mistake. Tearing
+everything down for a clean take also removed the ECR repository, and with
+it the image, so the next apply failed at the runtime. The repository is a
+build artifact rather than part of the demo: destroy everything except
+`aws_ecr_repository.agent` and its lifecycle policy, and push the image
+first. Recorded from that state, the apply builds 16 resources live and
+the runtime starts.
+
+The `tools/list` response in the post was carried over from the first
+cycle's artifact. Re-fetched with a client-credentials token against this
+deployment and confirmed byte-identical, so the published output is
+accurate rather than merely plausible.
+
 ## Re-review of the IAM rework (gpt-5.6, fourth cycle)
 
 Seven findings, all actioned: credentials wording corrected (rotated
