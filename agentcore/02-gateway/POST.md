@@ -178,14 +178,9 @@ resource:
 }
 ```
 
-The same principle runs through the gateway's role, whose identity policy
-allows `lambda:InvokeFunction` on exactly one function ARN. Its trust
-policy is looser than that, mind, the `aws:SourceArn` condition matches
-any AgentCore resource in the account rather than this gateway alone, so
-control who can pass the role. The runtime role otherwise carries what it
-needs to pull its image and write its own logs and telemetry, which
-includes `ecr:GetAuthorizationToken` on `*` because ECR requires it. The
-full policies are in the repo rather than reproduced here.
+The gateway's own role is the same shape, one action on one Lambda ARN. The
+full policies, and where they are looser than that sentence suggests, are in
+the repo.
 
 > NOTE: the gateway namespaces tool names as `<target>___<tool>` (triple
 > underscore), so `lookup_order` on the `orders` target becomes
@@ -211,42 +206,12 @@ async def _call_tool(order_id):
         return result.content[0].text
 ```
 
-No signing code, no JSON-RPC to assemble, no handshake to remember, the
-SDK does the protocol. This agent does not discover tools, it invokes a
-name it already knows, because the thing being demonstrated is the tool
-path rather than tool selection. A model-driven agent would call
-`session.list_tools()` first and choose from what came back.
-
-Worth being clear about what the stock client does and does not give you.
-It handles MCP framing and transport, and with `CUSTOM_JWT` that is all
-you need, since the credential is an ordinary `Authorization` header. An
-`AWS_IAM` gateway is different, it expects SigV4, and the MCP client does
-not sign anything for you, so you need an AWS-aware signing layer such as
-`mcp-proxy-for-aws`. What you should not do either way is reach into
-`botocore.auth` and assemble signed requests by hand, which is
-reimplementing a supported integration with private APIs.
-
-Getting the token is the standard `client_credentials` exchange, and the
-only part worth care is caching it, because otherwise every tool call
-buys a Secrets Manager read and a token round trip:
-
-```python
-def access_token():
-    if _token["value"] and time.time() < _token["expires_at"]:
-        return _token["value"]
-
-    client_id, client_secret = _client_credentials()
-    ...
-    _token["expires_at"] = time.time() + payload["expires_in"] - EXPIRY_MARGIN
-    return _token["value"]
-```
-
-`_client_credentials` reads the secret from Secrets Manager with the
-runtime execution role. That client secret is the one long-lived
-credential in the stack, which is the honest cost of `client_credentials`
-over IAM. It also lands in Terraform state, because the provider reads it
-back as a computed attribute, so treat your state bucket as secret-bearing
-and encrypt it accordingly. The repo's `aws-setup/` does exactly that.
+No signing code, no JSON-RPC to assemble, no handshake to remember, the SDK
+does the protocol. `access_token()` is the standard `client_credentials`
+exchange against Cognito, cached until shortly before it expires, and the
+secret behind it comes from Secrets Manager. That agent invokes a tool name
+it already knows rather than discovering one, because the tool path is the
+thing on show here, not tool selection.
 
 There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
