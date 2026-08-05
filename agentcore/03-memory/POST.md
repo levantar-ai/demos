@@ -68,9 +68,9 @@ so the mechanics stay visible, a real application derives it from an
 authenticated identity (the caller's IAM principal or verified token
 claims), never from an arbitrary client-supplied value.
 
-> NOTE: the memory store is the slowest resource in this series so far to
-> create, 2m45s in this deployment, so create it once per environment and
-> keep it, rather than per deploy. Don't share one store across
+> NOTE: the memory store takes minutes to create rather than seconds, so
+> create it once per environment and keep it, rather than per deploy. Don't
+> share one store across
 > environments or security boundaries though, stale records from one test
 > will happily turn up in the next.
 

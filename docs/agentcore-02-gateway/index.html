@@ -293,10 +293,15 @@ targets can expose tools with the same short name and a fuzzy match will
 happily pick the wrong one.</p>
 </blockquote>
 <h2>4 - Teaching the agent to call it</h2>
-<p>The agent uses the MCP Python SDK, and because the gateway takes a bearer
-token there is nothing gateway-specific about the client at all. It is
-the stock streamable HTTP transport with an <code>Authorization</code> header:</p>
-<pre><code class="language-python">async def _call_tool(order_id):
+<p>The agent uses the official MCP Python SDK, the <code>mcp</code> package, pinned at
+<code>mcp==1.29.0</code>. Because the gateway takes a bearer token there is nothing
+gateway-specific about the client at all, it is the SDK's stock streamable
+HTTP transport with an <code>Authorization</code> header:</p>
+<pre><code class="language-python">from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+
+async def _call_tool(order_id):
     headers = {&quot;Authorization&quot;: f&quot;Bearer {access_token()}&quot;}
     async with (
         streamablehttp_client(os.environ[&quot;GATEWAY_URL&quot;], headers=headers) as (read, write, _),
@@ -328,11 +333,9 @@ injection.</p>
 cat response.json
 {&quot;result&quot;: &quot;order 42: {\&quot;status\&quot;:\&quot;shipped\&quot;,\&quot;carrier\&quot;:\&quot;DPD\&quot;,\&quot;eta\&quot;:\&quot;2026-07-28\&quot;}&quot;}
 </code></pre>
-<p>The full round trip, agent to Cognito for a token, then agent to gateway
-to Lambda and back, came in at 8 seconds on a fresh session in one run,
-including the microVM cold start, the Secrets Manager read and the token
-exchange. A second call on the same session came back in 2 seconds, since
-by then the microVM is warm and the token is cached.</p>
+<p>The agent never parses that itself. It asked the gateway for a tool, the
+gateway invoked the Lambda, and the answer came back through the same
+bearer-token path every call takes.</p>
 <p>The tool handles the miss case the same way:</p>
 <pre><code>&quot;is order 99 ok?&quot;  -&gt;  {&quot;result&quot;: &quot;order 99: {\&quot;error\&quot;:\&quot;order 99 not found\&quot;}&quot;}
 </code></pre>

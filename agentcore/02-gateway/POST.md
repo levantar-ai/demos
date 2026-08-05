@@ -190,11 +190,16 @@ the repo.
 
 ## 4 - Teaching the agent to call it
 
-The agent uses the MCP Python SDK, and because the gateway takes a bearer
-token there is nothing gateway-specific about the client at all. It is
-the stock streamable HTTP transport with an `Authorization` header:
+The agent uses the official MCP Python SDK, the `mcp` package, pinned at
+`mcp==1.29.0`. Because the gateway takes a bearer token there is nothing
+gateway-specific about the client at all, it is the SDK's stock streamable
+HTTP transport with an `Authorization` header:
 
 ```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+
 async def _call_tool(order_id):
     headers = {"Authorization": f"Bearer {access_token()}"}
     async with (
@@ -233,11 +238,9 @@ cat response.json
 {"result": "order 42: {\"status\":\"shipped\",\"carrier\":\"DPD\",\"eta\":\"2026-07-28\"}"}
 ```
 
-The full round trip, agent to Cognito for a token, then agent to gateway
-to Lambda and back, came in at 8 seconds on a fresh session in one run,
-including the microVM cold start, the Secrets Manager read and the token
-exchange. A second call on the same session came back in 2 seconds, since
-by then the microVM is warm and the token is cached.
+The agent never parses that itself. It asked the gateway for a tool, the
+gateway invoked the Lambda, and the answer came back through the same
+bearer-token path every call takes.
 
 The tool handles the miss case the same way:
 
