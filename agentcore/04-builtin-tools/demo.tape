@@ -16,19 +16,27 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 2s
-Type "unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/04-builtin-tools && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && clear"
+Type `unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/04-builtin-tools && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && clear`
 Enter
+Type `ACCT=$(aws sts get-caller-identity --query Account --output text); redact() { sed -u "s/$ACCT/<ACCOUNT-ID>/g"; }`
+Enter
+Sleep 3s
+
 Sleep 8s
 Type "clear"
 Enter
 Sleep 1s
+Type "clear"
+Enter
+Sleep 1s
+
 Show
 
 Type "# an agent that runs pandas in a sandbox — no network, no credentials in there"
 Enter
 Sleep 1.5s
 
-Type "terraform -chdir=terraform apply -auto-approve -var image_tag=$TAG"
+Type "terraform -chdir=terraform apply -auto-approve -var image_tag=$TAG 2>&1 | redact"
 Enter
 Wait
 Sleep 2s

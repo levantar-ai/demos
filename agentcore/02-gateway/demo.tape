@@ -16,8 +16,21 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 2s
-Type "unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/02-gateway && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && clear"
+Type `unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/02-gateway && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && clear`
 Enter
+Type `ACCT=$(aws sts get-caller-identity --query Account --output text); redact() { sed -u "s/$ACCT/<ACCOUNT-ID>/g"; }`
+Enter
+Sleep 3s
+# Client id and secret are read off camera so they never appear on screen.
+# Only the resulting short-lived token is used, and only its prefix shown.
+Type `TOKEN_URL="https://demos-agentcore-02-gateway-$ACCT.auth.us-east-1.amazoncognito.com/oauth2/token"`
+Enter
+Sleep 1s
+
+Type "clear"
+Enter
+Sleep 1s
+
 Show
 
 Type "# a Lambda as an MCP tool behind AgentCore Gateway — Cognito JWT on every call"
@@ -32,7 +45,7 @@ Type "# nothing deployed yet — build the lot from scratch"
 Enter
 Sleep 1.5s
 
-Type "terraform -chdir=terraform apply -auto-approve -var image_tag=$TAG"
+Type "terraform -chdir=terraform apply -auto-approve -var image_tag=$TAG 2>&1 | redact"
 Enter
 Wait
 Sleep 3s
@@ -63,6 +76,30 @@ Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base
 Enter
 Wait
 Sleep 2s
+
+Type "# now the same call with a client-credentials token from Cognito"
+Enter
+Sleep 1s
+
+Type `CREDS=$(aws secretsmanager get-secret-value --secret-id demos-agentcore-02-gateway-agent-client --query SecretString --output text --region us-east-1)`
+Enter
+Wait
+Sleep 1s
+
+Type `TOKEN=$(curl -s -u "$(jq -r .client_id <<<"$CREDS"):$(jq -r .client_secret <<<"$CREDS")" -d "grant_type=client_credentials&scope=orders-api/invoke" "$TOKEN_URL" | jq -r .access_token)`
+Enter
+Wait
+Sleep 1s
+
+Type `echo "${TOKEN:0:18}... ($(printf %s "$TOKEN" | wc -c) chars)"`
+Enter
+Wait
+Sleep 2s
+
+Type `curl -s -o /dev/null -w "HTTP %{http_code}\n" -X POST "$(terraform -chdir=terraform output -raw gateway_url)" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"orders___lookup_order","arguments":{"order_id":"42"}}}'`
+Enter
+Wait
+Sleep 3s
 
 Type "# no token, no entry — and this is the call that would hit the Lambda"
 Enter

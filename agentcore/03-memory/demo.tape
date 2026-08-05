@@ -16,12 +16,20 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 2s
-Type "unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/03-memory && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && export ARN=$(terraform -chdir=terraform output -raw runtime_arn) MEMORY_ID=$(terraform -chdir=terraform output -raw memory_id) && clear"
+Type `unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/03-memory && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && export ARN=$(terraform -chdir=terraform output -raw runtime_arn) MEMORY_ID=$(terraform -chdir=terraform output -raw memory_id) && clear`
 Enter
+Type `ACCT=$(aws sts get-caller-identity --query Account --output text); redact() { sed -u "s/$ACCT/<ACCOUNT-ID>/g"; }`
+Enter
+Sleep 3s
+
 Sleep 10s
 Type "clear"
 Enter
 Sleep 1s
+Type "clear"
+Enter
+Sleep 1s
+
 Show
 
 Type "# an agent that remembers, with AgentCore Memory — store a preference in session A"
