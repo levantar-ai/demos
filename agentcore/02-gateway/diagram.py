@@ -9,6 +9,7 @@ import os
 from diagrams import Cluster, Diagram, Edge
 from diagrams.aws.compute import Lambda
 from diagrams.aws.network import APIGateway
+from diagrams.aws.security import Cognito
 from diagrams.onprem.client import User
 from diagrams.programming.language import Python
 
@@ -60,9 +61,12 @@ with Diagram(
         gateway = APIGateway("orders target")
 
     tool = Lambda("lookup_order")
+    cognito = Cognito("Cognito pool")
 
     caller >> Edge(label="invoke") >> agent
-    agent >> Edge(label="tools/call, SigV4\n(runtime role)") >> gateway
+    agent >> Edge(label="client_credentials", style="dashed") >> cognito
+    agent >> Edge(label="tools/call\n(Bearer JWT)") >> gateway
+    gateway >> Edge(label="validates token", style="dashed") >> cognito
     gateway >> Edge(label="invoke") >> tool
 
 # Env overrides used by scripts/render-social.py

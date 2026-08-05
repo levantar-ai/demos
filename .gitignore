@@ -1,5 +1,7 @@
 node_modules/
 dist/
+__pycache__/
+.pytest_cache/
 .DS_Store
 *.log
 .playwright-mcp/
@@ -12,3 +14,6 @@ megalinter-reports/
 *.tfvars
 *.tfplan
 tfplan
+
+# Private planning (kept out of this public repo)
+agentcore/PLAN.md
