@@ -46,6 +46,26 @@ level, but the Terraform provider does not implement it yet
 so rotating today means replacing the app client and updating
 `allowed_clients` on the gateway.
 
+**Where the IAM is looser than least privilege.** The gateway role's
+identity policy allows `lambda:InvokeFunction` on exactly one function ARN,
+but its trust policy is broader, the `aws:SourceArn` condition matches any
+AgentCore resource in the account rather than this gateway alone, so control
+who can pass the role. The runtime role also needs
+`ecr:GetAuthorizationToken` on `*`, because ECR gives no way to scope it.
+
+**The client is stock, but only because of JWT.** The MCP SDK handles
+framing and transport, and with `CUSTOM_JWT` that is all you need, since the
+credential is an ordinary `Authorization` header. An `AWS_IAM` gateway
+expects SigV4 and the MCP client signs nothing for you, so that route needs
+an AWS-aware layer such as `mcp-proxy-for-aws`. What you should not do
+either way is reach into `botocore.auth` and assemble signed requests by
+hand, which reimplements a supported integration with private APIs.
+
+**Token handling.** `access_token()` caches the token until shortly before
+expiry, behind a lock, because the runtime is a threaded HTTP server and a
+burst of requests at expiry would otherwise each pay a Secrets Manager read
+and a token round trip.
+
 **Authenticated is not authorised.** Every call carries the same workload
 identity. The gateway establishes that a legitimate client is calling, not
 that it may see a particular order. Anything user- or tenant-specific needs

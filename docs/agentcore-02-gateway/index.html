@@ -104,7 +104,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, Levantar</div>
-          <div class="facts"><time datetime="2026-07-24">24 July 2026</time><span class="sep">·</span>7 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-07-24">24 July 2026</time><span class="sep">·</span>6 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
 <h2>TL;DR;</h2>
@@ -260,14 +260,9 @@ resource:</p>
   Resource = aws_secretsmanager_secret.agent_client.arn
 }
 </code></pre>
-<p>The same principle runs through the gateway's role, whose identity policy
-allows <code>lambda:InvokeFunction</code> on exactly one function ARN. Its trust
-policy is looser than that, mind, the <code>aws:SourceArn</code> condition matches
-any AgentCore resource in the account rather than this gateway alone, so
-control who can pass the role. The runtime role otherwise carries what it
-needs to pull its image and write its own logs and telemetry, which
-includes <code>ecr:GetAuthorizationToken</code> on <code>*</code> because ECR requires it. The
-full policies are in the repo rather than reproduced here.</p>
+<p>The gateway's own role is the same shape, one action on one Lambda ARN. The
+full policies, and where they are looser than that sentence suggests, are in
+the repo.</p>
 <blockquote>
 <p>NOTE: the gateway namespaces tool names as <code>&lt;target&gt;___&lt;tool&gt;</code> (triple
 underscore), so <code>lookup_order</code> on the <code>orders</code> target becomes
@@ -289,37 +284,12 @@ the stock streamable HTTP transport with an <code>Authorization</code> header:</
         result = await session.call_tool(TOOL_NAME, {&quot;order_id&quot;: order_id})
         return result.content[0].text
 </code></pre>
-<p>No signing code, no JSON-RPC to assemble, no handshake to remember, the
-SDK does the protocol. This agent does not discover tools, it invokes a
-name it already knows, because the thing being demonstrated is the tool
-path rather than tool selection. A model-driven agent would call
-<code>session.list_tools()</code> first and choose from what came back.</p>
-<p>Worth being clear about what the stock client does and does not give you.
-It handles MCP framing and transport, and with <code>CUSTOM_JWT</code> that is all
-you need, since the credential is an ordinary <code>Authorization</code> header. An
-<code>AWS_IAM</code> gateway is different, it expects SigV4, and the MCP client does
-not sign anything for you, so you need an AWS-aware signing layer such as
-<code>mcp-proxy-for-aws</code>. What you should not do either way is reach into
-<code>botocore.auth</code> and assemble signed requests by hand, which is
-reimplementing a supported integration with private APIs.</p>
-<p>Getting the token is the standard <code>client_credentials</code> exchange, and the
-only part worth care is caching it, because otherwise every tool call
-buys a Secrets Manager read and a token round trip:</p>
-<pre><code class="language-python">def access_token():
-    if _token[&quot;value&quot;] and time.time() &lt; _token[&quot;expires_at&quot;]:
-        return _token[&quot;value&quot;]
-
-    client_id, client_secret = _client_credentials()
-    ...
-    _token[&quot;expires_at&quot;] = time.time() + payload[&quot;expires_in&quot;] - EXPIRY_MARGIN
-    return _token[&quot;value&quot;]
-</code></pre>
-<p><code>_client_credentials</code> reads the secret from Secrets Manager with the
-runtime execution role. That client secret is the one long-lived
-credential in the stack, which is the honest cost of <code>client_credentials</code>
-over IAM. It also lands in Terraform state, because the provider reads it
-back as a computed attribute, so treat your state bucket as secret-bearing
-and encrypt it accordingly. The repo's <code>aws-setup/</code> does exactly that.</p>
+<p>No signing code, no JSON-RPC to assemble, no handshake to remember, the SDK
+does the protocol. <code>access_token()</code> is the standard <code>client_credentials</code>
+exchange against Cognito, cached until shortly before it expires, and the
+secret behind it comes from Secrets Manager. That agent invokes a tool name
+it already knows rather than discovering one, because the tool path is the
+thing on show here, not tool selection.</p>
 <p>There is still no model in this agent, it extracts an order id from the
 prompt with a regex, because the thing under demonstration is the tool
 path, not the reasoning. This transport and client become one part of a

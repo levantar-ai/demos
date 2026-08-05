@@ -105,6 +105,8 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
 > outbound), it does not expose port 8080 to the internet. Invocation always
 > goes through the AgentCore data-plane API under IAM.
 
+<!-- -->
+
 > NOTE: Runtime names must start with a letter and may contain letters,
 > digits and underscores, no hyphens (`[a-zA-Z][a-zA-Z0-9_]*`), unlike most
 > AWS resources.

@@ -114,6 +114,8 @@ a `finally` block, because a session lives until its timeout otherwise.
 > to `data.csv` and read `data.csv`, and resist the urge to be clever with
 > absolute paths.
 
+<!-- -->
+
 > NOTE: sessions outlive the call that created them, up to
 > `sessionTimeoutSeconds`, and a sandbox with live sessions refuses to
 > delete (`ConflictException: ... cannot be deleted. There are 2 active
