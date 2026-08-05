@@ -1,11 +1,11 @@
-# aws-setup — Terraform state backend
+# aws-setup, the Terraform state backend
 
 Creates the S3 bucket and KMS key that every demo stack stores its state in.
 
 State for these demos is not inert. Post 02 provisions a Cognito app client,
 and the provider reads its `client_secret` back as a computed attribute, so
-it lands in state whether you want it there or not — there is no write-only
-or ephemeral variant of that resource. The bucket is therefore treated as a
+it lands in state whether you want it there or not, because there is no
+write-only or ephemeral variant of that resource. The bucket is therefore treated as a
 secret store rather than a scratch file:
 
 - **SSE-KMS with a customer managed key**, so reading state needs
@@ -74,5 +74,5 @@ make demo-init DEMO=agentcore/02-gateway
 ## Teardown
 
 The bucket holds the state of everything else, so destroy the demo stacks
-first. `force_destroy` is deliberately not set — emptying a versioned bucket
-of state files should be a decision, not a side effect.
+first. `force_destroy` is deliberately not set, because emptying a versioned
+bucket of state files should be a decision, not a side effect.

@@ -15,14 +15,14 @@ agent retrieves across sessions from the `/users/{actorId}` namespace.
 - Runtime role additionally allows the memory data-plane calls
   (CreateEvent, ListEvents, RetrieveMemoryRecords, ...) on this memory only
 
-## Prerequisite — state backend
+## Before you start, the state backend
 
 `make demo-init` expects the shared state bucket and KMS key to exist. They
 are created once per account by [`aws-setup/`](../../aws-setup/README.md),
 which is a one-time bootstrap, not part of this demo.
 
-State for these demos is not inert — post 02 puts a Cognito app client secret
-in it — so the bucket is encrypted with a customer managed key and denies
+State for these demos is not inert, post 02 puts a Cognito app client secret
+in it, so the bucket is encrypted with a customer managed key and denies
 non-TLS and unencrypted writes. Set it up first:
 
 ```bash

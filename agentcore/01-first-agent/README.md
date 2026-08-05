@@ -11,14 +11,14 @@ demo in the series copies forward.
 - IAM execution role `demos-agentcore-01-first-agent-runtime`
 - AgentCore Runtime `demos_agentcore_01_first_agent`
 
-## Prerequisite — state backend
+## Before you start, the state backend
 
 `make demo-init` expects the shared state bucket and KMS key to exist. They
 are created once per account by [`aws-setup/`](../../aws-setup/README.md),
 which is a one-time bootstrap, not part of this demo.
 
-State for these demos is not inert — post 02 puts a Cognito app client secret
-in it — so the bucket is encrypted with a customer managed key and denies
+State for these demos is not inert, post 02 puts a Cognito app client secret
+in it, so the bucket is encrypted with a customer managed key and denies
 non-TLS and unencrypted writes. Set it up first:
 
 ```bash

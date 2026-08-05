@@ -1,4 +1,4 @@
-# Terraform state for these demos carries real secrets — post 02 stores a
+# Terraform state for these demos carries real secrets. Post 02 stores a
 # Cognito app client secret, which the provider reads back as a computed
 # attribute and writes to state whether you want it there or not. So the
 # state bucket is treated as a secret store: encrypted with a customer

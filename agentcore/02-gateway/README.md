@@ -21,7 +21,7 @@ agent's MCP client.
 The post keeps this brief, so the reasoning is here.
 
 **Why `CUSTOM_JWT` and not `NONE`.** A gateway is the first thing in this
-series reachable from outside the account — post 01's runtime sat behind the
+series reachable from outside the account. Post 01's runtime sat behind the
 AgentCore API, but a gateway is an HTTPS endpoint that invokes your Lambda.
 `authorizer_type` is also immutable, so a gateway created with `NONE` has to
 be destroyed and replaced to add auth later, not updated.
@@ -34,8 +34,8 @@ The cost is one long-lived client secret.
 
 **Where that secret lives.** Secrets Manager, read by the runtime execution
 role, so it is out of the image and out of the environment. It is also in
-Terraform state: the provider reads `aws_cognito_user_pool_client.client_secret`
-back as a computed attribute and there is no write-only or ephemeral variant
+Terraform state, because the provider reads
+`aws_cognito_user_pool_client.client_secret` back as a computed attribute, and there is no write-only or ephemeral variant
 to suppress it. The Secrets Manager version itself uses `secret_string_wo`,
 so that copy stays out of state, but the app client's does not. Hence the
 encrypted state bucket in [`aws-setup/`](../../aws-setup/README.md).
@@ -51,14 +51,14 @@ identity. The gateway establishes that a legitimate client is calling, not
 that it may see a particular order. Anything user- or tenant-specific needs
 the caller's identity carried through and a check in the backend.
 
-## Prerequisite — state backend
+## Before you start, the state backend
 
 `make demo-init` expects the shared state bucket and KMS key to exist. They
 are created once per account by [`aws-setup/`](../../aws-setup/README.md),
 which is a one-time bootstrap, not part of this demo.
 
-State for these demos is not inert — post 02 puts a Cognito app client secret
-in it — so the bucket is encrypted with a customer managed key and denies
+State for these demos is not inert, post 02 puts a Cognito app client secret
+in it, so the bucket is encrypted with a customer managed key and denies
 non-TLS and unencrypted writes. Set it up first:
 
 ```bash
