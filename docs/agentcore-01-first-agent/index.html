@@ -4,18 +4,69 @@
 <meta charset="utf-8">
 <title>What AgentCore actually is, and getting a first agent running on it — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to deploy an agent container to Amazon Bedrock AgentCore Runtime with Terraform, invoke it, and see what the platform gives you.">
+<meta name="description" content="How to deploy an agent container to Amazon Bedrock AgentCore Runtime with Terraform, invoke it, and see what the platform gives you. >">
+<link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-01-first-agent/">
+<meta name="author" content="Andy Rea">
+<meta name="robots" content="index, follow, max-image-preview:large">
 <meta property="og:type" content="article">
+<meta property="og:site_name" content="Levantar">
+<meta property="og:locale" content="en_GB">
 <meta property="og:title" content="What AgentCore actually is, and getting a first agent running on it">
-<meta property="og:description" content="How to deploy an agent container to Amazon Bedrock AgentCore Runtime with Terraform, invoke it, and see what the platform gives you.">
+<meta property="og:description" content="How to deploy an agent container to Amazon Bedrock AgentCore Runtime with Terraform, invoke it, and see what the platform gives you. >">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-01-first-agent/social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+<meta property="og:image:alt" content="What AgentCore actually is, and getting a first agent running on it">
 <meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-01-first-agent/">
 <meta property="article:published_time" content="2026-07-24">
 <meta property="article:author" content="Andy Rea">
-<meta name="author" content="Andy Rea">
+<meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="What AgentCore actually is, and getting a first agent running on it">
+<meta name="twitter:description" content="How to deploy an agent container to Amazon Bedrock AgentCore Runtime with Terraform, invoke it, and see what the platform gives you. >">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-01-first-agent/social.png">
+<meta name="twitter:image:alt" content="What AgentCore actually is, and getting a first agent running on it">
 <link rel="icon" type="image/png" href="../favicon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "What AgentCore actually is, and getting a first agent running on it",
+  "description": "How to deploy an agent container to Amazon Bedrock AgentCore Runtime with Terraform, invoke it, and see what the platform gives you. >",
+  "image": "https://levantar-ai.github.io/demos/agentcore-01-first-agent/social.png",
+  "datePublished": "2026-07-24",
+  "dateModified": "2026-07-24",
+  "wordCount": 1000,
+  "inLanguage": "en-GB",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://levantar-ai.github.io/demos/agentcore-01-first-agent/"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "Andy Rea",
+    "jobTitle": "Co-Founder & CTO",
+    "worksFor": {
+      "@type": "Organization",
+      "name": "Levantar",
+      "url": "https://levantar.ai"
+    }
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Levantar",
+    "url": "https://levantar.ai",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://levantar-ai.github.io/demos/levantar-logo-white.png"
+    }
+  },
+  "isPartOf": {
+    "@type": "CreativeWorkSeries",
+    "name": "AgentCore series"
+  }
+}
+</script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
 <script>
@@ -74,6 +125,8 @@
   .post-meta a.name:hover svg { color: var(--accent); }
   .post-meta .name svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
   .post-meta .role { color: var(--muted); font-size: 13.5px; }
+  .post-meta .role a.org { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .post-meta .role a.org:hover { color: var(--accent); border-bottom-color: var(--accent); }
   .post-meta .facts { color: var(--muted); font-size: 13px; }
   .post-meta .facts .sep { padding: 0 5px; opacity: 0.45; }
   .series-nav a {
@@ -119,7 +172,7 @@
         <img class="avatar" src="../avatar.jpg" alt="Andy Rea" width="52" height="52">
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
-          <div class="role">Co-Founder &amp; CTO, Levantar</div>
+          <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
           <div class="facts"><time datetime="2026-07-24">24 July 2026</time><span class="sep">·</span>5 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
@@ -127,8 +180,10 @@
 <h2>TL;DR;</h2>
 <p>How to deploy an agent container to Amazon Bedrock AgentCore Runtime with
 Terraform, invoke it, and see what the platform gives you.</p>
+<blockquote>
 <p>SOURCE CODE - All code for this post is available at:
 <a href="https://github.com/levantar-ai/demos/tree/main/agentcore/01-first-agent">https://github.com/levantar-ai/demos/tree/main/agentcore/01-first-agent</a></p>
+</blockquote>
 <h2>Longer version</h2>
 <p>The gap between an agent that works in a notebook and an agent running in
 production is not the agent loop, it is everything around it. You need

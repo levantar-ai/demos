@@ -6,8 +6,8 @@ How to put AgentCore Gateway in front of an existing Lambda so an agent
 can call it as an MCP tool, with Cognito issuing the JWT the gateway
 validates, so the endpoint is authenticated from the first deployment.
 
-SOURCE CODE - All code for this post is available at:
-https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway
+> SOURCE CODE - All code for this post is available at:
+> https://github.com/levantar-ai/demos/tree/main/agentcore/02-gateway
 
 ## Longer version
 

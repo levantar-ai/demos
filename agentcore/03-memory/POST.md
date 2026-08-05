@@ -7,8 +7,8 @@ conversation events within a session and recalls extracted user
 preferences across sessions, with the extraction happening asynchronously
 on the service side.
 
-SOURCE CODE - All code for this post is available at:
-https://github.com/levantar-ai/demos/tree/main/agentcore/03-memory
+> SOURCE CODE - All code for this post is available at:
+> https://github.com/levantar-ai/demos/tree/main/agentcore/03-memory
 
 ## Longer version
 

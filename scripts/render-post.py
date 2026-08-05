@@ -9,6 +9,7 @@ copies any PNGs the post references alongside it. Run from the repo root.
 
 import datetime
 import html
+import json
 import pathlib
 import re
 import shutil
@@ -19,7 +20,9 @@ import markdown
 # Byline shown at the top of every post. Leave AUTHOR_LINKEDIN empty to render
 # the name unlinked and drop the icon.
 AUTHOR_NAME = "Andy Rea"
-AUTHOR_TITLE = "Co-Founder &amp; CTO, Levantar"
+AUTHOR_TITLE = "Co-Founder &amp; CTO"
+AUTHOR_ORG = "Levantar"
+AUTHOR_ORG_URL = "https://levantar.ai"
 AUTHOR_LINKEDIN = ""
 AUTHOR_AVATAR = "../avatar.jpg"
 WORDS_PER_MINUTE = 200
@@ -49,17 +52,31 @@ TEMPLATE = """<!DOCTYPE html>
 <title>{title} — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="{description}">
+<link rel="canonical" href="{url}">
+<meta name="author" content="{author_name}">
+<meta name="robots" content="index, follow, max-image-preview:large">
 <meta property="og:type" content="article">
+<meta property="og:site_name" content="Levantar">
+<meta property="og:locale" content="en_GB">
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{description}">
-<meta property="og:image" content="https://levantar-ai.github.io/demos/{slug}/social.png">
-<meta property="og:url" content="https://levantar-ai.github.io/demos/{slug}/">
+<meta property="og:image" content="{url}social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+<meta property="og:image:alt" content="{title}">
+<meta property="og:url" content="{url}">
 <meta property="article:published_time" content="{date}">
 <meta property="article:author" content="{author_name}">
-<meta name="author" content="{author_name}">
+<meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://levantar-ai.github.io/demos/{slug}/social.png">
+<meta name="twitter:title" content="{title}">
+<meta name="twitter:description" content="{description}">
+<meta name="twitter:image" content="{url}social.png">
+<meta name="twitter:image:alt" content="{title}">
 <link rel="icon" type="image/png" href="../favicon.png">
+<script type="application/ld+json">
+{jsonld}
+</script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
 <script>
@@ -118,6 +135,8 @@ TEMPLATE = """<!DOCTYPE html>
   .post-meta a.name:hover svg {{ color: var(--accent); }}
   .post-meta .name svg {{ width: 13px; height: 13px; flex: none; color: var(--muted); }}
   .post-meta .role {{ color: var(--muted); font-size: 13.5px; }}
+  .post-meta .role a.org {{ color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }}
+  .post-meta .role a.org:hover {{ color: var(--accent); border-bottom-color: var(--accent); }}
   .post-meta .facts {{ color: var(--muted); font-size: 13px; }}
   .post-meta .facts .sep {{ padding: 0 5px; opacity: 0.45; }}
   .series-nav a {{
@@ -170,6 +189,42 @@ TEMPLATE = """<!DOCTYPE html>
 """
 
 
+def structured_data(title, description, date, url, minutes):
+    """Schema.org BlogPosting, so search engines get the author, publisher
+    and date from something better than guesswork."""
+    return json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": title,
+            "description": description,
+            "image": f"{url}social.png",
+            "datePublished": date,
+            "dateModified": date,
+            "wordCount": minutes * WORDS_PER_MINUTE,
+            "inLanguage": "en-GB",
+            "mainEntityOfPage": {"@type": "WebPage", "@id": url},
+            "author": {
+                "@type": "Person",
+                "name": AUTHOR_NAME,
+                "jobTitle": "Co-Founder & CTO",
+                "worksFor": {"@type": "Organization", "name": AUTHOR_ORG, "url": AUTHOR_ORG_URL},
+            },
+            "publisher": {
+                "@type": "Organization",
+                "name": AUTHOR_ORG,
+                "url": AUTHOR_ORG_URL,
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://levantar-ai.github.io/demos/levantar-logo-white.png",
+                },
+            },
+            "isPartOf": {"@type": "CreativeWorkSeries", "name": "AgentCore series"},
+        },
+        indent=2,
+    )
+
+
 def signposts(slug):
     """Links to the neighbouring posts, empty strings at either end."""
     slugs = [s for s, _ in SERIES]
@@ -216,7 +271,7 @@ def byline(date, minutes):
         <img class="avatar" src="{AUTHOR_AVATAR}" alt="{AUTHOR_NAME}" width="52" height="52">
         <div class="who">
           <div>{name}</div>
-          <div class="role">{AUTHOR_TITLE}</div>
+          <div class="role">{AUTHOR_TITLE}, <a class="org" href="{AUTHOR_ORG_URL}" target="_blank" rel="noopener">{AUTHOR_ORG}</a></div>
           <div class="facts"><time datetime="{date}">{shown}</time><span class="sep">·</span>\
 {minutes} min read<span class="sep">·</span>AgentCore series</div>
         </div>
@@ -286,6 +341,7 @@ def main():
             body,
             count=1,
         )
+    url = f"https://levantar-ai.github.io/demos/{slug}/"
     prev_nav, next_nav = signposts(slug)
 
     html = TEMPLATE.format(
@@ -293,6 +349,8 @@ def main():
         description=description,
         date=date,
         meta=byline(date, minutes),
+        url=url,
+        jsonld=structured_data(title, description, date, url, minutes),
         prev_nav=prev_nav,
         next_nav=next_nav,
         author_name=AUTHOR_NAME,

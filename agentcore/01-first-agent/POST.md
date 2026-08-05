@@ -5,8 +5,8 @@
 How to deploy an agent container to Amazon Bedrock AgentCore Runtime with
 Terraform, invoke it, and see what the platform gives you.
 
-SOURCE CODE - All code for this post is available at:
-https://github.com/levantar-ai/demos/tree/main/agentcore/01-first-agent
+> SOURCE CODE - All code for this post is available at:
+> https://github.com/levantar-ai/demos/tree/main/agentcore/01-first-agent
 
 ## Longer version
 
