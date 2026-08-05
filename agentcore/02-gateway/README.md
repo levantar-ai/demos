@@ -16,6 +16,41 @@ agent's MCP client.
 - Cognito user pool, domain, resource server and `client_credentials` app
   client, with the client secret in Secrets Manager
 
+## Auth choices
+
+The post keeps this brief, so the reasoning is here.
+
+**Why `CUSTOM_JWT` and not `NONE`.** A gateway is the first thing in this
+series reachable from outside the account — post 01's runtime sat behind the
+AgentCore API, but a gateway is an HTTPS endpoint that invokes your Lambda.
+`authorizer_type` is also immutable, so a gateway created with `NONE` has to
+be destroyed and replaced to add auth later, not updated.
+
+**Why not `AWS_IAM`.** It is the better fit when every caller is AWS, and it
+has no secret anywhere because it uses the runtime role's own rotating
+credentials. JWT was chosen because the Identity post builds on this pool,
+and because it is the shape that keeps working when the caller is not AWS.
+The cost is one long-lived client secret.
+
+**Where that secret lives.** Secrets Manager, read by the runtime execution
+role, so it is out of the image and out of the environment. It is also in
+Terraform state: the provider reads `aws_cognito_user_pool_client.client_secret`
+back as a computed attribute and there is no write-only or ephemeral variant
+to suppress it. The Secrets Manager version itself uses `secret_string_wo`,
+so that copy stays out of state, but the app client's does not. Hence the
+encrypted state bucket in [`aws-setup/`](../../aws-setup/README.md).
+
+**Rotation.** Cognito supports two concurrent client secrets at the API
+level, but the Terraform provider does not implement it yet
+([hashicorp/terraform-provider-aws#46809](https://github.com/hashicorp/terraform-provider-aws/issues/46809)),
+so rotating today means replacing the app client and updating
+`allowed_clients` on the gateway.
+
+**Authenticated is not authorised.** Every call carries the same workload
+identity. The gateway establishes that a legitimate client is calling, not
+that it may see a particular order. Anything user- or tenant-specific needs
+the caller's identity carried through and a check in the backend.
+
 ## Prerequisite — state backend
 
 `make demo-init` expects the shared state bucket and KMS key to exist. They
