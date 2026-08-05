@@ -9,7 +9,7 @@ Set Width 1600
 Set Height 900
 Set Padding 24
 Set TypingSpeed 30ms
-Set WaitTimeout 240s
+Set WaitTimeout 600s
 Set Theme {"background":"#0a0a0e","foreground":"#d6dae3","cursor":"#22d3ee","black":"#16161c","red":"#ef4444","green":"#4ade80","yellow":"#fbbf24","blue":"#60a5fa","magenta":"#f472b6","cyan":"#22d3ee","white":"#d1d5db","brightBlack":"#52525e","brightRed":"#f87171","brightGreen":"#86efac","brightYellow":"#fde047","brightBlue":"#93c5fd","brightMagenta":"#f9a8d4","brightCyan":"#67e8f9","brightWhite":"#f4f4f5","selection":"#164e63"}
 
 Hide
@@ -28,12 +28,16 @@ Type "ls agent/ tool/ terraform/"
 Enter
 Sleep 2.5s
 
+Type "# nothing deployed yet — build the lot from scratch"
+Enter
+Sleep 1.5s
+
 Type "terraform -chdir=terraform apply -auto-approve -var image_tag=$TAG"
 Enter
 Wait
-Sleep 2s
+Sleep 3s
 
-Type "# gateway, target, lambda and runtime are live — ask about an order"
+Type "# cognito pool, gateway, target, lambda and runtime are live — ask about an order"
 Enter
 Sleep 1s
 
