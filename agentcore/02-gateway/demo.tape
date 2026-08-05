@@ -51,7 +51,7 @@ Enter
 Wait
 Sleep 2s
 
-Type "# unsigned request, no entry"
+Type "# no token, no entry"
 Enter
 Sleep 1s
 

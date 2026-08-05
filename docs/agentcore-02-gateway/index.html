@@ -104,7 +104,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Founder, Levantar</div>
-          <div class="facts"><time datetime="2026-07-24">24 July 2026</time><span class="sep">·</span>6 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-07-24">24 July 2026</time><span class="sep">·</span>7 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
 <h2>TL;DR;</h2>
@@ -153,12 +153,25 @@ style <code>body</code> and <code>pathParameters</code> for example, would need 
 <p>The gateway supports three authorizer types, <code>CUSTOM_JWT</code>, <code>AWS_IAM</code> and
 <code>NONE</code>. This demo uses <code>CUSTOM_JWT</code>, so the gateway validates a bearer
 token on every call.</p>
+<p>It is worth saying why auth appears here, in the tools post, rather than
+later. A gateway is the first thing in this series that is reachable from
+outside your account. Post 01's runtime was only invocable through the
+AgentCore API with IAM in front of it; a gateway is an HTTPS endpoint,
+and it invokes your Lambda. Standing that up without authentication, even
+as a demo, means publishing an endpoint that lets anyone run your
+function, and it teaches a shape that people copy.</p>
+<p>There is also a practical reason not to defer it. <code>authorizer_type</code> is
+immutable. A gateway created with <code>NONE</code> cannot be upgraded to
+<code>CUSTOM_JWT</code> later, it has to be destroyed and replaced. Auth is not
+something you can bolt on to this resource afterwards, so every post
+after this one builds on a gateway that was authenticated from the first
+<code>apply</code>.</p>
 <blockquote>
 <p>IMPORTANT: this post deliberately keeps auth to the smallest thing that
 is actually secure, a Cognito pool and a bearer token. It is not the
 identity post. Agent identity, end-user delegation and outbound OAuth
 so the agent can act on someone's behalf all get their own post later
-in the series, which builds on what is set up here rather than
+in the series, which builds on the pool set up here rather than
 repeating it. Each post covers one topic, and this one is about tools.</p>
 </blockquote>
 <p>The agent is a machine with no human behind it, so it is a confidential
@@ -339,12 +352,27 @@ the series.</p>
 cat response.json
 {&quot;result&quot;: &quot;order 42: {\&quot;status\&quot;:\&quot;shipped\&quot;,\&quot;carrier\&quot;:\&quot;DPD\&quot;,\&quot;eta\&quot;:\&quot;2026-07-28\&quot;}&quot;}
 </code></pre>
-<p>TODO: re-measure the round trip after deploying the Cognito version. The
-previous 7.39s figure was for the SigV4 build and no longer applies, and
-the first call now also pays a Secrets Manager read and a token exchange.</p>
+<p>The full round trip, agent to Cognito for a token, then agent to gateway
+to Lambda and back, came in at 8 seconds on a fresh session in one run,
+including the microVM cold start, the Secrets Manager read and the token
+exchange. A second call on the same session came back in 2 seconds, since
+by then the microVM is warm and the token is cached.</p>
 <p>The tool handles the miss case the same way:</p>
 <pre><code>&quot;is order 99 ok?&quot;  -&gt;  {&quot;result&quot;: &quot;order 99: {\&quot;error\&quot;:\&quot;order 99 not found\&quot;}&quot;}
 </code></pre>
+<p>The gateway endpoint is public, so it is worth checking that the
+authorizer is actually doing something. Posting a valid MCP request to it
+with no token, and again with a made-up one:</p>
+<pre><code class="language-bash">curl -s -o /dev/null -w &quot;HTTP %{http_code}\n&quot; -X POST &quot;$GATEWAY_URL&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d '{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;id&quot;:1,&quot;method&quot;:&quot;tools/list&quot;,&quot;params&quot;:{}}'
+</code></pre>
+<pre><code>no token:      HTTP 401
+bogus token:   HTTP 401
+</code></pre>
+<p>The request never reaches the Lambda. That is the whole reason for
+setting this up now rather than later, the endpoint was authenticated
+before it ever answered anything.</p>
 <h2>Conclusion</h2>
 <p>One Lambda and two gateway resources turned a plain function into an MCP
 tool an agent can discover and call, without writing or hosting an MCP

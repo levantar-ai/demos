@@ -60,11 +60,26 @@ The gateway supports three authorizer types, `CUSTOM_JWT`, `AWS_IAM` and
 `NONE`. This demo uses `CUSTOM_JWT`, so the gateway validates a bearer
 token on every call.
 
+It is worth saying why auth appears here, in the tools post, rather than
+later. A gateway is the first thing in this series that is reachable from
+outside your account. Post 01's runtime was only invocable through the
+AgentCore API with IAM in front of it; a gateway is an HTTPS endpoint,
+and it invokes your Lambda. Standing that up without authentication, even
+as a demo, means publishing an endpoint that lets anyone run your
+function, and it teaches a shape that people copy.
+
+There is also a practical reason not to defer it. `authorizer_type` is
+immutable. A gateway created with `NONE` cannot be upgraded to
+`CUSTOM_JWT` later, it has to be destroyed and replaced. Auth is not
+something you can bolt on to this resource afterwards, so every post
+after this one builds on a gateway that was authenticated from the first
+`apply`.
+
 > IMPORTANT: this post deliberately keeps auth to the smallest thing that
 > is actually secure, a Cognito pool and a bearer token. It is not the
 > identity post. Agent identity, end-user delegation and outbound OAuth
 > so the agent can act on someone's behalf all get their own post later
-> in the series, which builds on what is set up here rather than
+> in the series, which builds on the pool set up here rather than
 > repeating it. Each post covers one topic, and this one is about tools.
 
 The agent is a machine with no human behind it, so it is a confidential
@@ -278,15 +293,36 @@ cat response.json
 {"result": "order 42: {\"status\":\"shipped\",\"carrier\":\"DPD\",\"eta\":\"2026-07-28\"}"}
 ```
 
-TODO: re-measure the round trip after deploying the Cognito version. The
-previous 7.39s figure was for the SigV4 build and no longer applies, and
-the first call now also pays a Secrets Manager read and a token exchange.
+The full round trip, agent to Cognito for a token, then agent to gateway
+to Lambda and back, came in at 8 seconds on a fresh session in one run,
+including the microVM cold start, the Secrets Manager read and the token
+exchange. A second call on the same session came back in 2 seconds, since
+by then the microVM is warm and the token is cached.
 
 The tool handles the miss case the same way:
 
 ```
 "is order 99 ok?"  ->  {"result": "order 99: {\"error\":\"order 99 not found\"}"}
 ```
+
+The gateway endpoint is public, so it is worth checking that the
+authorizer is actually doing something. Posting a valid MCP request to it
+with no token, and again with a made-up one:
+
+```bash
+curl -s -o /dev/null -w "HTTP %{http_code}\n" -X POST "$GATEWAY_URL" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+```
+no token:      HTTP 401
+bogus token:   HTTP 401
+```
+
+The request never reaches the Lambda. That is the whole reason for
+setting this up now rather than later, the endpoint was authenticated
+before it ever answered anything.
 
 ## Conclusion
 
