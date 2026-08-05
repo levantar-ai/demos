@@ -27,6 +27,7 @@
     "mjs",
     "jsx",
     "agentcore",
+    "authorised",
     "AgentCore",
     "awscc",
     "bedrockagentcore",

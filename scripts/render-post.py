@@ -18,7 +18,7 @@ import markdown
 # Byline shown at the top of every post. Leave AUTHOR_LINKEDIN empty to render
 # the name unlinked and drop the icon.
 AUTHOR_NAME = "Andy Rea"
-AUTHOR_TITLE = "Founder, Levantar"
+AUTHOR_TITLE = "Co-Founder &amp; CTO, Levantar"
 AUTHOR_LINKEDIN = ""
 AUTHOR_AVATAR = "../avatar.jpg"
 WORDS_PER_MINUTE = 200

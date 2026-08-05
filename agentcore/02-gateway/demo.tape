@@ -42,6 +42,15 @@ Enter
 Wait
 Sleep 2s
 
+Type "# a distracting number in the prompt — still resolves order 42"
+Enter
+Sleep 1s
+
+Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$(terraform -chdir=terraform output -raw runtime_arn)" --runtime-session-id demo-video-session-000000000000000002 --payload '{"prompt": "in 2 days, where is order 42?"}' --region us-east-1 /dev/stdout`
+Enter
+Wait
+Sleep 2s
+
 Type "# an order the tool does not know"
 Enter
 Sleep 1s
@@ -51,11 +60,11 @@ Enter
 Wait
 Sleep 2s
 
-Type "# no token, no entry"
+Type "# no token, no entry — and this is the call that would hit the Lambda"
 Enter
 Sleep 1s
 
-Type `curl -s -o /dev/null -w "HTTP %{http_code}\n" -X POST "$(terraform -chdir=terraform output -raw gateway_url)" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'`
+Type `curl -s -o /dev/null -w "HTTP %{http_code}\n" -X POST "$(terraform -chdir=terraform output -raw gateway_url)" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"orders___lookup_order","arguments":{"order_id":"42"}}}'`
 Enter
 Wait
 Sleep 4s
