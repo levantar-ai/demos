@@ -44,6 +44,11 @@ terraform -chdir=aws-setup apply
 make demo-init demo-apply DEMO=agentcore/03-memory
 ```
 
+If you deployed this demo before the gateway was carried forward, the
+`archive` provider is new and `terraform apply` will refuse with an
+inconsistent lock file. Re-run `make demo-init DEMO=agentcore/<demo>` once
+and it resolves.
+
 Tell it something, then ask from a different session:
 
 ```bash
