@@ -69,10 +69,10 @@ USER nobody
 CMD ["python", "main.py"]
 ```
 
-NOTE: `PYTHONUNBUFFERED=1` is what gets your `print()` output to
-CloudWatch promptly. Without it Python block-buffers stdout, so log lines
-can sit unflushed for a long time and your log streams look empty while
-the agent runs.
+> NOTE: `PYTHONUNBUFFERED=1` is what gets your `print()` output to
+> CloudWatch promptly. Without it Python block-buffers stdout, so log lines
+> can sit unflushed for a long time and your log streams look empty while
+> the agent runs.
 
 ## 2 - The Terraform
 
@@ -101,13 +101,13 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
 }
 ```
 
-NOTE: `PUBLIC` is about the runtime's network connectivity (including
-outbound), it does not expose port 8080 to the internet. Invocation always
-goes through the AgentCore data-plane API under IAM.
+> NOTE: `PUBLIC` is about the runtime's network connectivity (including
+> outbound), it does not expose port 8080 to the internet. Invocation always
+> goes through the AgentCore data-plane API under IAM.
 
-NOTE: Runtime names must start with a letter and may contain letters,
-digits and underscores, no hyphens (`[a-zA-Z][a-zA-Z0-9_]*`), unlike most
-AWS resources.
+> NOTE: Runtime names must start with a letter and may contain letters,
+> digits and underscores, no hyphens (`[a-zA-Z][a-zA-Z0-9_]*`), unlike most
+> AWS resources.
 
 Alongside that there is an ECR repository with immutable tags, so deploys
 reference a git SHA rather than latest, and an execution role the runtime
@@ -147,9 +147,9 @@ cat response.json
 {"result": "echo: hello"}
 ```
 
-NOTE: session IDs must be at least 33 characters, and the CLI needs
-`--cli-binary-format raw-in-base64-out` or it will treat your JSON payload
-as base64.
+> NOTE: session IDs must be at least 33 characters, and the CLI needs
+> `--cli-binary-format raw-in-base64-out` or it will treat your JSON payload
+> as base64.
 
 Here are four invocations across two sessions from one test run:
 
@@ -168,11 +168,11 @@ own `[runtime-logs]` stream in the log group. The streams also show the
 platform polling `GET /ping` between invocations, so implement your
 health endpoint properly.
 
-NOTE: the isolation is compute isolation. AgentCore does not know which of
-your users owns a session id, so your application is still responsible for
-authorizing who may use each session. Also, the log group the service
-creates is not managed by your Terraform, it outlives a destroy and keeps
-logs indefinitely unless you set retention on it.
+> NOTE: the isolation is compute isolation. AgentCore does not know which of
+> your users owns a session id, so your application is still responsible for
+> authorizing who may use each session. Also, the log group the service
+> creates is not managed by your Terraform, it outlives a destroy and keeps
+> logs indefinitely unless you set retention on it.
 
 ## Conclusion
 

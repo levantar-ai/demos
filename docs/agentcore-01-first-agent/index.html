@@ -160,10 +160,12 @@ EXPOSE 8080
 USER nobody
 CMD [&quot;python&quot;, &quot;main.py&quot;]
 </code></pre>
+<blockquote>
 <p>NOTE: <code>PYTHONUNBUFFERED=1</code> is what gets your <code>print()</code> output to
 CloudWatch promptly. Without it Python block-buffers stdout, so log lines
 can sit unflushed for a long time and your log streams look empty while
 the agent runs.</p>
+</blockquote>
 <h2>2 - The Terraform</h2>
 <p>The hashicorp/aws provider has native AgentCore support from v6.18, with a
 family of <code>aws_bedrockagentcore_*</code> resources covering runtimes, gateways,
@@ -187,12 +189,14 @@ memory and the rest of the platform. The runtime is:</p>
   }
 }
 </code></pre>
+<blockquote>
 <p>NOTE: <code>PUBLIC</code> is about the runtime's network connectivity (including
 outbound), it does not expose port 8080 to the internet. Invocation always
 goes through the AgentCore data-plane API under IAM.</p>
 <p>NOTE: Runtime names must start with a letter and may contain letters,
 digits and underscores, no hyphens (<code>[a-zA-Z][a-zA-Z0-9_]*</code>), unlike most
 AWS resources.</p>
+</blockquote>
 <p>Alongside that there is an ECR repository with immutable tags, so deploys
 reference a git SHA rather than latest, and an execution role the runtime
 assumes to pull the image and write logs and telemetry, nothing more,
@@ -223,9 +227,11 @@ container URI.</p>
 cat response.json
 {&quot;result&quot;: &quot;echo: hello&quot;}
 </code></pre>
+<blockquote>
 <p>NOTE: session IDs must be at least 33 characters, and the CLI needs
 <code>--cli-binary-format raw-in-base64-out</code> or it will treat your JSON payload
 as base64.</p>
+</blockquote>
 <p>Here are four invocations across two sessions from one test run:</p>
 <div class="table-wrap"><table>
 <thead>
@@ -270,11 +276,13 @@ that, each new session paid a cold start and, in this run, produced its
 own <code>[runtime-logs]</code> stream in the log group. The streams also show the
 platform polling <code>GET /ping</code> between invocations, so implement your
 health endpoint properly.</p>
+<blockquote>
 <p>NOTE: the isolation is compute isolation. AgentCore does not know which of
 your users owns a session id, so your application is still responsible for
 authorizing who may use each session. Also, the log group the service
 creates is not managed by your Terraform, it outlives a destroy and keeps
 logs indefinitely unless you set retention on it.</p>
+</blockquote>
 <h2>Conclusion</h2>
 <p>Runtime is a small surface to get started with. A 40 line stdlib Python
 server and five Terraform resources gets you a deployed agent with

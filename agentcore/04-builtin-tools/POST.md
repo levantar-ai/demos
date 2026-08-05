@@ -53,11 +53,11 @@ resource "aws_bedrockagentcore_code_interpreter" "sandbox" {
 to be deliberate about choosing it, because that is the mode where a
 malicious payload could exfiltrate whatever it can see.
 
-NOTE: `SANDBOX` is the egress control, not the whole boundary. IAM
-decides who can start and invoke a session, you decide what data goes
-into one, and your agent decides what comes back out to the caller.
-Isolating the network does not make everything in the session safe to
-return.
+> NOTE: `SANDBOX` is the egress control, not the whole boundary. IAM
+> decides who can start and invoke a session, you decide what data goes
+> into one, and your agent decides what comes back out to the caller.
+> Isolating the network does not make everything in the session safe to
+> return.
 
 The runtime role gets the three actions the agent actually calls, scoped
 to this one sandbox:
@@ -110,14 +110,14 @@ successful empty one.
 Sessions are the thing to be careful with. The agent stops its session in
 a `finally` block, because a session lives until its timeout otherwise.
 
-NOTE: files land in the session's working directory, not in `/tmp`. Write
-to `data.csv` and read `data.csv`, and resist the urge to be clever with
-absolute paths.
+> NOTE: files land in the session's working directory, not in `/tmp`. Write
+> to `data.csv` and read `data.csv`, and resist the urge to be clever with
+> absolute paths.
 
-NOTE: sessions outlive the call that created them, up to
-`sessionTimeoutSeconds`, and a sandbox with live sessions refuses to
-delete (`ConflictException: ... cannot be deleted. There are 2 active
-sessions`), so stop sessions rather than waiting them out.
+> NOTE: sessions outlive the call that created them, up to
+> `sessionTimeoutSeconds`, and a sandbox with live sessions refuses to
+> delete (`ConflictException: ... cannot be deleted. There are 2 active
+> sessions`), so stop sessions rather than waiting them out.
 
 ## 3 - Analysing something
 

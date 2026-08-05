@@ -148,11 +148,13 @@ post wires one up and then pokes at the walls.</p>
 <code>PUBLIC</code>, which gives the sandbox outbound internet access, and you want
 to be deliberate about choosing it, because that is the mode where a
 malicious payload could exfiltrate whatever it can see.</p>
+<blockquote>
 <p>NOTE: <code>SANDBOX</code> is the egress control, not the whole boundary. IAM
 decides who can start and invoke a session, you decide what data goes
 into one, and your agent decides what comes back out to the caller.
 Isolating the network does not make everything in the session safe to
 return.</p>
+</blockquote>
 <p>The runtime role gets the three actions the agent actually calls, scoped
 to this one sandbox:</p>
 <pre><code class="language-hcl">{
@@ -195,6 +197,7 @@ which is easy to skip and then wonder why a failed run looks like a
 successful empty one.</p>
 <p>Sessions are the thing to be careful with. The agent stops its session in
 a <code>finally</code> block, because a session lives until its timeout otherwise.</p>
+<blockquote>
 <p>NOTE: files land in the session's working directory, not in <code>/tmp</code>. Write
 to <code>data.csv</code> and read <code>data.csv</code>, and resist the urge to be clever with
 absolute paths.</p>
@@ -202,6 +205,7 @@ absolute paths.</p>
 <code>sessionTimeoutSeconds</code>, and a sandbox with live sessions refuses to
 delete (<code>ConflictException: ... cannot be deleted. There are 2 active
 sessions</code>), so stop sessions rather than waiting them out.</p>
+</blockquote>
 <h2>3 - Analysing something</h2>
 <p>Post a CSV to the agent and the numbers come back computed rather than
 imagined:</p>
