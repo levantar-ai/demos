@@ -12,6 +12,21 @@ rather than parsing untrusted input in the agent's own microVM.
   mode (no network access from the sandbox at all)
 - Runtime role scoped to three actions on that one sandbox
 
+## Prerequisite — state backend
+
+`make demo-init` expects the shared state bucket and KMS key to exist. They
+are created once per account by [`aws-setup/`](../../aws-setup/README.md),
+which is a one-time bootstrap, not part of this demo.
+
+State for these demos is not inert — post 02 puts a Cognito app client secret
+in it — so the bucket is encrypted with a customer managed key and denies
+non-TLS and unencrypted writes. Set it up first:
+
+```bash
+# see aws-setup/README.md for the one-time bootstrap
+terraform -chdir=aws-setup apply
+```
+
 ## Run it
 
 ```bash

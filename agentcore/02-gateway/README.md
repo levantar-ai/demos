@@ -16,6 +16,21 @@ agent's MCP client.
 - Cognito user pool, domain, resource server and `client_credentials` app
   client, with the client secret in Secrets Manager
 
+## Prerequisite — state backend
+
+`make demo-init` expects the shared state bucket and KMS key to exist. They
+are created once per account by [`aws-setup/`](../../aws-setup/README.md),
+which is a one-time bootstrap, not part of this demo.
+
+State for these demos is not inert — post 02 puts a Cognito app client secret
+in it — so the bucket is encrypted with a customer managed key and denies
+non-TLS and unencrypted writes. Set it up first:
+
+```bash
+# see aws-setup/README.md for the one-time bootstrap
+terraform -chdir=aws-setup apply
+```
+
 ## Run it
 
 ```bash
