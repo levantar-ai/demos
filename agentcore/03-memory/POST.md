@@ -55,24 +55,24 @@ per actor at extraction time, so each user gets their own
 `/users/<actor>` shelf of preference records, and the agent retrieves
 from an actor-derived namespace.
 
-NOTE: the actor id is not an authorization boundary, and AWS's
-[security best practices](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html)
-put the mapping on your side of the shared responsibility model:
-
-> AgentCore does not enforce session-to-user mappings. Your client
-> backend must maintain the relationship between users and their session
-> IDs.
+> NOTE: the actor id is not an authorization boundary, and AWS's
+> [security best practices](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html)
+> put the mapping on your side of the shared responsibility model:
+>
+> > AgentCore does not enforce session-to-user mappings. Your client
+> > backend must maintain the relationship between users and their session
+> > IDs.
 
 The same applies to actor ids. This demo takes `actor` from the request
 so the mechanics stay visible, a real application derives it from an
 authenticated identity (the caller's IAM principal or verified token
 claims), never from an arbitrary client-supplied value.
 
-NOTE: the memory store is the slowest resource in this series so far to
-create, 2m45s in this deployment, so create it once per environment and
-keep it, rather than per deploy. Don't share one store across
-environments or security boundaries though, stale records from one test
-will happily turn up in the next.
+> NOTE: the memory store is the slowest resource in this series so far to
+> create, 2m45s in this deployment, so create it once per environment and
+> keep it, rather than per deploy. Don't share one store across
+> environments or security boundaries though, stale records from one test
+> will happily turn up in the next.
 
 ## 2 - The agent
 
@@ -192,13 +192,13 @@ with the preference, the context it was stated in and categories, without
 any extraction code on our side. In this run the record appeared
 under a minute after the event it was extracted from.
 
-NOTE: give a newly created strategy a few minutes before storing anything
-you care about. In two separate deployments of this demo, events stored in
-the first moments after the strategy was created, even with `get-memory`
-already reporting it ACTIVE, were never extracted, while the same event
-stored again once the strategy had settled was extracted in under a
-minute. The missed events stay readable in short-term, they just never
-become records.
+> NOTE: give a newly created strategy a few minutes before storing anything
+> you care about. In two separate deployments of this demo, events stored in
+> the first moments after the strategy was created, even with `get-memory`
+> already reporting it ACTIVE, were never extracted, while the same event
+> stored again once the strategy had settled was extracted in under a
+> minute. The missed events stay readable in short-term, they just never
+> become records.
 
 That answer came from a different session to the one the preferences were
 stored in, which is the whole point. The extracted records are attached

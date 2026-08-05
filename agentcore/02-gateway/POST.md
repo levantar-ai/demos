@@ -71,9 +71,9 @@ rather than repeating it. One thing worth holding until then, every call
 here carries the same workload identity, so the gateway establishes that a
 legitimate client is calling, not that it is entitled to a particular order.
 
-NOTE: `authorizer_type` is immutable. A gateway created with `NONE` cannot
-be upgraded later, it has to be replaced, so it is worth starting
-authenticated even for a demo.
+> NOTE: `authorizer_type` is immutable. A gateway created with `NONE` cannot
+> be upgraded later, it has to be replaced, so it is worth starting
+> authenticated even for a demo.
 
 ## 3 - The gateway and its target
 
@@ -187,11 +187,11 @@ needs to pull its image and write its own logs and telemetry, which
 includes `ecr:GetAuthorizationToken` on `*` because ECR requires it. The
 full policies are in the repo rather than reproduced here.
 
-NOTE: the gateway namespaces tool names as `<target>___<tool>` (triple
-underscore), so `lookup_order` on the `orders` target becomes
-`orders___lookup_order`. Resolve that fully qualified name exactly, two
-targets can expose tools with the same short name and a fuzzy match will
-happily pick the wrong one.
+> NOTE: the gateway namespaces tool names as `<target>___<tool>` (triple
+> underscore), so `lookup_order` on the `orders` target becomes
+> `orders___lookup_order`. Resolve that fully qualified name exactly, two
+> targets can expose tools with the same short name and a fuzzy match will
+> happily pick the wrong one.
 
 ## 4 - Teaching the agent to call it
 

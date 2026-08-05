@@ -163,9 +163,11 @@ behalf get their own post later in the series, which builds on this pool
 rather than repeating it. One thing worth holding until then, every call
 here carries the same workload identity, so the gateway establishes that a
 legitimate client is calling, not that it is entitled to a particular order.</p>
+<blockquote>
 <p>NOTE: <code>authorizer_type</code> is immutable. A gateway created with <code>NONE</code> cannot
 be upgraded later, it has to be replaced, so it is worth starting
 authenticated even for a demo.</p>
+</blockquote>
 <h2>3 - The gateway and its target</h2>
 <p>The gateway side is two resources, the gateway itself which is the MCP
 endpoint plus its authorizer, and a target which maps a backend into the
@@ -266,11 +268,13 @@ control who can pass the role. The runtime role otherwise carries what it
 needs to pull its image and write its own logs and telemetry, which
 includes <code>ecr:GetAuthorizationToken</code> on <code>*</code> because ECR requires it. The
 full policies are in the repo rather than reproduced here.</p>
+<blockquote>
 <p>NOTE: the gateway namespaces tool names as <code>&lt;target&gt;___&lt;tool&gt;</code> (triple
 underscore), so <code>lookup_order</code> on the <code>orders</code> target becomes
 <code>orders___lookup_order</code>. Resolve that fully qualified name exactly, two
 targets can expose tools with the same short name and a fuzzy match will
 happily pick the wrong one.</p>
+</blockquote>
 <h2>4 - Teaching the agent to call it</h2>
 <p>The agent uses the MCP Python SDK, and because the gateway takes a bearer
 token there is nothing gateway-specific about the client at all. It is
