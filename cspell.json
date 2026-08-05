@@ -28,6 +28,7 @@
     "jsx",
     "agentcore",
     "authorised",
+    "neighbouring",
     "AgentCore",
     "awscc",
     "bedrockagentcore",

@@ -8,6 +8,7 @@ copies any PNGs the post references alongside it. Run from the repo root.
 """
 
 import datetime
+import html
 import pathlib
 import re
 import shutil
@@ -22,6 +23,15 @@ AUTHOR_TITLE = "Co-Founder &amp; CTO, Levantar"
 AUTHOR_LINKEDIN = ""
 AUTHOR_AVATAR = "../avatar.jpg"
 WORDS_PER_MINUTE = 200
+
+# Reading order for the series. Each post signposts back to the one before it
+# at the top, and on to the next at the end.
+SERIES = [
+    ("agentcore-01-first-agent", "What AgentCore actually is, and getting a first agent running on it"),
+    ("agentcore-02-gateway", "Giving your agent tools with AgentCore Gateway"),
+    ("agentcore-03-memory", "Giving your agent memory that survives the session"),
+    ("agentcore-04-builtin-tools", "Letting an agent run code, without letting it run loose"),
+]
 
 LINKEDIN_ICON = (
     '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
@@ -110,6 +120,22 @@ TEMPLATE = """<!DOCTYPE html>
   .post-meta .role {{ color: var(--muted); font-size: 13.5px; }}
   .post-meta .facts {{ color: var(--muted); font-size: 13px; }}
   .post-meta .facts .sep {{ padding: 0 5px; opacity: 0.45; }}
+  .series-nav a {{
+    display: block; padding: 13px 17px; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--card); text-decoration: none;
+    transition: border-color 0.15s ease;
+  }}
+  .series-nav a:hover {{ border-color: var(--accent); text-decoration: none; }}
+  .series-nav .label {{
+    display: block; font-size: 11.5px; color: var(--muted);
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }}
+  .series-nav .title {{
+    display: block; margin-top: 3px; font-size: 15px;
+    color: var(--fg); font-weight: 600; line-height: 1.4;
+  }}
+  .series-nav.prev {{ margin: 0 0 32px; }}
+  .series-nav.next {{ margin: 44px 0 0; }}
   @media (max-width: 640px) {{
     body {{ padding: 32px 16px 64px; }}
     .top {{ margin-bottom: 28px; }}
@@ -134,12 +160,37 @@ TEMPLATE = """<!DOCTYPE html>
     <article>
       <h1>{title}</h1>
 {meta}
+{prev_nav}
 {body}
+{next_nav}
     </article>
   </div>
 </body>
 </html>
 """
+
+
+def signposts(slug):
+    """Links to the neighbouring posts, empty strings at either end."""
+    slugs = [s for s, _ in SERIES]
+    if slug not in slugs:
+        return "", ""
+    i = slugs.index(slug)
+
+    def card(where, target, label):
+        target_slug, target_title = target
+        return (
+            f'      <nav class="series-nav {where}">\n'
+            f'        <a href="../{target_slug}/">\n'
+            f'          <span class="label">{label}</span>\n'
+            f'          <span class="title">{html.escape(target_title)}</span>\n'
+            f"        </a>\n"
+            f"      </nav>"
+        )
+
+    before = card("prev", SERIES[i - 1], "Previous in this series") if i > 0 else ""
+    after = card("next", SERIES[i + 1], "Next in this series") if i < len(SERIES) - 1 else ""
+    return before, after
 
 
 def reading_time(text):
@@ -235,11 +286,15 @@ def main():
             body,
             count=1,
         )
+    prev_nav, next_nav = signposts(slug)
+
     html = TEMPLATE.format(
         title=title,
         description=description,
         date=date,
         meta=byline(date, minutes),
+        prev_nav=prev_nav,
+        next_nav=next_nav,
         author_name=AUTHOR_NAME,
         body=body,
         slug=slug,

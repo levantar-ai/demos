@@ -76,6 +76,22 @@
   .post-meta .role { color: var(--muted); font-size: 13.5px; }
   .post-meta .facts { color: var(--muted); font-size: 13px; }
   .post-meta .facts .sep { padding: 0 5px; opacity: 0.45; }
+  .series-nav a {
+    display: block; padding: 13px 17px; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--card); text-decoration: none;
+    transition: border-color 0.15s ease;
+  }
+  .series-nav a:hover { border-color: var(--accent); text-decoration: none; }
+  .series-nav .label {
+    display: block; font-size: 11.5px; color: var(--muted);
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .series-nav .title {
+    display: block; margin-top: 3px; font-size: 15px;
+    color: var(--fg); font-weight: 600; line-height: 1.4;
+  }
+  .series-nav.prev { margin: 0 0 32px; }
+  .series-nav.next { margin: 44px 0 0; }
   @media (max-width: 640px) {
     body { padding: 32px 16px 64px; }
     .top { margin-bottom: 28px; }
@@ -107,6 +123,12 @@
           <div class="facts"><time datetime="2026-07-24">24 July 2026</time><span class="sep">·</span>5 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
+      <nav class="series-nav prev">
+        <a href="../agentcore-02-gateway/">
+          <span class="label">Previous in this series</span>
+          <span class="title">Giving your agent tools with AgentCore Gateway</span>
+        </a>
+      </nav>
 <h2>TL;DR;</h2>
 <p>How to add AgentCore Memory to an agent so it keeps short-term
 conversation events within a session and recalls extracted user
@@ -299,6 +321,12 @@ code.</p>
 <li><a href="https://docs.aws.amazon.com/bedrock-agentcore/">https://docs.aws.amazon.com/bedrock-agentcore/</a></li>
 <li><a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_memory">https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_memory</a></li>
 </ul>
+      <nav class="series-nav next">
+        <a href="../agentcore-04-builtin-tools/">
+          <span class="label">Next in this series</span>
+          <span class="title">Letting an agent run code, without letting it run loose</span>
+        </a>
+      </nav>
     </article>
   </div>
 </body>
