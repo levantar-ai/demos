@@ -16,8 +16,16 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 2s
-Type "unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/01-first-agent && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && clear"
+Type `unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/01-first-agent && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && clear`
 Enter
+Type `ACCT=$(aws sts get-caller-identity --query Account --output text); redact() { sed -u "s/$ACCT/<ACCOUNT-ID>/g"; }`
+Enter
+Sleep 3s
+
+Type "clear"
+Enter
+Sleep 1s
+
 Show
 
 Type "# a first agent on AgentCore Runtime — 40 lines of stdlib Python, 5 terraform resources"
@@ -28,7 +36,7 @@ Type "ls agent/ terraform/"
 Enter
 Sleep 2.5s
 
-Type "terraform -chdir=terraform apply -auto-approve -var image_tag=$TAG"
+Type "terraform -chdir=terraform apply -auto-approve -var image_tag=$TAG 2>&1 | redact"
 Enter
 Wait
 Sleep 2s
