@@ -9,11 +9,17 @@ environment variable set by Terraform on the runtime.
 
 import json
 import os
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import boto3
+from gateway import lookup_order
+from memory import recall, recap, remember
 
 PORT = 8080
+
+# Anchored on the word "order" so a stray number in the prompt is ignored.
+ORDER_RE = re.compile(r"\border\s*#?\s*(\d+)\b", re.IGNORECASE)
 
 ANALYSIS = """
 import pandas as pd
@@ -95,6 +101,10 @@ class Handler(BaseHTTPRequestHandler):
     start = staticmethod(session_for)
     run = staticmethod(analyse)
     stop = staticmethod(stop_session)
+    tool = staticmethod(lookup_order)
+    store = staticmethod(remember)
+    history = staticmethod(recap)
+    search = staticmethod(recall)
 
     def do_GET(self):
         if self.path == "/ping":
@@ -122,9 +132,13 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._send(400, {"error": "payload must be a JSON object"})
             return
+        prompt = payload.get("prompt")
+        if isinstance(prompt, str) and prompt:
+            self._handle_prompt(payload, prompt)
+            return
         csv_text = payload.get("csv")
         if not isinstance(csv_text, str) or not csv_text:
-            self._send(400, {"error": "csv must be a non-empty string"})
+            self._send(400, {"error": "csv or prompt is required"})
             return
         interpreter = os.environ.get("CODE_INTERPRETER_ID", "")
         session_id = None
@@ -140,6 +154,25 @@ class Handler(BaseHTTPRequestHandler):
                     self.stop(interpreter, session_id)
                 except Exception as exc:  # noqa: BLE001 — cleanup must not mask the result
                     print(f"failed to stop session {session_id}: {exc}")
+
+    def _handle_prompt(self, payload, prompt):
+        """Everything carried forward from posts 02 and 03."""
+        actor = payload.get("actor", "anon")
+        session = payload.get("session", "default")
+        order = ORDER_RE.search(prompt)
+        try:
+            if prompt.lower().startswith("remember"):
+                self.store(actor, session, prompt)
+                self._send(200, {"result": "noted"})
+            elif prompt.lower().startswith("recap"):
+                self._send(200, {"result": self.history(actor, session)})
+            elif order:
+                self._send(200, {"result": self.tool(order.group(1))})
+            else:
+                self._send(200, {"result": self.search(actor, prompt)})
+        except Exception as exc:  # noqa: BLE001 — any carried-forward failure is a 502
+            print(f"prompt handling failed: {exc}")
+            self._send(502, {"error": "request failed"})
 
     def _send(self, status, body):
         data = json.dumps(body).encode()

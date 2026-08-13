@@ -1,14 +1,22 @@
 # 03 — Short-term and long-term memory with AgentCore Memory
 
-Extends the first agent with AgentCore Memory: conversation turns are
+Extends the demo 02 agent with AgentCore Memory. Conversation turns are
 stored as events (short-term, per session), and a `USER_PREFERENCE`
 strategy asynchronously extracts preference records (long-term) that the
 agent retrieves across sessions from the `/users/{actorId}` namespace.
+
+Each demo in the series is independently deployable and carries the
+previous one forward, so the gateway, its Cognito pool and the tool
+Lambda are all here too. They are not re-explained, the post they
+belong to covers them.
 
 ## What gets created
 
 - Everything from demo 01 (ECR repo, runtime execution role, runtime),
   namespaced `demos-agentcore-03-memory-*`
+- Everything from demo 02, so the tool path still works here, a Lambda
+  behind an AgentCore Gateway with a Cognito pool issuing the JWT the
+  gateway validates. Post 02 covers it, this demo just carries it forward
 - AgentCore Memory `demos_agentcore_03_memory` (7-day event expiry)
 - Memory strategy `UserPreferences` (`USER_PREFERENCE`, namespace
   `/users/{actorId}`)
@@ -35,6 +43,11 @@ terraform -chdir=aws-setup apply
 ```bash
 make demo-init demo-apply DEMO=agentcore/03-memory
 ```
+
+If you deployed this demo before the gateway was carried forward, the
+`archive` provider is new and `terraform apply` will refuse with an
+inconsistent lock file. Re-run `make demo-init DEMO=agentcore/<demo>` once
+and it resolves.
 
 Tell it something, then ask from a different session:
 

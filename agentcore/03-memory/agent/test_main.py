@@ -14,6 +14,7 @@ stored = []
 class StubHandler(Handler):
     store = staticmethod(lambda actor, session, text: stored.append((actor, session, text)))
     history = staticmethod(lambda actor, session: ["remember: I prefer DPD"])
+    tool = staticmethod(lambda order_id: f'order {order_id}: {{"status": "shipped"}}')
     search = staticmethod(lambda actor, query: ["Prefers DPD deliveries"])
 
 
@@ -101,3 +102,12 @@ def test_non_object_json_is_rejected(server_url):
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(req)
     assert exc.value.code == 400
+
+
+def test_order_prompt_uses_the_gateway_tool(server_url):
+    status, body = post(
+        f"{server_url}/invocations",
+        {"actor": "andy", "session": "s1", "prompt": "where is order 42?"},
+    )
+    assert status == 200
+    assert body == {"result": 'order 42: {"status": "shipped"}'}
