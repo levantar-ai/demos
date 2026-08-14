@@ -60,3 +60,43 @@ ACTIVE were never extracted (60+ minutes), while the same event stored
 once the strategy had settled extracted in 52 seconds. Before/after
 outputs for the same query captured for the post. All resources
 destroyed after; runtimes and memories confirmed empty.
+
+## Pre-publication re-review (gpt-5.6-sol via OpenAI API), 2026-08-14
+
+POST.md had moved on in five commits since the review above, two of them
+substantive (the least-privilege memory statement and the AWS
+shared-responsibility citation), so the post went back through the gate
+before being published to levantar.ai.
+
+Seven findings, no blockers. Five actioned:
+
+- Section 2 claimed "anything else returns the matching extracted
+  preference records", which skipped the order-number route to the post 02
+  gateway tool that this agent still carries. Prose now names both routes
+  and the twenty-event ceiling on `recap`.
+- The activation-window NOTE asserted events were "never extracted". The
+  artifacts only support "no records an hour later", so the claim is now
+  bounded, scoped to `us-east-1`, and labelled an observation rather than
+  service behaviour to design against.
+- The actor-id NOTE inferred too much from a citation about
+  session-to-user mapping, and suggested deriving an actor from the
+  caller's IAM principal, which the workload does not automatically
+  receive. It now separates store-level IAM from application-enforced
+  actor mapping.
+- The broad handler reported every failure as a memory failure, including
+  failures from the gateway route it also wraps. Message and log line are
+  now neutral.
+- "takes minutes rather than seconds" softened to "can take several
+  minutes"; the unsupported "cheap" dropped from the conclusion.
+
+Two declined. The `SOURCE CODE ... available at:` callout and the
+`References:` heading were flagged as house-style colon violations, but
+they are series-wide conventions shared with posts 01, 02 and 04, so
+changing them here alone would break the series.
+
+Re-review confirmed all five resolved and caught one leftover absolute
+("they just never became records") contradicting the bounded claim four
+lines above it, now fixed. Verdict: ready to publish.
+
+No redeploy. The two code changes are an error-string and a comment, so
+the deploy evidence recorded above still holds. Agent tests pass (8/8).

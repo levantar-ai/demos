@@ -109,9 +109,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, {"result": self.tool(order.group(1))})
             else:
                 self._send(200, {"result": self.search(actor, prompt)})
-        except Exception as exc:  # noqa: BLE001 — any memory failure becomes a 502
-            print(f"memory call failed: {exc}")
-            self._send(502, {"error": "memory service request failed"})
+        except Exception as exc:  # noqa: BLE001, any upstream failure becomes a 502
+            # The block covers the gateway route as well as the three memory
+            # calls, so the message names neither. Detail stays server-side.
+            print(f"upstream call failed: {exc}")
+            self._send(502, {"error": "upstream service request failed"})
 
     def _send(self, status, body):
         data = json.dumps(body).encode()

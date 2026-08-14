@@ -114,7 +114,11 @@
     "fontcolor",
     "bgcolor",
     "nodesep",
-    "ranksep"
+    "ranksep",
+    "instancer",
+    "wght",
+    "colours",
+    "wordmark"
   ],
   "ignorePaths": [
     "node_modules/**",

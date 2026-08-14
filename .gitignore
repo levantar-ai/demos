@@ -17,3 +17,6 @@ tfplan
 
 # Private planning (kept out of this public repo)
 agentcore/PLAN.md
+
+# Static font instances built from scripts/fonts by render-social.py
+.fonts-build/

@@ -63,16 +63,17 @@ from an actor-derived namespace.
 > > backend must maintain the relationship between users and their session
 > > IDs.
 
-The same applies to actor ids. This demo takes `actor` from the request
-so the mechanics stay visible, a real application derives it from an
-authenticated identity (the caller's IAM principal or verified token
-claims), never from an arbitrary client-supplied value.
+The same reasoning applies to actor ids. IAM scopes the runtime to this
+one memory store, it says nothing about which actor a given request may
+read or write, so `actorId` is request data like any other. This demo
+takes `actor` straight from the payload so the mechanics stay visible, a
+real application maps it from an identity the workload has actually
+verified, never from an arbitrary client-supplied value.
 
-> NOTE: the memory store takes minutes to create rather than seconds, so
-> create it once per environment and keep it, rather than per deploy. Don't
-> share one store across
-> environments or security boundaries though, stale records from one test
-> will happily turn up in the next.
+> NOTE: the memory store can take several minutes to create, so create it
+> once per environment and keep it, rather than per deploy. Don't share one
+> store across environments or security boundaries though, stale records
+> from one test will happily turn up in the next.
 
 ## 2 - The agent
 
@@ -116,9 +117,11 @@ def recall(actor, query):
     return [r["content"]["text"] for r in resp.get("memoryRecordSummaries", [])]
 ```
 
-Prompts starting with "remember" are stored as events, "recap" reads the
-current session's events back, and anything else returns the matching
-extracted preference records. The runtime role gets exactly the three
+Prompts starting with "remember" are stored as events, "recap" reads back
+up to twenty of the current session's events, a prompt naming an order
+number still goes to the gateway tool carried forward from post 02, and
+anything else is searched against the extracted preference records. The
+runtime role gets exactly the three
 data-plane actions those functions use, scoped to this one memory store,
 least privilege for the whole memory layer in one statement:
 
@@ -193,12 +196,15 @@ any extraction code on our side. In this run the record appeared
 under a minute after the event it was extracted from.
 
 > NOTE: give a newly created strategy a few minutes before storing anything
-> you care about. In two separate deployments of this demo, events stored in
-> the first moments after the strategy was created, even with `get-memory`
-> already reporting it ACTIVE, were never extracted, while the same event
-> stored again once the strategy had settled was extracted in under a
-> minute. The missed events stay readable in short-term, they just never
-> become records.
+> you care about. This is something we observed rather than documented
+> behaviour, so treat it as a reason to check for the record rather than as
+> a settling period you can rely on. In two separate deployments of this
+> demo in `us-east-1`, events stored in the first moments after the strategy
+> was created, even with `get-memory` already reporting it ACTIVE, had still
+> produced no records an hour later, while the same event stored once the
+> strategy had settled was extracted in under a minute. The missed events
+> stay readable in short-term, they had simply not become records by the
+> time we stopped looking.
 
 That answer came from a different session to the one the preferences were
 stored in, which is the whole point. The extracted records are attached
@@ -208,7 +214,7 @@ retrieve them.
 ## Conclusion
 
 Memory in AgentCore is two deliberate layers rather than one magic box.
-Events give you cheap, immediate, per-session recall with an expiry date,
+Events give you immediate, per-session recall with an expiry date,
 and strategies turn those events into long-term records per user, ones
 that survive session end and event expiry, without
 you running any extraction pipeline yourself. The trade to design around
