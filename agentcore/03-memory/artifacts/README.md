@@ -100,3 +100,30 @@ lines above it, now fixed. Verdict: ready to publish.
 
 No redeploy. The two code changes are an error-string and a comment, so
 the deploy evidence recorded above still holds. Agent tests pass (8/8).
+
+## Wiring diagram and video caption (gpt-5.6-sol), 2026-08-14
+
+A reader asked whether `remember`, `recap` and `recall` were AWS vocabulary,
+and then how the prompt reached them. Both are answered in the post now
+rather than only in the code.
+
+Added a caption under the video saying the walkthrough starts after
+`terraform apply`, since it does and three of the four demos show the apply
+on camera. The claim it carries, seven resources with the memory store slow
+at close to three minutes, comes from the deploy recorded at the top of this
+file.
+
+Added `routing.py`, which draws the path from a prompt to an AWS API call in
+the house diagram style, and a paragraph naming the three operations the
+function names wrap.
+
+Four findings, all actioned. "Four string tests" was wrong twice over, since
+there are two `startswith` calls, a regex and a fallback, and the regex is
+evaluated before the chain even though the prefixes take precedence. "The
+test is on the word rather than the colon" overstated it, because
+`startswith` is a character test that also matches "remembered". The
+diagram's standfirst called the fallback a test. And the new prose carried a
+colon inside "remember:", against house style.
+
+Re-review confirmed all four resolved with nothing introduced. No redeploy,
+no re-record. Prose and a new diagram only.

@@ -29,6 +29,11 @@ the extraction, and this post uses the user-preference one.
 
 ![Architecture](architecture.png)
 
+The walkthrough starts after `terraform apply`, because everything worth
+watching in this demo happens on invocation. The apply itself is the same
+shape as posts 01 and 02, seven resources, and the memory store is the slow
+one at close to three minutes.
+
 ## 1 - The memory store
 
 The memory side is two resources, the store itself with an expiry that
@@ -116,11 +121,26 @@ def recall(actor, query):
     return [r["content"]["text"] for r in resp.get("memoryRecordSummaries", [])]
 ```
 
+Those three names are ours. What they wrap is `CreateEvent`, `ListEvents`
+and `RetrieveMemoryRecords`, three data-plane calls on the
+`bedrock-agentcore` client. Getting from a prompt to one of them is cruder
+than the word agent suggests, because `do_POST` picks a branch with two
+prefix checks, an order-number regex and a fallback, and the first match
+wins.
+
+![How a prompt reaches an AWS API call](routing.png)
+
 Prompts starting with "remember" are stored as events, "recap" reads back
 up to twenty of the current session's events, a prompt naming an order
 number still goes to the gateway tool carried forward from post 02, and
-anything else is searched against the extracted preference records. The
-runtime role gets exactly the three
+anything else is searched against the extracted preference records. There is
+no model deciding any of that, and nothing in AgentCore knows the words
+"remember" or "recap". They are our keywords, matched with `startswith`, so
+any prompt beginning with those characters routes the same way, "remembered"
+included. The prefix is never stripped either, so the events read back
+further down still carry it.
+
+The runtime role gets exactly the three
 data-plane actions those functions use, scoped to this one memory store,
 least privilege for the whole memory layer in one statement:
 
