@@ -120,7 +120,8 @@
     "colours",
     "wordmark",
     "startswith",
-    "standfirst"
+    "standfirst",
+    "downsample"
   ],
   "ignorePaths": [
     "node_modules/**",
