@@ -5,19 +5,19 @@ Produces architecture.png referenced by POST.md.
 """
 
 import os
+import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
+
+from diagram_sizing import cluster_margin
+from diagram_sizing import fs as _fs
+from diagram_sizing import node_height as _h
 from diagrams import Cluster, Diagram, Edge
 from diagrams.aws.compute import ECR
 from diagrams.aws.management import CloudwatchLogs
 from diagrams.aws.security import IAMRole
 from diagrams.onprem.client import User
 from diagrams.programming.language import Python
-
-_BOOST = int(os.environ.get("DIAGRAM_FONT_BOOST", "0"))
-
-
-def _fs(v):
-    return str(int(v) + _BOOST)
 
 graph_attr = {
     "pad": "0.6",
@@ -46,17 +46,17 @@ with Diagram(
     node_attr=node_attr,
     edge_attr=edge_attr,
 ):
-    caller = User("caller")
-    ecr = ECR("ECR image\n(git SHA tag)")
+    caller = User("caller", height=_h(1))
+    ecr = ECR("ECR image\n(git SHA tag)", height=_h(2))
 
     with Cluster(
         "AgentCore Runtime  -  one microVM per session",
-        graph_attr={"fontsize": _fs(15), "margin": "25", "bgcolor": "#f3f7fa"},
+        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f3f7fa"},
     ):
-        agent = Python("echo agent\nport 8080")
+        agent = Python("echo agent\nport 8080", height=_h(2))
 
-    logs = CloudwatchLogs("runtime logs")
-    role = IAMRole("execution role")
+    logs = CloudwatchLogs("runtime logs", height=_h(1))
+    role = IAMRole("execution role", height=_h(1))
 
     caller >> Edge(label="invoke") >> agent
     ecr >> Edge(label="pull", style="dashed") >> agent
