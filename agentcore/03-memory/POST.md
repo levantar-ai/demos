@@ -13,11 +13,10 @@ on the service side.
 ## Longer version
 
 The agent from the first post forgets everything the moment a session
-ends, which is what most agents do by default and what makes them feel
-like strangers every time. Session state on its own does not fix this,
-because the useful things a user tells you (their name, their
-preferences, how they like to be contacted) belong to the user, not to
-the session they happened to say them in.
+ends, which is what most agents do by default. Session state on its own
+does not fix this, because the useful things a user tells you (their
+name, their preferences, how they like to be contacted) belong to the
+user, not to the session they happened to say them in.
 
 AgentCore Memory splits this into two layers. Events are raw conversation
 turns you write per actor and session, they expire after a configurable
