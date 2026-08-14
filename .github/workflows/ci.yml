@@ -90,7 +90,12 @@ jobs:
       - name: Python tests
         run: |
           if ls "${{ matrix.demo }}"/agent/test_*.py >/dev/null 2>&1; then
-            pip install --quiet pytest
+            # Collection imports the agent, so its runtime deps have to be here
+            # too. They are pinned in the agent's Dockerfile, so lift them from
+            # there rather than pinning the same versions twice.
+            deps=$(sed -n 's/^RUN pip install --no-cache-dir //p' \
+                   "${{ matrix.demo }}/agent/Dockerfile")
+            pip install --quiet pytest $deps
             (cd "${{ matrix.demo }}/agent" && python -m pytest -q)
           else
             echo "No Python tests for this demo"
