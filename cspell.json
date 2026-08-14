@@ -118,7 +118,10 @@
     "instancer",
     "wght",
     "colours",
-    "wordmark"
+    "wordmark",
+    "startswith",
+    "standfirst",
+    "downsample"
   ],
   "ignorePaths": [
     "node_modules/**",

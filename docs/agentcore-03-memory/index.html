@@ -36,7 +36,7 @@
   "image": "https://levantar-ai.github.io/demos/agentcore-03-memory/social.png",
   "datePublished": "2026-08-14",
   "dateModified": "2026-08-14",
-  "wordCount": 1000,
+  "wordCount": 1200,
   "inLanguage": "en-GB",
   "mainEntityOfPage": {
     "@type": "WebPage",
@@ -173,7 +173,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
-          <div class="facts"><time datetime="2026-08-14">14 August 2026</time><span class="sep">·</span>5 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-08-14">14 August 2026</time><span class="sep">·</span>6 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
       <nav class="series-nav prev">
@@ -207,6 +207,10 @@ preferences and episodic memory, plus custom strategies where you control
 the extraction, and this post uses the user-preference one.</p>
 <p><img alt="Architecture" src="architecture.png" /></p>
 <video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
+<p>The walkthrough starts after <code>terraform apply</code>, because everything worth
+watching in this demo happens on invocation. The apply itself is the same
+shape as posts 01 and 02, seven resources, and the memory store is the slow
+one at close to three minutes.</p>
 <h2>1 - The memory store</h2>
 <p>The memory side is two resources, the store itself with an expiry that
 defines how long raw events live, and a strategy that tells the service
@@ -287,11 +291,23 @@ def recall(actor, query):
     )
     return [r[&quot;content&quot;][&quot;text&quot;] for r in resp.get(&quot;memoryRecordSummaries&quot;, [])]
 </code></pre>
+<p>Those three names are ours. What they wrap is <code>CreateEvent</code>, <code>ListEvents</code>
+and <code>RetrieveMemoryRecords</code>, three data-plane calls on the
+<code>bedrock-agentcore</code> client. Getting from a prompt to one of them is cruder
+than the word agent suggests, because <code>do_POST</code> picks a branch with two
+prefix checks, an order-number regex and a fallback, and the first match
+wins.</p>
+<p><img alt="How a prompt reaches an AWS API call" src="routing.png" /></p>
 <p>Prompts starting with "remember" are stored as events, "recap" reads back
 up to twenty of the current session's events, a prompt naming an order
 number still goes to the gateway tool carried forward from post 02, and
-anything else is searched against the extracted preference records. The
-runtime role gets exactly the three
+anything else is searched against the extracted preference records. There is
+no model deciding any of that, and nothing in AgentCore knows the words
+"remember" or "recap". They are our keywords, matched with <code>startswith</code>, so
+any prompt beginning with those characters routes the same way, "remembered"
+included. The prefix is never stripped either, so the events read back
+further down still carry it.</p>
+<p>The runtime role gets exactly the three
 data-plane actions those functions use, scoped to this one memory store,
 least privilege for the whole memory layer in one statement:</p>
 <pre><code class="language-hcl">{
