@@ -62,7 +62,7 @@ TEMPLATE = """<!DOCTYPE html>
 <meta property="og:description" content="{description}">
 <meta property="og:image" content="{url}social.png">
 <meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="627">
+<meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="{title}">
 <meta property="og:url" content="{url}">
 <meta property="article:published_time" content="{date}">
