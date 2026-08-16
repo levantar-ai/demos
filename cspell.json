@@ -121,7 +121,8 @@
     "wordmark",
     "startswith",
     "standfirst",
-    "downsample"
+    "downsample",
+    "binfmt"
   ],
   "ignorePaths": [
     "node_modules/**",
