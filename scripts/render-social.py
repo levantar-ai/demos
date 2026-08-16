@@ -37,12 +37,17 @@ MARGIN = 80       # the side margin levantar.ai's own cards use
 # height the diagram cannot spare.
 MARGIN_Y = 40
 
-# Tokens lifted from levantar.css, via the site's card renderer.
-BG = (11, 19, 21)            # --dark    #0b1315
-TITLE_INK = (233, 231, 224)  # --dark-ink   #e9e7e0
-MUTED_INK = (167, 176, 177)  # --dark-ink-2 #a7b0b1
-ACCENT_LIFT = (127, 197, 194)  # --accent-lift #7fc5c2, the teal the site uses on dark
-PAPER = (247, 245, 240)      # --paper   #f7f5f0
+# Tokens lifted from levantar.css. The site is a light theme, its body is
+# --paper on --ink, so the cards are too. The --dark tokens appear twice in the
+# whole stylesheet and are not what a reader sees.
+BG = (247, 245, 240)         # --paper      #f7f5f0
+TITLE_INK = (14, 18, 22)     # --ink        #0e1216
+MUTED_INK = (101, 108, 114)  # --ink-3      #656c72
+ACCENT = (13, 82, 87)        # --teal-700   #0d5257, the site's accent on light
+# The artwork tile sits a shade warmer than the canvas so it reads as a panel
+# without a heavy border, the way the site separates surfaces.
+PANEL = (239, 236, 228)      # --paper-warm #efece4
+RULE = (220, 213, 198)       # --rule       #dcd5c6
 
 EYEBROW = "AgentCore series"
 # Smaller than the site's 72-42 ramp: these cards give most of their height to
@@ -105,9 +110,9 @@ def main():
     text_width = W - 2 * MARGIN
 
     # Eyebrow and its hairline, laid out as the site's cards lay them out.
-    draw.text((MARGIN, MARGIN_Y), " ".join(EYEBROW.upper()), font=font(600, 22), fill=ACCENT_LIFT)
+    draw.text((MARGIN, MARGIN_Y), " ".join(EYEBROW.upper()), font=font(600, 22), fill=ACCENT)
     rule_y = MARGIN_Y + 42
-    draw.line([(MARGIN, rule_y), (MARGIN + 96, rule_y)], fill=ACCENT_LIFT, width=2)
+    draw.line([(MARGIN, rule_y), (MARGIN + 96, rule_y)], fill=ACCENT, width=2)
 
     # Shrink the title until it fits rather than truncating it — a card that
     # ends mid-word reads as broken, a slightly smaller one does not.
@@ -139,10 +144,10 @@ def main():
     scale = min((area_w - 2 * pad_x) / art.width, (area_h - 2 * pad_y) / art.height)
     art = art.resize((int(art.width * scale), int(art.height * scale)), Image.LANCZOS)
 
-    # The diagram comes off graphviz on white. Multiplying it over a paper tile
-    # turns that white into the site's paper and leaves the strokes and the AWS
-    # icon colours where they were, so the card carries no pure white anywhere.
-    art = ImageChops.multiply(art, Image.new("RGB", art.size, PAPER))
+    # The diagram comes off graphviz on white. Multiplying it over the panel
+    # tone turns that white into the tile colour and leaves the strokes and the
+    # AWS icon colours where they were, so the card carries no pure white.
+    art = ImageChops.multiply(art, Image.new("RGB", art.size, PANEL))
 
     # A 2.7:1 diagram on a square canvas leaves slack whatever we do. Splitting
     # it evenly floats the artwork away from its own title, so bias it upward
@@ -151,12 +156,13 @@ def main():
     card_x = (W - card_w) // 2
     card_y = top + round((area_h - card_h) * (0.40 if square else 0.5))
     draw.rounded_rectangle(
-        [card_x, card_y, card_x + card_w, card_y + card_h], radius=16, fill=PAPER
+        [card_x, card_y, card_x + card_w, card_y + card_h],
+        radius=16, fill=PANEL, outline=RULE, width=1,
     )
     canvas.paste(art, (card_x + pad_x, card_y + pad_y))
 
     # Footer: the mark and wordmark left, the domain right.
-    mark = Image.open(ROOT / "docs/levantar-logo-white.png").convert("RGBA")
+    mark = Image.open(ROOT / "docs/levantar-logo-dark.png").convert("RGBA")
     mark = mark.resize((round(mark.width * mark_h / mark.height), mark_h), Image.LANCZOS)
     canvas.paste(mark, (MARGIN, footer_y), mark)
     draw.text((MARGIN + mark.width + 15, footer_y + 4), "Levantar",

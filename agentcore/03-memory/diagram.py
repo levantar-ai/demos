@@ -22,7 +22,7 @@ graph_attr = {
     "nodesep": "0.9",
     "ranksep": "1.1",
     "fontsize": _fs(20),
-    "fontcolor": "#333333",
+    "fontcolor": "#0e1216",  # --ink
 }
 
 node_attr = {
@@ -31,7 +31,7 @@ node_attr = {
 
 edge_attr = {
     "fontsize": _fs(12),
-    "fontcolor": "#555555",
+    "fontcolor": "#4a5158",  # --ink-2
 }
 
 with Diagram(
@@ -48,13 +48,13 @@ with Diagram(
 
     with Cluster(
         "AgentCore Runtime",
-        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f3f7fa"},
+        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f6f3ec"},
     ):
         agent = Python("agent", height=_h(1))
 
     with Cluster(
         "AgentCore Memory",
-        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f7f4fa"},
+        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#efece4"},
     ):
         events = Bedrock("events\n(short-term)", height=_h(2))
         records = Bedrock("preference records\n(long-term)", height=_h(2))
