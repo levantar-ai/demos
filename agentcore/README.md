@@ -44,9 +44,24 @@ Deployment is **out-of-band**, always run locally:
 
 ```bash
 make demo-init  DEMO=agentcore/01-first-agent
+make demo-image DEMO=agentcore/01-first-agent
 make demo-plan  DEMO=agentcore/01-first-agent
 make demo-apply DEMO=agentcore/01-first-agent
 make demo-destroy DEMO=agentcore/01-first-agent
+```
+
+`demo-image` creates the ECR repository, builds the agent as `linux/arm64` and
+pushes it tagged with the short git SHA. It comes before `demo-apply` because
+the runtime cannot be created until the image it references exists. It needs
+Docker with `buildx` able to produce arm64, which on an x86 host means QEMU
+binfmt is registered.
+
+Tags are immutable, so building from a dirty tree tags different content with
+HEAD's SHA and the push is refused. Commit first. To redeploy an image that
+already exists, name it and skip the build:
+
+```bash
+make demo-apply DEMO=agentcore/01-first-agent IMAGE_TAG=cumulative-5abdb9b
 ```
 
 ## Structure of a demo

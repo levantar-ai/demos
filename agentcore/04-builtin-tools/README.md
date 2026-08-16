@@ -41,7 +41,7 @@ terraform -chdir=aws-setup apply
 ## Run it
 
 ```bash
-make demo-init demo-apply DEMO=agentcore/04-builtin-tools
+make demo-init demo-image demo-apply DEMO=agentcore/04-builtin-tools
 ```
 
 If you deployed this demo before the gateway was carried forward, the

@@ -31,7 +31,7 @@ terraform -chdir=aws-setup apply
 CI only verifies this demo (tests, quality, security). Deployment is local:
 
 ```bash
-make demo-init demo-apply DEMO=agentcore/01-first-agent
+make demo-init demo-image demo-apply DEMO=agentcore/01-first-agent
 ```
 
 Invoke:

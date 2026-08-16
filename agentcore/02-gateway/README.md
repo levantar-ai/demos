@@ -89,7 +89,7 @@ terraform -chdir=aws-setup apply
 ## Run it
 
 ```bash
-make demo-init demo-apply DEMO=agentcore/02-gateway
+make demo-init demo-image demo-apply DEMO=agentcore/02-gateway
 ```
 
 Ask it something:
