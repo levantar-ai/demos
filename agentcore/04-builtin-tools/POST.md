@@ -84,31 +84,42 @@ The agent's job is to move data in, run code, and read results out. It
 never parses the CSV itself:
 
 ```python
-def analyse(csv_text, session_id):
-    interpreter = os.environ["CODE_INTERPRETER_ID"]
-    call = client().invoke_code_interpreter
-    call(
-        codeInterpreterIdentifier=interpreter,
+def _call(session_id, name, **arguments):
+    response = client().invoke_code_interpreter(
+        codeInterpreterIdentifier=os.environ["CODE_INTERPRETER_ID"],
         sessionId=session_id,
-        name="writeFiles",
-        arguments={"content": [{"path": "data.csv", "text": csv_text}]},
+        name=name,
+        arguments=arguments,
     )
-    return _text(
-        call(
-            codeInterpreterIdentifier=interpreter,
-            sessionId=session_id,
-            name="executeCode",
-            arguments={"language": "python", "code": ANALYSIS},
-        )
-    )
+    return _consume(response)
+
+
+def write_files(session_id, path, text):
+    return _call(session_id, "writeFiles", content=[{"path": path, "text": text}])
+
+
+def execute_code(session_id, code, language="python"):
+    return _call(session_id, "executeCode", code=code, language=language)
+
+
+def analyse(csv_text, session_id):
+    write_files(session_id, "data.csv", csv_text)
+    return execute_code(session_id, ANALYSIS)
 ```
 
-`invoke_code_interpreter` takes a tool name and its arguments, the useful
-ones being `writeFiles`, `executeCode`, `executeCommand`, `readFiles` and
-`listFiles`. Responses arrive as an event stream, so there is a small
-helper that drains every stream and raises when a tool sets `isError`,
-which is easy to skip and then wonder why a failed run looks like a
-successful empty one.
+The service exposes one data-plane call, `invoke_code_interpreter`, which
+takes a tool name and an arguments blob rather than a method per tool. That
+is the shape of an MCP `tools/call`, the same protocol the Gateway spoke in
+post 02, and it exists so an agent can forward a model's tool choice
+straight through without a dispatch table. The useful names are
+`writeFiles`, `executeCode`, `executeCommand`, `readFiles` and `listFiles`.
+
+This agent's code is fixed, so it gains nothing from the dynamic shape and
+wraps the two tools it uses as functions with named parameters. That also
+puts the stream handling in one place. Responses arrive as an event stream,
+and a tool that fails sets `isError` inside that stream rather than raising,
+so `_consume` drains every call and raises on `isError`. Skip that and a
+failed run looks exactly like a successful empty one.
 
 Sessions are the thing to be careful with, because one lives until its
 timeout whether or not you are still using it. The agent opens a session,
