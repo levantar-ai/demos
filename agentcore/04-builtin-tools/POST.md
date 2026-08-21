@@ -22,21 +22,25 @@ attaches the charges export from their account page. Ask a language model
 to read that and say what went wrong and it will produce an answer that
 looks right. Give it somewhere to actually join the export against the
 orders on the account and it produces findings you can check, from code
-you can read, over data you can point at. That is the whole argument for
-code execution as a tool.
+you can read, over data you can point at.
 
-The problem is where that execution happens. Parsing a customer's CSV
-with pandas inside your agent's own process puts a parser you did not
-write, working on data you do not control, right next to your
+There are two inputs here and they are not alike. The orders come from
+Brightwell's own system, fetched by the agent through the gateway, and
+they are trusted. The export came from the customer, and it is not. It is
+a file you did not produce, in a format you are taking on faith, and
+parsing it with pandas inside your agent's own process puts a parser you
+did not write, working on data you do not control, right next to your
 credentials. Go a step further and execute model-generated code there and
 the exposure is worse again.
 
 AgentCore Code Interpreter is a managed sandbox for exactly this. Your
 agent writes files into a session, runs code there, and reads results
-back as text. This demo keeps the code fixed and author-written, so what
-is being isolated is the *processing of untrusted data*, which is the
-common case; the same mechanism is what you would use for
-model-generated code, with more input and output controls on top. This
+back as text. The customer's export goes in because it has to be parsed
+somewhere safe. Brightwell's orders go in because the join needs them, not
+because they are suspect. This demo keeps the code fixed and
+author-written, so what is being isolated is the handling of the untrusted
+upload, which is the common case; the same mechanism is what you would use
+for model-generated code, with more input and output controls on top. This
 post wires one up, gives it the reconciliation to do, and then pokes at
 the walls.
 
