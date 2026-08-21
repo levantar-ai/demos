@@ -11,22 +11,16 @@ from main import Handler
 
 calls = []
 stopped = []
-stored = []
 
 
 class StubHandler(Handler):
     start = staticmethod(lambda interpreter, name: "session-123")
     run = staticmethod(
-        lambda charges_csv, orders_json, session_id: (
-            calls.append((charges_csv, orders_json, session_id)) or "1 discrepancies"
-        )
+        lambda csv_text, session_id: calls.append((csv_text, session_id)) or "rows: 3"
     )
-    orders = staticmethod(lambda actor: f'{{"customer_id": "{actor}", "orders": []}}')
     stop = staticmethod(lambda interpreter, session_id: stopped.append(session_id))
     tool = staticmethod(lambda order_id: f'order {order_id}: {{"status": "shipped"}}')
-    store = staticmethod(
-        lambda actor, session, text: stored.append((actor, session, text))
-    )
+    store = staticmethod(lambda actor, session, text: None)
     history = staticmethod(lambda actor, session: ["remembered"])
     search = staticmethod(lambda actor, query: ["a preference"])
 
@@ -56,51 +50,17 @@ def test_ping_reports_healthy(server_url):
         assert json.loads(resp.read()) == {"status": "Healthy"}
 
 
-def test_csv_is_reconciled_against_the_customers_orders(server_url):
-    status, body = post(
-        f"{server_url}/invocations",
-        {"actor": "c-1007", "csv": "order_id,charged_at,amount\n"},
-    )
+def test_csv_is_analysed_in_the_sandbox(server_url):
+    status, body = post(f"{server_url}/invocations", {"csv": "a,b\n1,2\n"})
     assert status == 200
-    assert body == {"result": "1 discrepancies"}
-    assert calls[-1] == (
-        "order_id,charged_at,amount\n",
-        '{"customer_id": "c-1007", "orders": []}',
-        "session-123",
-    )
-
-
-def test_csv_without_actor_is_rejected(server_url):
-    req = urllib.request.Request(
-        f"{server_url}/invocations",
-        data=json.dumps({"csv": "order_id,charged_at,amount\n"}).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    with pytest.raises(urllib.error.HTTPError) as exc:
-        urllib.request.urlopen(req)
-    assert exc.value.code == 400
+    assert body == {"result": "rows: 3"}
+    assert calls[-1] == ("a,b\n1,2\n", "session-123")
 
 
 def test_session_is_stopped_after_use(server_url):
     stopped.clear()
-    post(
-        f"{server_url}/invocations",
-        {"actor": "c-1007", "csv": "order_id,charged_at,amount\n"},
-    )
+    post(f"{server_url}/invocations", {"csv": "a,b\n1,2\n"})
     assert stopped == ["session-123"]
-
-
-def test_reconciliation_is_noted_in_memory_when_a_session_is_given(server_url):
-    stored.clear()
-    post(
-        f"{server_url}/invocations",
-        {
-            "actor": "c-1007",
-            "session": "billing-query",
-            "csv": "order_id,charged_at,amount\n",
-        },
-    )
-    assert stored == [("c-1007", "billing-query", "billing query: 1 discrepancies")]
 
 
 def test_neither_csv_nor_prompt_is_rejected(server_url):
@@ -203,23 +163,27 @@ def test_a_tool_error_raises_rather_than_returning_empty(fake):
         main.execute_code("s1", "pandas.nope()")
 
 
-def test_analyse_writes_both_files_then_executes_in_the_same_session(fake):
-    fake.streams = [
-        [_text_event("")],
-        [_text_event("")],
-        [_text_event("2 discrepancies")],
-    ]
-    assert (
-        main.analyse("order_id,charged_at,amount\n", '{"orders": []}', "s9")
-        == "2 discrepancies"
-    )
-    assert [i["name"] for i in fake.invocations] == [
-        "writeFiles",
-        "writeFiles",
-        "executeCode",
-    ]
-    assert [i["arguments"]["content"][0]["path"] for i in fake.invocations[:2]] == [
-        "charges.csv",
-        "orders.json",
-    ]
+def test_the_stream_is_drained_before_an_error_is_raised(fake):
+    seen = []
+
+    def events():
+        for e in (
+            _text_event("partial"),
+            _text_event("boom", is_error=True),
+            _text_event("tail"),
+        ):
+            seen.append(e)
+            yield e
+
+    fake.streams = [events()]
+    with pytest.raises(RuntimeError, match="boom"):
+        main.execute_code("s1", "x")
+    assert len(seen) == 3
+
+
+def test_analyse_writes_then_executes_in_the_same_session(fake):
+    fake.streams = [[_text_event("")], [_text_event("rows: 2")]]
+    assert main.analyse("a,b\n1,2\n", "s9") == "rows: 2"
+    assert [i["name"] for i in fake.invocations] == ["writeFiles", "executeCode"]
+    assert fake.invocations[0]["arguments"]["content"][0]["path"] == "data.csv"
     assert {i["sessionId"] for i in fake.invocations} == {"s9"}

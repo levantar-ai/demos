@@ -11,10 +11,11 @@ it just is not re-explained, the post it belongs to covers it.
 
 The series builds one thing, the order support agent for Brightwell, a small
 online retailer of outdoor kit that ships with DPD and Royal Mail. Posts 01
-to 03 put the pieces in place, a runtime, a tool that looks orders up, and
-memory. From post 04 the pieces do jobs together, starting with billing
-reconciliation, and each later post makes that one agent fit for
-production rather than adding a feature beside it.
+to 04 put the primitives in place, a runtime, a tool that looks orders up,
+memory and a sandbox, each as a plain Python handler with no model in it.
+Post 06 puts a model in the loop and hands it those primitives, which is
+where they start working together, and each later post makes that one agent
+fit for production.
 
 The orders behind it are generated, three hundred across forty customers,
 by `scripts/make_orders.py`, so every demo from 04 on works against the
@@ -27,13 +28,14 @@ same data and the same customer ids.
 | 01 | [`01-first-agent/`](01-first-agent/) | [read →](01-first-agent/POST.md) | A minimal agent deployed to AgentCore Runtime |
 | 02 | [`02-gateway/`](02-gateway/) | [read →](02-gateway/POST.md) | Tools via AgentCore Gateway, authenticated with Cognito |
 | 03 | [`03-memory/`](03-memory/) | [read →](03-memory/POST.md) | Short- and long-term memory |
-| 04 | [`04-builtin-tools/`](04-builtin-tools/) | [read →](04-builtin-tools/POST.md) | Code Interpreter sandbox, billing reconciliation across 02 and 03 |
+| 04 | [`04-builtin-tools/`](04-builtin-tools/) | [read →](04-builtin-tools/POST.md) | Code Interpreter sandbox |
 | 05 | `05-identity/` *(planned)* | | Inbound/outbound auth |
-| 06 | `06-observability/` *(planned)* | | Tracing and debugging |
-| 07 | `07-evals/` *(planned)* | | Evals: testing agent behaviour as a quality gate |
-| 08 | `08-multi-agent/` *(planned)* | | Supervisor/worker topologies |
-| 09 | `09-cost/` *(planned)* | | Cost modelling |
-| 10 | `10-case-study/` *(planned)* | | The finished system |
+| 06 | `06-model-in-the-loop/` *(planned)* | | A model given the tools, choosing how to answer |
+| 07 | `07-observability/` *(planned)* | | Tracing and debugging |
+| 08 | `08-evals/` *(planned)* | | Evals: testing agent behaviour as a quality gate |
+| 09 | `09-multi-agent/` *(planned)* | | Supervisor/worker topologies |
+| 10 | `10-cost/` *(planned)* | | Cost modelling |
+| 11 | `11-case-study/` *(planned)* | | The finished system |
 
 ## Conventions (namespacing)
 

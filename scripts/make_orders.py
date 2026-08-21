@@ -6,8 +6,7 @@ Usage: python3 scripts/make_orders.py agentcore/04-builtin-tools
 Deterministic, seeded, so re-running it changes nothing. Writes two files:
 
   tool/orders.csv   the retailer's system of record, served by the tool Lambda
-  payload.json      one customer's charges export, the input to the post 04 demo,
-                    with the two discrepancies the post walks through baked in
+  payload.json      one customer's orders as a CSV, the input to the post 04 demo
 
 Order ids are not dates. They are allocated in placement order but the dataset
 spans January to August 2026, so a reader sorting by either column sees
@@ -37,9 +36,9 @@ CATALOGUE = [
     ("two-person tent", 189.00), ("stove", 44.10), ("water filter", 39.00),
 ]
 CARRIERS = ["DPD", "DPD", "DPD", "Royal Mail", "Royal Mail"]  # DPD-weighted
-# The demo's customer is the first one, by id, with enough history to make a
-# reconciliation worth reading: six or more orders, two or more of them in
-# March, so "charged twice in March" has somewhere to happen.
+# The demo's customer is the first one, by id, with enough history for a
+# describe() to say something: six or more orders, two or more in March so
+# the same customer still works for the later posts.
 MIN_ORDERS, MIN_MARCH = 6, 2
 
 
@@ -94,32 +93,16 @@ def main():
         writer.writeheader()
         writer.writerows(orders)
 
-    # The customer's export: one charge per order, taken the day it was placed,
-    # except that the first March order was charged twice (a retried payment
-    # that went through both times) and the last order was charged before a
-    # discount code applied, so it is a few pounds over.
-    charges = []
-    twice = march[0]
-    over = mine[-1]
-    for o in mine:
-        when = datetime.fromisoformat(o["placed_at"]).replace(hour=rng.randint(8, 21), minute=rng.randint(0, 59))
-        amount = float(o["total"])
-        if o is over:
-            amount = round(amount + 5.00, 2)
-        charges.append((o["order_id"], when.isoformat(timespec="minutes"), amount))
-        if o is twice:
-            retry = when + timedelta(minutes=rng.randint(2, 9))
-            charges.append((o["order_id"], retry.isoformat(timespec="minutes"), amount))
-
-    lines = ["order_id,charged_at,amount"] + [f"{oid},{when},{amt:.2f}" for oid, when, amt in charges]
-    (demo / "payload.json").write_text(json.dumps({
-        "actor": demo_customer,
-        "session": "billing-query",
-        "csv": "\n".join(lines) + "\n",
-    }) + "\n")
+    # The post 04 payload is that customer's orders as a CSV, a slice of the
+    # real dataset. Post 04 is a mechanism demo, put a file in and run code
+    # over it, so the file is simply real data rather than a story.
+    lines = ["order_id,placed_at,items,total"] + [
+        f"{o['order_id']},{o['placed_at']},{o['items']},{o['total']}" for o in mine
+    ]
+    (demo / "payload.json").write_text(json.dumps({"csv": "\n".join(lines) + "\n"}) + "\n")
 
     print(f"{len(orders)} orders, {len(customers)} customers, {START} to {END}")
-    print(f"{demo_customer}: {len(mine)} orders, double charge on {twice['order_id']}, overcharge on {over['order_id']} (+5.00)")
+    print(f"payload.json: {demo_customer}'s {len(mine)} orders")
 
 
 if __name__ == "__main__":
