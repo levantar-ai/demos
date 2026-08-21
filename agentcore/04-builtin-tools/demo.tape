@@ -42,7 +42,7 @@ Type "# the agent fetches their orders through the gateway and joins the two in 
 Enter
 Sleep 1s
 
-Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id demo-video-session-000000000000000004 --payload file://payload.json --region us-east-1 /dev/stdout | python3 -c 'import sys,json; print(json.loads(sys.stdin.readline())["result"])'`
+Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id demo-video-session-000000000000000004 --payload file://payload.json --region us-east-1 /dev/stdout | python3 -c 'import sys,json; print(json.JSONDecoder().raw_decode(sys.stdin.read())[0]["result"])'`
 Enter
 Wait
 Sleep 4s
@@ -51,7 +51,7 @@ Type "# and it remembered the query, so a later session can recap it"
 Enter
 Sleep 1s
 
-Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id demo-video-session-000000000000000005 --payload '{"actor": "c-1007", "session": "billing-query", "prompt": "recap"}' --region us-east-1 /dev/stdout`
+Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id demo-video-session-000000000000000005 --payload '{"actor": "c-1007", "session": "billing-query", "prompt": "recap"}' --region us-east-1 /dev/stdout | python3 -c 'import sys,json; print(*json.JSONDecoder().raw_decode(sys.stdin.read())[0]["result"], sep="\n")'`
 Enter
 Wait
 Sleep 4s

@@ -230,8 +230,12 @@ aws bedrock-agentcore invoke-agent-runtime \
   --agent-runtime-arn "$ARN" \
   --runtime-session-id billing-session-000000000000000001 \
   --payload file://payload.json \
-  --region us-east-1 /dev/stdout
+  --region us-east-1 /dev/stdout \
+  | python3 -c 'import sys,json; print(json.JSONDecoder().raw_decode(sys.stdin.read())[0]["result"])'
 ```
+
+The CLI writes the response body and then its own metadata to the same
+stream, hence the decoder that stops at the end of the first object.
 
 ```
 8 orders on the account, 9 charges in the export
