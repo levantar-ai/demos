@@ -1,7 +1,8 @@
-# VHS tape for the post 04 demo video: sandboxed analysis + isolation proof.
-# Prereqs (off-camera): backend init done, ECR repo exists, image pushed
-# with TAG, aws-vault session warm. Record with:
-#   TAG=<git sha> vhs demo.tape
+# VHS tape for the post 04 demo video, sandboxed analysis of a CSV.
+# Prereqs (off-camera): stack deployed, aws-vault session warm. Record with:
+#   vhs demo.tape
+# The video shows only the example being exercised. Provisioning is the
+# post's job, not the video's, same as post 03.
 Output demo.mp4
 Set Shell "bash"
 Set FontSize 20
@@ -16,7 +17,7 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 2s
-Type `unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/04-builtin-tools && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && clear`
+Type `unset PROMPT_COMMAND; cd /home/andy-rea/development/demos/agentcore/04-builtin-tools && export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && export ARN=$(terraform -chdir=terraform output -raw runtime_arn) && clear`
 Enter
 Type `ACCT=$(aws sts get-caller-identity --query Account --output text); redact() { sed -u "s/$ACCT/<ACCOUNT-ID>/g"; }`
 Enter
@@ -32,20 +33,15 @@ Sleep 1s
 
 Show
 
-Type "# an agent that runs pandas in a sandbox — no network, no credentials in there"
+Type "# an agent that runs pandas in a sandbox, no network and no credentials in there"
 Enter
 Sleep 1.5s
 
-Type "terraform -chdir=terraform apply -auto-approve -var image_tag=$TAG 2>&1 | redact"
-Enter
-Wait
-Sleep 2s
-
-Type "# hand it a CSV — the analysis runs inside the sandbox, not in the agent"
+Type "# hand it a CSV, the analysis runs inside the sandbox rather than in the agent"
 Enter
 Sleep 1s
 
-Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$(terraform -chdir=terraform output -raw runtime_arn)" --runtime-session-id demo-video-session-000000000000000004 --payload file://payload.json --region us-east-1 /dev/stdout`
+Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id demo-video-session-000000000000000004 --payload file://payload.json --region us-east-1 /dev/stdout`
 Enter
 Wait
 Sleep 4s
