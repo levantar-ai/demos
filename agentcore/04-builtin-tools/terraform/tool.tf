@@ -1,9 +1,11 @@
 # The Lambda the gateway exposes as an MCP tool.
 
+# The whole tool directory, so orders.csv ships alongside the handler.
 data "archive_file" "tool" {
   type        = "zip"
-  source_file = "${path.module}/../tool/lookup_order.py"
+  source_dir  = "${path.module}/../tool"
   output_path = "${path.module}/.terraform/tool.zip"
+  excludes    = ["__pycache__"]
 }
 
 resource "aws_iam_role" "tool" {
@@ -32,7 +34,7 @@ resource "aws_iam_role_policy_attachment" "tool_logs" {
 }
 
 resource "aws_lambda_function" "tool" {
-  function_name    = "${local.name_prefix}-lookup-order"
+  function_name    = "${local.name_prefix}-orders"
   role             = aws_iam_role.tool.arn
   runtime          = "python3.12"
   handler          = "lookup_order.handler"

@@ -13,7 +13,9 @@ from diagram_sizing import cluster_margin
 from diagram_sizing import fs as _fs
 from diagram_sizing import node_height as _h
 from diagrams import Cluster, Diagram, Edge
+from diagrams.aws.compute import Lambda
 from diagrams.aws.ml import Bedrock
+from diagrams.aws.network import APIGateway
 from diagrams.onprem.client import User
 from diagrams.programming.language import Python
 
@@ -35,7 +37,7 @@ edge_attr = {
 }
 
 with Diagram(
-    "Untrusted analysis in an AgentCore sandbox",
+    "Billing reconciliation in an AgentCore sandbox",
     filename=os.environ.get("DIAGRAM_OUT", "architecture"),
     outformat="png",
     show=False,
@@ -44,7 +46,7 @@ with Diagram(
     node_attr=node_attr,
     edge_attr=edge_attr,
 ):
-    caller = User("caller\n(CSV)", height=_h(2))
+    caller = User("customer\n(charges export)", height=_h(2))
 
     with Cluster(
         "AgentCore Runtime",
@@ -53,11 +55,21 @@ with Diagram(
         agent = Python("agent", height=_h(1))
 
     with Cluster(
-        "Code Interpreter  -  SANDBOX: no network, no credentials",
+        "AgentCore Gateway",
+        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f6f3ec"},
+    ):
+        gateway = APIGateway("orders target", height=_h(1))
+
+    tool = Lambda("orders\n(system of record)", height=_h(2))
+
+    with Cluster(
+        "Code Interpreter  -  SANDBOX: no internet, no credentials",
         graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#efece4"},
     ):
         sandbox = Bedrock("pandas session", height=_h(1))
 
     caller >> Edge(label="invoke") >> agent
-    agent >> Edge(label="results", dir="back") >> sandbox
-    sandbox >> Edge(label="writeFiles,\nexecuteCode", style="dashed", dir="back") >> agent
+    agent >> Edge(label="list_orders") >> gateway
+    gateway >> Edge(label="invoke") >> tool
+    agent >> Edge(label="charges.csv + orders.json,\nexecuteCode", style="dashed") >> sandbox
+    sandbox >> Edge(label="discrepancies", dir="back", constraint="false") >> agent

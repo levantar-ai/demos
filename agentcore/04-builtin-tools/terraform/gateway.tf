@@ -93,6 +93,22 @@ resource "aws_bedrockagentcore_gateway_target" "orders" {
               }
             }
           }
+
+          inline_payload {
+            name        = "list_orders"
+            description = "List every order on a customer's account, with totals and status"
+
+            input_schema {
+              type = "object"
+
+              property {
+                name        = "customer_id"
+                type        = "string"
+                description = "The customer id whose orders to list"
+                required    = true
+              }
+            }
+          }
         }
       }
     }

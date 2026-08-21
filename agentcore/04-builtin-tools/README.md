@@ -1,8 +1,10 @@
 # 04 — Letting an agent run code, without letting it run loose
 
-Extends the demo 03 agent with a managed Python sandbox (AgentCore Code Interpreter) and
-has it analyse a caller-supplied CSV with pandas inside that sandbox,
-rather than parsing untrusted input in the agent's own microVM.
+Extends the demo 03 agent with a managed Python sandbox (AgentCore Code
+Interpreter) and gives it a job: a customer uploads the charges export from
+their account, the agent fetches their orders through the gateway, and the
+two are joined inside the sandbox rather than in the agent's own microVM.
+First demo where the gateway, memory and sandbox do one thing together.
 
 Each demo in the series is independently deployable and carries the
 previous one forward, so the gateway, its Cognito pool and the tool
@@ -13,14 +15,16 @@ belong to covers them.
 
 - Everything from demo 01 (ECR repo, runtime execution role, runtime),
   namespaced `demos-agentcore-04-builtin-tools-*`
-- Everything from demo 02, so the tool path still works here, a Lambda
-  behind an AgentCore Gateway with a Cognito pool issuing the JWT the
-  gateway validates. Post 02 covers it, this demo just carries it forward
+- Everything from demo 02, a Lambda behind an AgentCore Gateway with a
+  Cognito pool issuing the JWT the gateway validates. Here the Lambda is
+  `demos-agentcore-04-builtin-tools-orders` and serves Brightwell's orders
+  from `tool/orders.csv` through two tools, `lookup_order` and
+  `list_orders`. Post 02 covers the gateway itself
 - Everything from demo 03, an AgentCore Memory store and its
   `UserPreferences` strategy, again carried forward rather than
   re-explained
 - Code Interpreter `demos_agentcore_04_interpreter` in `SANDBOX` network
-  mode (no network access from the sandbox at all)
+  mode (no outbound internet from the sandbox)
 - Runtime role scoped to three actions on that one sandbox
 
 ## Before you start, the state backend
@@ -49,7 +53,9 @@ If you deployed this demo before the gateway was carried forward, the
 inconsistent lock file. Re-run `make demo-init DEMO=agentcore/<demo>` once
 and it resolves.
 
-Analyse a CSV:
+Reconcile a customer's charges. `payload.json` is customer `c-1007`'s
+export with two discrepancies in it, generated alongside the dataset by
+`python3 scripts/make_orders.py agentcore/04-builtin-tools`:
 
 ```bash
 aws-vault exec lev:andy.rea -- aws bedrock-agentcore invoke-agent-runtime \
@@ -58,6 +64,10 @@ aws-vault exec lev:andy.rea -- aws bedrock-agentcore invoke-agent-runtime \
   --runtime-session-id "any-session-id-of-33-chars-or-more-04a" \
   --payload file://payload.json --region us-east-1 /dev/stdout
 ```
+
+Expect `2 discrepancies`, a double charge on order 1090 and a 5.00
+overcharge on 1275. Then ask the same actor and session to `recap` and the
+query is there in memory.
 
 ## Tear down
 
