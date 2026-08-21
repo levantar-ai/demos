@@ -13,9 +13,9 @@ it, and what the sandbox does and does not have access to.
 
 Ask a language model to compute statistics over a few hundred rows and it
 will produce numbers that look right. Give it somewhere to actually run
-pandas and it produces numbers that are right. That is the whole argument
-for code execution as a tool, and it is why every serious agent framework
-ends up needing one.
+pandas and it produces numbers you can check, from code you can read, over
+data you can point at. That is the whole argument for code execution as a
+tool.
 
 The problem is where that execution happens. Parsing a stranger's CSV
 with pandas inside your agent's own process puts a parser you did not
@@ -35,7 +35,7 @@ post wires one up and then pokes at the walls.
 
 ## 1 - The sandbox
 
-One resource, and the network mode is the control that matters most:
+One resource, and the network mode is the control this post turns on:
 
 ```hcl
 resource "aws_bedrockagentcore_code_interpreter" "sandbox" {
@@ -48,10 +48,13 @@ resource "aws_bedrockagentcore_code_interpreter" "sandbox" {
 }
 ```
 
-`SANDBOX` means the session gets no network access. The other option is
-`PUBLIC`, which gives the sandbox outbound internet access, and you want
-to be deliberate about choosing it, because that is the mode where a
-malicious payload could exfiltrate whatever it can see.
+`SANDBOX` means the session gets no outbound internet access. The other
+option is `PUBLIC`, which gives the sandbox outbound internet access, and
+you want
+to be deliberate about choosing it, because that is the mode where code
+running in the session could reach the network on its own. The threat is
+the code that executes, whether you wrote it or a model did, not the CSV
+sitting on disk.
 
 > NOTE: `SANDBOX` is the egress control, not the whole boundary. IAM
 > decides who can start and invoke a session, you decide what data goes
@@ -107,8 +110,28 @@ helper that drains every stream and raises when a tool sets `isError`,
 which is easy to skip and then wonder why a failed run looks like a
 successful empty one.
 
-Sessions are the thing to be careful with. The agent stops its session in
-a `finally` block, because a session lives until its timeout otherwise.
+Sessions are the thing to be careful with, because one lives until its
+timeout whether or not you are still using it. The agent opens a session,
+works in it, and stops it in a `finally` so a failed run cleans up too:
+
+```python
+def session_for(interpreter, name):
+    resp = client().start_code_interpreter_session(
+        codeInterpreterIdentifier=interpreter,
+        name=name,
+        sessionTimeoutSeconds=900,
+    )
+    return resp["sessionId"]
+
+
+session_id = None
+try:
+    session_id = self.start(interpreter, "analysis")
+    self._send(200, {"result": self.run(csv_text, session_id)})
+finally:
+    if session_id is not None:
+        self.stop(interpreter, session_id)
+```
 
 > NOTE: files land in the session's working directory, not in `/tmp`. Write
 > to `data.csv` and read `data.csv`, and resist the urge to be clever with
@@ -127,7 +150,15 @@ Post a CSV to the agent and the numbers come back computed rather than
 imagined:
 
 ```bash
---payload '{"csv": "order_id,items,total\n1001,3,42.50\n1002,1,12.00\n..."}'
+cat payload.json
+# {"csv": "order_id,items,total\n1001,3,42.50\n1002,1,12.00\n1003,7,131.75\n1004,2,28.40\n1005,5,88.20\n"}
+
+aws bedrock-agentcore invoke-agent-runtime \
+  --cli-binary-format raw-in-base64-out \
+  --agent-runtime-arn "$ARN" \
+  --runtime-session-id analysis-session-000000000000000001 \
+  --payload file://payload.json \
+  --region us-east-1 /dev/stdout
 ```
 
 ```
@@ -144,9 +175,10 @@ max    1005.000000  7.000000  131.750000
 rows: 5
 ```
 
-Pandas is already installed in the sandbox image, as are the usual data
-libraries, so there is no dependency management to do for straightforward
-analysis.
+Pandas was already present in the sandbox image at the time of writing, so
+there was no dependency management to do for straightforward analysis. That
+is an observation about the managed image rather than a documented contract,
+so check what you actually need is there before you depend on it.
 
 ## 4 - Testing the walls
 
@@ -162,8 +194,9 @@ urllib.request.urlopen("https://example.com", timeout=8)
 blocked: URLError <urlopen error [Errno -2] Name or service not known>
 ```
 
-No DNS, so nothing resolves. Checking for credentials in the environment
-and for the metadata endpoint that would hand them over:
+The lookup failed at name resolution rather than at connect time. Next, a
+look for credentials in the environment and a probe of the instance
+metadata address:
 
 ```python
 keys = [k for k in os.environ if "AWS" in k or "TOKEN" in k]
@@ -175,17 +208,24 @@ aws-ish env vars: []
 metadata request denied: HTTP 401
 ```
 
-No AWS- or token-named environment variables, and the metadata request
-was denied rather than answered. Treat those as corroboration rather than
-proof; the guarantee to design against is the documented `SANDBOX`
-behaviour, which is that the session has no network egress. What you get
-is code running on untrusted data somewhere it cannot phone home from.
+Read that 401 carefully, because it is weaker evidence than it looks. A 401
+is an answer rather than a refusal to answer, and IMDSv2 returns exactly
+that to an unauthenticated GET because no token has been fetched first. The
+environment scan is narrow in the same way, since credentials need not sit
+in a variable whose name contains `AWS`. Treat both as corroboration rather
+than proof.
+
+The guarantee to design against is the documented `SANDBOX` behaviour, which
+is that the session has no outbound internet egress. What you get is code
+running on untrusted data with no outbound route to the internet. What the
+session hands back still travels through your agent, so what reaches the
+caller stays your decision.
 
 ## Conclusion
 
 A managed sandbox turns "the model says the mean is about sixty" into a
 computed answer, and it moves the processing of untrusted data off your
-agent's microVM into a session with no network egress. One Terraform
+agent's microVM into a session with no outbound internet egress. One Terraform
 resource, three IAM actions and a couple of API calls, with `SANDBOX` as
 the egress control and IAM, session lifecycle and what you return to the
 caller making up the rest of the boundary.

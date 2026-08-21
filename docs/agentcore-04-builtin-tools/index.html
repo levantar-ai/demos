@@ -18,7 +18,7 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Letting an agent run code, without letting it run loose">
 <meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/">
-<meta property="article:published_time" content="2026-07-28">
+<meta property="article:published_time" content="2026-08-21">
 <meta property="article:author" content="Andy Rea">
 <meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
@@ -34,9 +34,9 @@
   "headline": "Letting an agent run code, without letting it run loose",
   "description": "How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can analyse data it was handed rather than guess at it, and what the sandbox does and does not have access to. >",
   "image": "https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png",
-  "datePublished": "2026-07-28",
-  "dateModified": "2026-07-28",
-  "wordCount": 800,
+  "datePublished": "2026-08-21",
+  "dateModified": "2026-08-21",
+  "wordCount": 1000,
   "inLanguage": "en-GB",
   "mainEntityOfPage": {
     "@type": "WebPage",
@@ -173,7 +173,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
-          <div class="facts"><time datetime="2026-07-28">28 July 2026</time><span class="sep">·</span>4 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-08-21">21 August 2026</time><span class="sep">·</span>5 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
       <nav class="series-nav prev">
@@ -193,9 +193,9 @@ it, and what the sandbox does and does not have access to.</p>
 <h2>Longer version</h2>
 <p>Ask a language model to compute statistics over a few hundred rows and it
 will produce numbers that look right. Give it somewhere to actually run
-pandas and it produces numbers that are right. That is the whole argument
-for code execution as a tool, and it is why every serious agent framework
-ends up needing one.</p>
+pandas and it produces numbers you can check, from code you can read, over
+data you can point at. That is the whole argument for code execution as a
+tool.</p>
 <p>The problem is where that execution happens. Parsing a stranger's CSV
 with pandas inside your agent's own process puts a parser you did not
 write, working on data you do not control, right next to your
@@ -211,7 +211,7 @@ post wires one up and then pokes at the walls.</p>
 <p><img alt="Architecture" src="architecture.png" /></p>
 <video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
 <h2>1 - The sandbox</h2>
-<p>One resource, and the network mode is the control that matters most:</p>
+<p>One resource, and the network mode is the control this post turns on:</p>
 <pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_code_interpreter&quot; &quot;sandbox&quot; {
   name        = &quot;demos_agentcore_04_interpreter&quot;
   description = &quot;Sandboxed pandas analysis for the demos series&quot;
@@ -221,10 +221,13 @@ post wires one up and then pokes at the walls.</p>
   }
 }
 </code></pre>
-<p><code>SANDBOX</code> means the session gets no network access. The other option is
-<code>PUBLIC</code>, which gives the sandbox outbound internet access, and you want
-to be deliberate about choosing it, because that is the mode where a
-malicious payload could exfiltrate whatever it can see.</p>
+<p><code>SANDBOX</code> means the session gets no outbound internet access. The other
+option is <code>PUBLIC</code>, which gives the sandbox outbound internet access, and
+you want
+to be deliberate about choosing it, because that is the mode where code
+running in the session could reach the network on its own. The threat is
+the code that executes, whether you wrote it or a model did, not the CSV
+sitting on disk.</p>
 <blockquote>
 <p>NOTE: <code>SANDBOX</code> is the egress control, not the whole boundary. IAM
 decides who can start and invoke a session, you decide what data goes
@@ -272,8 +275,26 @@ ones being <code>writeFiles</code>, <code>executeCode</code>, <code>executeComma
 helper that drains every stream and raises when a tool sets <code>isError</code>,
 which is easy to skip and then wonder why a failed run looks like a
 successful empty one.</p>
-<p>Sessions are the thing to be careful with. The agent stops its session in
-a <code>finally</code> block, because a session lives until its timeout otherwise.</p>
+<p>Sessions are the thing to be careful with, because one lives until its
+timeout whether or not you are still using it. The agent opens a session,
+works in it, and stops it in a <code>finally</code> so a failed run cleans up too:</p>
+<pre><code class="language-python">def session_for(interpreter, name):
+    resp = client().start_code_interpreter_session(
+        codeInterpreterIdentifier=interpreter,
+        name=name,
+        sessionTimeoutSeconds=900,
+    )
+    return resp[&quot;sessionId&quot;]
+
+
+session_id = None
+try:
+    session_id = self.start(interpreter, &quot;analysis&quot;)
+    self._send(200, {&quot;result&quot;: self.run(csv_text, session_id)})
+finally:
+    if session_id is not None:
+        self.stop(interpreter, session_id)
+</code></pre>
 <blockquote>
 <p>NOTE: files land in the session's working directory, not in <code>/tmp</code>. Write
 to <code>data.csv</code> and read <code>data.csv</code>, and resist the urge to be clever with
@@ -290,7 +311,15 @@ sessions</code>), so stop sessions rather than waiting them out.</p>
 <h2>3 - Analysing something</h2>
 <p>Post a CSV to the agent and the numbers come back computed rather than
 imagined:</p>
-<pre><code class="language-bash">--payload '{&quot;csv&quot;: &quot;order_id,items,total\n1001,3,42.50\n1002,1,12.00\n...&quot;}'
+<pre><code class="language-bash">cat payload.json
+# {&quot;csv&quot;: &quot;order_id,items,total\n1001,3,42.50\n1002,1,12.00\n1003,7,131.75\n1004,2,28.40\n1005,5,88.20\n&quot;}
+
+aws bedrock-agentcore invoke-agent-runtime \
+  --cli-binary-format raw-in-base64-out \
+  --agent-runtime-arn &quot;$ARN&quot; \
+  --runtime-session-id analysis-session-000000000000000001 \
+  --payload file://payload.json \
+  --region us-east-1 /dev/stdout
 </code></pre>
 <pre><code>order_id     items       total
 count     5.000000  5.000000    5.000000
@@ -304,9 +333,10 @@ max    1005.000000  7.000000  131.750000
 
 rows: 5
 </code></pre>
-<p>Pandas is already installed in the sandbox image, as are the usual data
-libraries, so there is no dependency management to do for straightforward
-analysis.</p>
+<p>Pandas was already present in the sandbox image at the time of writing, so
+there was no dependency management to do for straightforward analysis. That
+is an observation about the managed image rather than a documented contract,
+so check what you actually need is there before you depend on it.</p>
 <h2>4 - Testing the walls</h2>
 <p>The interesting part is what happens when code in the sandbox tries to
 reach out. Running this inside a <code>SANDBOX</code> session:</p>
@@ -315,23 +345,30 @@ urllib.request.urlopen(&quot;https://example.com&quot;, timeout=8)
 </code></pre>
 <pre><code>blocked: URLError &lt;urlopen error [Errno -2] Name or service not known&gt;
 </code></pre>
-<p>No DNS, so nothing resolves. Checking for credentials in the environment
-and for the metadata endpoint that would hand them over:</p>
+<p>The lookup failed at name resolution rather than at connect time. Next, a
+look for credentials in the environment and a probe of the instance
+metadata address:</p>
 <pre><code class="language-python">keys = [k for k in os.environ if &quot;AWS&quot; in k or &quot;TOKEN&quot; in k]
 urllib.request.urlopen(&quot;http://169.254.169.254/latest/meta-data/&quot;, timeout=5)
 </code></pre>
 <pre><code>aws-ish env vars: []
 metadata request denied: HTTP 401
 </code></pre>
-<p>No AWS- or token-named environment variables, and the metadata request
-was denied rather than answered. Treat those as corroboration rather than
-proof; the guarantee to design against is the documented <code>SANDBOX</code>
-behaviour, which is that the session has no network egress. What you get
-is code running on untrusted data somewhere it cannot phone home from.</p>
+<p>Read that 401 carefully, because it is weaker evidence than it looks. A 401
+is an answer rather than a refusal to answer, and IMDSv2 returns exactly
+that to an unauthenticated GET because no token has been fetched first. The
+environment scan is narrow in the same way, since credentials need not sit
+in a variable whose name contains <code>AWS</code>. Treat both as corroboration rather
+than proof.</p>
+<p>The guarantee to design against is the documented <code>SANDBOX</code> behaviour, which
+is that the session has no outbound internet egress. What you get is code
+running on untrusted data with no outbound route to the internet. What the
+session hands back still travels through your agent, so what reaches the
+caller stays your decision.</p>
 <h2>Conclusion</h2>
 <p>A managed sandbox turns "the model says the mean is about sixty" into a
 computed answer, and it moves the processing of untrusted data off your
-agent's microVM into a session with no network egress. One Terraform
+agent's microVM into a session with no outbound internet egress. One Terraform
 resource, three IAM actions and a couple of API calls, with <code>SANDBOX</code> as
 the egress control and IAM, session lifecycle and what you return to the
 caller making up the rest of the boundary.</p>
