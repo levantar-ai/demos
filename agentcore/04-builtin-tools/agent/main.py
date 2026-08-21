@@ -13,7 +13,6 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import boto3
-
 from gateway import lookup_order
 from memory import recall, recap, remember
 

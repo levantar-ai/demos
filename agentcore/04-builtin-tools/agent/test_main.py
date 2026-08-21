@@ -5,9 +5,8 @@ import threading
 import urllib.request
 from http.server import HTTPServer
 
-import pytest
-
 import main
+import pytest
 from main import Handler
 
 calls = []
