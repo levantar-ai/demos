@@ -5,6 +5,7 @@ import threading
 import urllib.request
 from http.server import HTTPServer
 
+import main
 import pytest
 from main import Handler
 
@@ -105,3 +106,65 @@ def test_non_object_json_is_rejected(server_url):
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(req)
     assert exc.value.code == 400
+
+
+class FakeInterpreter:
+    """Records invoke calls and replays a canned stream for each."""
+
+    def __init__(self, streams):
+        self.streams = list(streams)
+        self.invocations = []
+
+    def invoke_code_interpreter(self, **kwargs):
+        self.invocations.append(kwargs)
+        return {"stream": self.streams.pop(0)}
+
+
+def _text_event(text, is_error=False):
+    return {
+        "result": {"isError": is_error, "content": [{"type": "text", "text": text}]}
+    }
+
+
+@pytest.fixture
+def fake(monkeypatch):
+    fake = FakeInterpreter([])
+    monkeypatch.setenv("CODE_INTERPRETER_ID", "ci-test")
+    monkeypatch.setattr(main, "client", lambda: fake)
+    return fake
+
+
+def test_write_files_sends_the_tool_name_and_arguments(fake):
+    fake.streams = [[_text_event("ok")]]
+    assert main.write_files("s1", "data.csv", "a,b\n") == "ok"
+    assert fake.invocations == [
+        {
+            "codeInterpreterIdentifier": "ci-test",
+            "sessionId": "s1",
+            "name": "writeFiles",
+            "arguments": {"content": [{"path": "data.csv", "text": "a,b\n"}]},
+        }
+    ]
+
+
+def test_execute_code_defaults_to_python(fake):
+    fake.streams = [[_text_event("rows: 3")]]
+    assert main.execute_code("s1", "print(1)") == "rows: 3"
+    assert fake.invocations[0]["name"] == "executeCode"
+    assert fake.invocations[0]["arguments"] == {
+        "code": "print(1)",
+        "language": "python",
+    }
+
+
+def test_a_tool_error_raises_rather_than_returning_empty(fake):
+    fake.streams = [[_text_event("NameError: pandas", is_error=True)]]
+    with pytest.raises(RuntimeError, match="NameError"):
+        main.execute_code("s1", "pandas.nope()")
+
+
+def test_analyse_writes_then_executes_in_the_same_session(fake):
+    fake.streams = [[_text_event("")], [_text_event("rows: 2")]]
+    assert main.analyse("a,b\n1,2\n", "s9") == "rows: 2"
+    assert [i["name"] for i in fake.invocations] == ["writeFiles", "executeCode"]
+    assert {i["sessionId"] for i in fake.invocations} == {"s9"}

@@ -48,7 +48,9 @@ def _consume(response):
         if not result:
             continue
         text = "\n".join(
-            item["text"] for item in result.get("content", []) if item.get("type") == "text"
+            item["text"]
+            for item in result.get("content", [])
+            if item.get("type") == "text"
         )
         if result.get("isError"):
             raise RuntimeError(text or "code interpreter tool failed")
@@ -57,26 +59,34 @@ def _consume(response):
     return "\n".join(chunks).strip()
 
 
+# The service exposes one data-plane call, invoke_code_interpreter, which
+# takes a tool name and an arguments blob, the same shape as an MCP tools/call.
+# That suits an agent forwarding model-chosen tools. This agent's code is
+# fixed, so it wraps the tools it uses as functions instead. Callers get
+# named parameters, and the stream is drained in exactly one place, so a
+# failed tool cannot be mistaken for a successful empty one.
+def _call(session_id, name, **arguments):
+    response = client().invoke_code_interpreter(
+        codeInterpreterIdentifier=os.environ["CODE_INTERPRETER_ID"],
+        sessionId=session_id,
+        name=name,
+        arguments=arguments,
+    )
+    return _consume(response)
+
+
+def write_files(session_id, path, text):
+    return _call(session_id, "writeFiles", content=[{"path": path, "text": text}])
+
+
+def execute_code(session_id, code, language="python"):
+    return _call(session_id, "executeCode", code=code, language=language)
+
+
 def analyse(csv_text, session_id):
     """Write the CSV into a sandbox session and describe it with pandas."""
-    interpreter = os.environ["CODE_INTERPRETER_ID"]
-    call = client().invoke_code_interpreter
-    _consume(
-        call(
-            codeInterpreterIdentifier=interpreter,
-            sessionId=session_id,
-            name="writeFiles",
-            arguments={"content": [{"path": "data.csv", "text": csv_text}]},
-        )
-    )
-    return _consume(
-        call(
-            codeInterpreterIdentifier=interpreter,
-            sessionId=session_id,
-            name="executeCode",
-            arguments={"language": "python", "code": ANALYSIS},
-        )
-    )
+    write_files(session_id, "data.csv", csv_text)
+    return execute_code(session_id, ANALYSIS)
 
 
 def stop_session(interpreter, session_id):

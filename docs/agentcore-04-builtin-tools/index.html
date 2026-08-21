@@ -251,30 +251,40 @@ to this one sandbox:</p>
 <h2>2 - The agent</h2>
 <p>The agent's job is to move data in, run code, and read results out. It
 never parses the CSV itself:</p>
-<pre><code class="language-python">def analyse(csv_text, session_id):
-    interpreter = os.environ[&quot;CODE_INTERPRETER_ID&quot;]
-    call = client().invoke_code_interpreter
-    call(
-        codeInterpreterIdentifier=interpreter,
+<pre><code class="language-python">def _call(session_id, name, **arguments):
+    response = client().invoke_code_interpreter(
+        codeInterpreterIdentifier=os.environ[&quot;CODE_INTERPRETER_ID&quot;],
         sessionId=session_id,
-        name=&quot;writeFiles&quot;,
-        arguments={&quot;content&quot;: [{&quot;path&quot;: &quot;data.csv&quot;, &quot;text&quot;: csv_text}]},
+        name=name,
+        arguments=arguments,
     )
-    return _text(
-        call(
-            codeInterpreterIdentifier=interpreter,
-            sessionId=session_id,
-            name=&quot;executeCode&quot;,
-            arguments={&quot;language&quot;: &quot;python&quot;, &quot;code&quot;: ANALYSIS},
-        )
-    )
+    return _consume(response)
+
+
+def write_files(session_id, path, text):
+    return _call(session_id, &quot;writeFiles&quot;, content=[{&quot;path&quot;: path, &quot;text&quot;: text}])
+
+
+def execute_code(session_id, code, language=&quot;python&quot;):
+    return _call(session_id, &quot;executeCode&quot;, code=code, language=language)
+
+
+def analyse(csv_text, session_id):
+    write_files(session_id, &quot;data.csv&quot;, csv_text)
+    return execute_code(session_id, ANALYSIS)
 </code></pre>
-<p><code>invoke_code_interpreter</code> takes a tool name and its arguments, the useful
-ones being <code>writeFiles</code>, <code>executeCode</code>, <code>executeCommand</code>, <code>readFiles</code> and
-<code>listFiles</code>. Responses arrive as an event stream, so there is a small
-helper that drains every stream and raises when a tool sets <code>isError</code>,
-which is easy to skip and then wonder why a failed run looks like a
-successful empty one.</p>
+<p>The service exposes one data-plane call, <code>invoke_code_interpreter</code>, which
+takes a tool name and an arguments blob rather than a method per tool. That
+is the shape of an MCP <code>tools/call</code>, the same protocol the Gateway spoke in
+post 02, and it exists so an agent can forward a model's tool choice
+straight through without a dispatch table. The useful names are
+<code>writeFiles</code>, <code>executeCode</code>, <code>executeCommand</code>, <code>readFiles</code> and <code>listFiles</code>.</p>
+<p>This agent's code is fixed, so it gains nothing from the dynamic shape and
+wraps the two tools it uses as functions with named parameters. That also
+puts the stream handling in one place. Responses arrive as an event stream,
+and a tool that fails sets <code>isError</code> inside that stream rather than raising,
+so <code>_consume</code> drains every call and raises on <code>isError</code>. Skip that and a
+failed run looks exactly like a successful empty one.</p>
 <p>Sessions are the thing to be careful with, because one lives until its
 timeout whether or not you are still using it. The agent opens a session,
 works in it, and stops it in a <code>finally</code> so a failed run cleans up too:</p>
