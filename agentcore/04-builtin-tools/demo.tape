@@ -1,4 +1,4 @@
-# VHS tape for the post 04 demo video, billing reconciliation in a sandbox.
+# VHS tape for the post 04 demo video, running pandas in a sandbox.
 # Prereqs (off-camera): stack deployed, aws-vault session warm. Record with:
 #   vhs demo.tape
 # The video shows only the example being exercised. Provisioning is the
@@ -26,11 +26,11 @@ Sleep 1s
 
 Show
 
-Type "# Brightwell's order agent. A customer says they were charged twice in March."
+Type "# an agent that runs pandas in a sandbox, no internet and no credentials in there"
 Enter
 Sleep 1.5s
 
-Type "# their charges export, straight from their account page, untrusted input"
+Type "# a CSV, eight of Brightwell's orders. the point is where the code runs, not what it computes"
 Enter
 Sleep 1s
 
@@ -38,20 +38,11 @@ Type `python3 -c 'import json; print(json.load(open("payload.json"))["csv"])'`
 Enter
 Sleep 3s
 
-Type "# the agent fetches their orders through the gateway and joins the two in the sandbox"
+Type "# the agent writes it into a sandbox session, runs pandas there, reads the result back"
 Enter
 Sleep 1s
 
 Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id demo-video-session-000000000000000004 --payload file://payload.json --region us-east-1 /dev/stdout | python3 -c 'import sys,json; print(json.JSONDecoder().raw_decode(sys.stdin.read())[0]["result"])'`
 Enter
 Wait
-Sleep 4s
-
-Type "# and it remembered the query, so a later session can recap it"
-Enter
-Sleep 1s
-
-Type `aws bedrock-agentcore invoke-agent-runtime --cli-binary-format raw-in-base64-out --agent-runtime-arn "$ARN" --runtime-session-id demo-video-session-000000000000000005 --payload '{"actor": "c-1007", "session": "billing-query", "prompt": "recap"}' --region us-east-1 /dev/stdout | python3 -c 'import sys,json; print(*json.JSONDecoder().raw_decode(sys.stdin.read())[0]["result"], sep="\n")'`
-Enter
-Wait
-Sleep 4s
+Sleep 5s
