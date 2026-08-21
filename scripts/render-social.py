@@ -10,7 +10,7 @@ docs/ and references it as og:image.
 
 The card is the same object as the ones levantar.ai renders in
 tools/build-social-cards.py, so the two read as one family in a feed. Same
-dark band, same light-teal eyebrow over a hairline rule, same Inter Tight,
+paper ground, same teal eyebrow over a hairline rule, same Inter Tight,
 same mark-and-domain footer. What differs is the middle: the site's cards
 are text only, these carry the demo's architecture diagram, because the
 diagram is the reason to click.
@@ -47,7 +47,9 @@ ACCENT = (13, 82, 87)        # --teal-700   #0d5257, the site's accent on light
 # The artwork tile sits a shade warmer than the canvas so it reads as a panel
 # without a heavy border, the way the site separates surfaces.
 PANEL = (239, 236, 228)      # --paper-warm #efece4
-RULE = (220, 213, 198)       # --rule       #dcd5c6
+# --rule-strong rather than --rule. At feed thumbnail size a 1px --rule edge
+# against --paper is 1.34:1 and disappears, so the panel needs a firmer line.
+RULE = (198, 189, 169)       # --rule-strong #c6bda9
 
 EYEBROW = "AgentCore series"
 # Smaller than the site's 72-42 ramp: these cards give most of their height to
@@ -157,7 +159,7 @@ def main():
     card_y = top + round((area_h - card_h) * (0.40 if square else 0.5))
     draw.rounded_rectangle(
         [card_x, card_y, card_x + card_w, card_y + card_h],
-        radius=16, fill=PANEL, outline=RULE, width=1,
+        radius=16, fill=PANEL, outline=RULE, width=2,
     )
     canvas.paste(art, (card_x + pad_x, card_y + pad_y))
 
