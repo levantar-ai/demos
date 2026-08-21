@@ -4,8 +4,8 @@
 
 How to give an agent a real Python sandbox with AgentCore Code
 Interpreter, so it can reconcile a customer's upload against their orders
-rather than guess at it, and what the sandbox does and does not have
-access to.
+and attach the findings to the case before a person reviews it, and what
+the sandbox does and does not have access to.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools
@@ -22,7 +22,10 @@ attaches the charges export from their account page. Ask a language model
 to read that and say what went wrong and it will produce an answer that
 looks right. Give it somewhere to actually join the export against the
 orders on the account and it produces findings you can check, from code
-you can read, over data you can point at.
+you can read, over data you can point at. That is the agent's job here.
+Not to settle the complaint, but to do the working and attach it to the
+case, so the person who picks it up starts from the finding rather than
+from the email.
 
 There are two inputs here and they are not alike. The orders come from
 Brightwell's own system, fetched by the agent through the gateway, and
@@ -255,6 +258,12 @@ customer's file against the retailer's record, which is a thing a model
 cannot do by reading the file and a thing you would not want it doing
 next to your credentials.
 
+Nothing has been refunded. The agent has no tool that could, `lookup_order`
+and `list_orders` only read, and the report is what a support agent would
+otherwise have spent the first half hour of the case producing by hand. It
+goes into memory against the customer, which is where the case history
+lives for whoever reviews it, and a person decides what happens next.
+
 Pandas was already present in the sandbox image at the time of writing, so
 there was no dependency management to do for straightforward analysis. That
 is an observation about the managed image rather than a documented contract,
@@ -304,8 +313,10 @@ caller stays your decision.
 ## Conclusion
 
 A managed sandbox turns "the model thinks you were probably charged
-twice" into a refund figure, and it moves the processing of untrusted data
-off your agent's microVM into a session with no outbound internet egress.
+twice" into a refund figure a person can act on, and it moves the
+processing of untrusted data off your agent's microVM into a session with
+no outbound internet egress. The agent adds context to the case. It does
+not close it.
 It is also the first post where the series does one job end to end, the
 gateway from post 02 supplying the orders, the sandbox doing the join and
 memory from post 03 keeping the record. One Terraform

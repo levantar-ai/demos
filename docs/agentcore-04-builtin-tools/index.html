@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Letting an agent run code, without letting it run loose — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can reconcile a customer's upload against their orders rather than guess at it, and what the sandbox does and does not have access to. >">
+<meta name="description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can reconcile a customer's upload against their orders and attach the findings to the case before a person reviews it, and what the sandbox does and does not have access to. >">
 <link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/">
 <meta name="author" content="Andy Rea">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -12,7 +12,7 @@
 <meta property="og:site_name" content="Levantar">
 <meta property="og:locale" content="en_GB">
 <meta property="og:title" content="Letting an agent run code, without letting it run loose">
-<meta property="og:description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can reconcile a customer's upload against their orders rather than guess at it, and what the sandbox does and does not have access to. >">
+<meta property="og:description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can reconcile a customer's upload against their orders and attach the findings to the case before a person reviews it, and what the sandbox does and does not have access to. >">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -23,7 +23,7 @@
 <meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Letting an agent run code, without letting it run loose">
-<meta name="twitter:description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can reconcile a customer's upload against their orders rather than guess at it, and what the sandbox does and does not have access to. >">
+<meta name="twitter:description" content="How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can reconcile a customer's upload against their orders and attach the findings to the case before a person reviews it, and what the sandbox does and does not have access to. >">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png">
 <meta name="twitter:image:alt" content="Letting an agent run code, without letting it run loose">
 <link rel="icon" type="image/png" href="../favicon.png">
@@ -32,7 +32,7 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Letting an agent run code, without letting it run loose",
-  "description": "How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can reconcile a customer's upload against their orders rather than guess at it, and what the sandbox does and does not have access to. >",
+  "description": "How to give an agent a real Python sandbox with AgentCore Code Interpreter, so it can reconcile a customer's upload against their orders and attach the findings to the case before a person reviews it, and what the sandbox does and does not have access to. >",
   "image": "https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png",
   "datePublished": "2026-08-21",
   "dateModified": "2026-08-21",
@@ -185,8 +185,8 @@
 <h2>TL;DR;</h2>
 <p>How to give an agent a real Python sandbox with AgentCore Code
 Interpreter, so it can reconcile a customer's upload against their orders
-rather than guess at it, and what the sandbox does and does not have
-access to.</p>
+and attach the findings to the case before a person reviews it, and what
+the sandbox does and does not have access to.</p>
 <blockquote>
 <p>SOURCE CODE - All code for this post is available at:
 <a href="https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools">https://github.com/levantar-ai/demos/tree/main/agentcore/04-builtin-tools</a></p>
@@ -201,7 +201,10 @@ attaches the charges export from their account page. Ask a language model
 to read that and say what went wrong and it will produce an answer that
 looks right. Give it somewhere to actually join the export against the
 orders on the account and it produces findings you can check, from code
-you can read, over data you can point at.</p>
+you can read, over data you can point at. That is the agent's job here.
+Not to settle the complaint, but to do the working and attach it to the
+case, so the person who picks it up starts from the finding rather than
+from the email.</p>
 <p>There are two inputs here and they are not alike. The orders come from
 Brightwell's own system, fetched by the agent through the gateway, and
 they are trusted. The export came from the customer, and it is not. It is
@@ -406,6 +409,11 @@ order charged before a discount applied. Both come from joining the
 customer's file against the retailer's record, which is a thing a model
 cannot do by reading the file and a thing you would not want it doing
 next to your credentials.</p>
+<p>Nothing has been refunded. The agent has no tool that could, <code>lookup_order</code>
+and <code>list_orders</code> only read, and the report is what a support agent would
+otherwise have spent the first half hour of the case producing by hand. It
+goes into memory against the customer, which is where the case history
+lives for whoever reviews it, and a person decides what happens next.</p>
 <p>Pandas was already present in the sandbox image at the time of writing, so
 there was no dependency management to do for straightforward analysis. That
 is an observation about the managed image rather than a documented contract,
@@ -440,8 +448,10 @@ session hands back still travels through your agent, so what reaches the
 caller stays your decision.</p>
 <h2>Conclusion</h2>
 <p>A managed sandbox turns "the model thinks you were probably charged
-twice" into a refund figure, and it moves the processing of untrusted data
-off your agent's microVM into a session with no outbound internet egress.
+twice" into a refund figure a person can act on, and it moves the
+processing of untrusted data off your agent's microVM into a session with
+no outbound internet egress. The agent adds context to the case. It does
+not close it.
 It is also the first post where the series does one job end to end, the
 gateway from post 02 supplying the orders, the sandbox doing the join and
 memory from post 03 keeping the record. One Terraform
