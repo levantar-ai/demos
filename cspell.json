@@ -122,7 +122,12 @@
     "startswith",
     "standfirst",
     "downsample",
-    "binfmt"
+    "binfmt",
+    "Brightwell",
+    "Brightwell's",
+    "groupby",
+    "iterrows",
+    "timespec"
   ],
   "ignorePaths": [
     "node_modules/**",

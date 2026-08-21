@@ -1,9 +1,9 @@
-"""Calling the order tool through AgentCore Gateway.
+"""Calling Brightwell's order tools through AgentCore Gateway.
 
 Carried forward from post 02 so this demo stands alone. The gateway takes a
 bearer token, so this is the stock MCP client with an Authorization header,
 and the client secret is read from Secrets Manager with the runtime role.
-Post 04 is about the code sandbox, so none of this is discussed there.
+Post 04 adds list_orders, which is what the reconciliation joins against.
 """
 
 import asyncio
@@ -20,7 +20,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 # The gateway namespaces tool names as <target>___<tool>, three underscores.
-TOOL_NAME = "orders___lookup_order"
+TARGET = "orders"
 
 # Tokens are reused until shortly before they expire.
 EXPIRY_MARGIN = 60
@@ -85,16 +85,25 @@ def _result_text(result):
     raise RuntimeError(f"tool returned no text content: {result.content}")
 
 
-async def _call_tool(order_id):
+async def _call_tool(tool, arguments):
     headers = {"Authorization": f"Bearer {access_token()}"}
     async with (
-        streamablehttp_client(os.environ["GATEWAY_URL"], headers=headers) as (read, write, _),
+        streamablehttp_client(os.environ["GATEWAY_URL"], headers=headers) as (
+            read,
+            write,
+            _,
+        ),
         ClientSession(read, write) as session,
     ):
         await session.initialize()
-        result = await session.call_tool(TOOL_NAME, {"order_id": order_id})
+        result = await session.call_tool(f"{TARGET}___{tool}", arguments)
         return _result_text(result)
 
 
 def lookup_order(order_id):
-    return asyncio.run(_call_tool(order_id))
+    return asyncio.run(_call_tool("lookup_order", {"order_id": order_id}))
+
+
+def list_orders(customer_id):
+    """The customer's orders as the tool returns them, JSON text."""
+    return asyncio.run(_call_tool("list_orders", {"customer_id": customer_id}))
