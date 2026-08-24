@@ -18,8 +18,8 @@ and memory. This post gives it somewhere to run code.
 
 It is a mechanism post, and it is worth saying what that means. The agent
 here is a Python handler. There is no language model in it, the routing is
-code, and the sandbox gets called because the handler calls it. Post 06 is
-where a model is handed these tools and chooses for itself, and that is
+code, and the sandbox gets called because the handler calls it. A later
+post hands a model these tools to choose from for itself, and that is
 where the sandbox earns its place, because the code it runs will have been
 written by a model in answer to a question nobody wrote code for. This post
 is the plumbing that has to work first.
@@ -247,10 +247,10 @@ return to the caller making up the rest of the boundary.
 Nothing in this post decided to use the sandbox. The handler called it.
 That is the right place to start, because the lifecycle, the stream
 handling and the walls all have to be understood before a model is let
-anywhere near them. Post 06 hands a model the tools this series has built,
-the order lookups, memory and this sandbox, and asks it a question nobody
-wrote code for. That is when the sandbox runs code a model wrote, which is
-the case it exists for.
+anywhere near them. A later post in the series hands a model the tools it
+has built, the order lookups, memory and this sandbox, and asks it a
+question nobody wrote code for. That is when the sandbox runs code a model
+wrote, which is the case it exists for.
 
 The next post gives the agent an identity of its own, inbound
 authentication for callers and outbound OAuth so it can act on a user's

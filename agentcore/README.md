@@ -13,9 +13,9 @@ The series builds one thing, the order support agent for Brightwell, a small
 online retailer of outdoor kit that ships with DPD and Royal Mail. Posts 01
 to 04 put the primitives in place, a runtime, a tool that looks orders up,
 memory and a sandbox, each as a plain Python handler with no model in it.
-Post 06 puts a model in the loop and hands it those primitives, which is
-where they start working together, and each later post makes that one agent
-fit for production.
+A later post puts a model in the loop and hands it those primitives, which
+is where they start working together, and the posts after that make the one
+agent fit for production.
 
 The orders behind it are generated, three hundred across forty customers,
 by `scripts/make_orders.py`, so every demo from 04 on works against the
