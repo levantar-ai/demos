@@ -36,7 +36,7 @@
   "image": "https://levantar-ai.github.io/demos/agentcore-04-builtin-tools/social.png",
   "datePublished": "2026-08-21",
   "dateModified": "2026-08-21",
-  "wordCount": 1400,
+  "wordCount": 1200,
   "inLanguage": "en-GB",
   "mainEntityOfPage": {
     "@type": "WebPage",
@@ -173,7 +173,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
-          <div class="facts"><time datetime="2026-08-21">21 August 2026</time><span class="sep">·</span>7 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-08-21">21 August 2026</time><span class="sep">·</span>6 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
       <nav class="series-nav prev">
@@ -375,22 +375,8 @@ urllib.request.urlopen(&quot;https://example.com&quot;, timeout=8)
 </code></pre>
 <pre><code>blocked: URLError &lt;urlopen error [Errno -2] Name or service not known&gt;
 </code></pre>
-<p>The lookup failed at name resolution rather than at connect time. Next, a
-look for credentials in the environment and a probe of the instance
-metadata address:</p>
-<pre><code class="language-python">keys = [k for k in os.environ if &quot;AWS&quot; in k or &quot;TOKEN&quot; in k]
-urllib.request.urlopen(&quot;http://169.254.169.254/latest/meta-data/&quot;, timeout=5)
-</code></pre>
-<pre><code>aws-ish env vars: []
-metadata request denied: HTTP 401
-</code></pre>
-<p>Read that 401 carefully, because it is weaker evidence than it looks. A 401
-is an answer rather than a refusal to answer, and IMDSv2 returns exactly
-that to an unauthenticated GET because no token has been fetched first. The
-environment scan is narrow in the same way, since credentials need not sit
-in a variable whose name contains <code>AWS</code>. Treat both as corroboration rather
-than proof.</p>
-<p>The guarantee to design against is the documented <code>SANDBOX</code> behaviour, which
+<p>One failed request is an illustration, not a proof. The guarantee to
+design against is the documented <code>SANDBOX</code> behaviour, which
 is that the session has no outbound internet egress. What you get is code
 running on untrusted data with no outbound route to the internet. What the
 session hands back still travels through your agent, so what reaches the

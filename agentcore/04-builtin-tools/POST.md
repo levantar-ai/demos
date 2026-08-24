@@ -229,28 +229,8 @@ urllib.request.urlopen("https://example.com", timeout=8)
 blocked: URLError <urlopen error [Errno -2] Name or service not known>
 ```
 
-The lookup failed at name resolution rather than at connect time. Next, a
-look for credentials in the environment and a probe of the instance
-metadata address:
-
-```python
-keys = [k for k in os.environ if "AWS" in k or "TOKEN" in k]
-urllib.request.urlopen("http://169.254.169.254/latest/meta-data/", timeout=5)
-```
-
-```
-aws-ish env vars: []
-metadata request denied: HTTP 401
-```
-
-Read that 401 carefully, because it is weaker evidence than it looks. A 401
-is an answer rather than a refusal to answer, and IMDSv2 returns exactly
-that to an unauthenticated GET because no token has been fetched first. The
-environment scan is narrow in the same way, since credentials need not sit
-in a variable whose name contains `AWS`. Treat both as corroboration rather
-than proof.
-
-The guarantee to design against is the documented `SANDBOX` behaviour, which
+One failed request is an illustration, not a proof. The guarantee to
+design against is the documented `SANDBOX` behaviour, which
 is that the session has no outbound internet egress. What you get is code
 running on untrusted data with no outbound route to the internet. What the
 session hands back still travels through your agent, so what reaches the
