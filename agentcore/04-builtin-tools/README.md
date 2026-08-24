@@ -3,8 +3,8 @@
 Extends the demo 03 agent with a managed Python sandbox (AgentCore Code
 Interpreter). Post a CSV and the agent writes it into a sandbox session and
 runs pandas over it there, rather than parsing the file in its own microVM.
-A mechanism demo with no model in it; post 06 is where a model is handed
-these tools.
+A mechanism demo with no model in it; a later post in the series hands a
+model these tools.
 
 Each demo in the series is independently deployable and carries the
 previous one forward, so the gateway, its Cognito pool and the tool
