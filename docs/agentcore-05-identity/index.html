@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Knowing who your agent is acting for, with AgentCore Identity — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is a known customer, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault so the agent's code never handles a secret. >">
+<meta name="description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is an authenticated user of a Cognito pool that Brightwell controls, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault ">
 <link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-05-identity/">
 <meta name="author" content="Andy Rea">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -12,7 +12,7 @@
 <meta property="og:site_name" content="Levantar">
 <meta property="og:locale" content="en_GB">
 <meta property="og:title" content="Knowing who your agent is acting for, with AgentCore Identity">
-<meta property="og:description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is a known customer, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault so the agent's code never handles a secret. >">
+<meta property="og:description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is an authenticated user of a Cognito pool that Brightwell controls, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault ">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -23,7 +23,7 @@
 <meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Knowing who your agent is acting for, with AgentCore Identity">
-<meta name="twitter:description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is a known customer, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault so the agent's code never handles a secret. >">
+<meta name="twitter:description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is an authenticated user of a Cognito pool that Brightwell controls, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault ">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
 <meta name="twitter:image:alt" content="Knowing who your agent is acting for, with AgentCore Identity">
 <link rel="icon" type="image/png" href="../favicon.png">
@@ -32,11 +32,11 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Knowing who your agent is acting for, with AgentCore Identity",
-  "description": "How to put a JWT authorizer on an AgentCore Runtime so every caller is a known customer, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault so the agent's code never handles a secret. >",
+  "description": "How to put a JWT authorizer on an AgentCore Runtime so every caller is an authenticated user of a Cognito pool that Brightwell controls, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault ",
   "image": "https://levantar-ai.github.io/demos/agentcore-05-identity/social.png",
   "datePublished": "2026-09-07",
   "dateModified": "2026-09-07",
-  "wordCount": 1200,
+  "wordCount": 1600,
   "inLanguage": "en-GB",
   "mainEntityOfPage": {
     "@type": "WebPage",
@@ -173,7 +173,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
-          <div class="facts"><time datetime="2026-09-07">7 September 2026</time><span class="sep">·</span>6 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-09-07">7 September 2026</time><span class="sep">·</span>8 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
       <nav class="series-nav prev">
@@ -183,11 +183,12 @@
         </a>
       </nav>
 <h2>TL;DR;</h2>
-<p>How to put a JWT authorizer on an AgentCore Runtime so every caller is a
-known customer, have the agent take that identity from the verified token
-rather than the request body, and move the agent's own credentials into
-AgentCore Identity's token vault so the agent's code never handles a
-secret.</p>
+<p>How to put a JWT authorizer on an AgentCore Runtime so every caller is an
+authenticated user of a Cognito pool that Brightwell controls, have the
+agent take that identity from the verified token rather than the request
+body, and move the agent's own credentials into AgentCore Identity's token
+vault so the agent's code asks for a token rather than handling the
+secret itself.</p>
 <blockquote>
 <p>SOURCE CODE - All code for this post is available at:
 <a href="https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity">https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity</a></p>
@@ -197,33 +198,44 @@ secret.</p>
 Brightwell, a small online retailer of outdoor kit that ships with DPD and
 Royal Mail. Posts 01 to 04 gave it a runtime, a tool that looks orders up,
 memory and a sandbox. None of them knew who was asking.</p>
-<p>That was deliberate, and it left two gaps that were flagged as they went
-past. Post 02 noted that every call to the gateway carried the same
-workload identity, so the gateway established that a legitimate client was
-calling, not that it was entitled to a particular order. Post 03 took the
-memory actor straight from the request body, with a note that a real
-application maps it from an identity the workload has actually verified.
-Until now, anyone who could invoke the runtime could say they were anyone.</p>
-<p>This post closes both. Inbound, the runtime validates a customer's bearer
-token before the agent sees the request, and the agent takes the customer
-from the token's claims. Outbound, the agent stops holding a client secret
-to reach the gateway and asks AgentCore Identity for a token instead. Both
-halves are the precondition for the next post, where a model is handed
-these tools and has to act as a known customer rather than as a string the
-caller supplied.</p>
+<p>That was deliberate, and it left two gaps. The gateway in post 02 knew a
+legitimate client was calling, not which customer, and the memory in post
+03 took its actor from the request body. Until now, anyone who could
+invoke the runtime could say they were anyone.</p>
+<p>This post addresses both. Inbound, the runtime validates a customer's
+bearer token before the agent sees the request, and the agent takes the
+customer from the token's claims. Outbound, the agent stops holding a
+client secret to reach the gateway and asks AgentCore Identity for a token
+instead. What it does not do is carry the customer's identity through to
+the gateway. The gateway and the tool behind it still see the agent's own
+identity, so the customer scope is enforced in the agent's code, and that
+is worth keeping in view for the post where a model starts choosing tool
+arguments.</p>
 <p><img alt="Architecture" src="architecture.png" /></p>
 <video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
 <h2>1 - Inbound, the runtime checks the caller</h2>
 <p>The Cognito pool from post 02 gains a second app client. The agent's
 client is a machine with a secret and the <code>client_credentials</code> grant.
-Customers are people, so their client has no secret and signs in with a
-password:</p>
+Customers get a public client with no secret. It allows the password
+flow, which keeps this demo to a CLI, and a customer-facing application
+would use Cognito's managed login with the authorization code flow and
+PKCE instead:</p>
 <pre><code class="language-hcl">resource &quot;aws_cognito_user_pool_client&quot; &quot;customers&quot; {
   name         = &quot;${local.name_prefix}-customers&quot;
   user_pool_id = aws_cognito_user_pool.agents.id
 
   generate_secret     = false
   explicit_auth_flows = [&quot;ALLOW_USER_PASSWORD_AUTH&quot;, &quot;ALLOW_REFRESH_TOKEN_AUTH&quot;]
+}
+</code></pre>
+<p>A token from this client proves the caller signed in to the pool. What
+makes that caller a Brightwell customer is that Brightwell creates the
+accounts, with the customer id as the username, and nobody else can. The
+pool's default allows self sign-up, which would let anyone with the public
+client id register a customer id before its owner, so the pool is set to
+admin-only creation:</p>
+<pre><code class="language-hcl">admin_create_user_config {
+  allow_admin_create_user_only = true
 }
 </code></pre>
 <p>The runtime then gets a JWT authorizer pointed at the pool's discovery
@@ -243,8 +255,8 @@ request_header_configuration {
 <p>From here the runtime checks the signature, issuer, expiry and client id
 of every bearer token before a request reaches the agent. A missing token
 gets a 401 from the service, a valid token from the wrong client gets a
-401 naming the mismatched claim, and IAM SigV4 invocation is off, a
-runtime accepts one method or the other.</p>
+401 naming the mismatched claim, and SigV4 invocation no longer works on
+this runtime, because a runtime accepts one inbound method or the other.</p>
 <blockquote>
 <p>NOTE: the allowlist is what makes the token visible to the agent. Without
 it the runtime still validates the token, but the container never sees
@@ -252,8 +264,9 @@ it and the agent has no way of knowing who called.</p>
 </blockquote>
 <h2>2 - The agent reads who is calling</h2>
 <p>Brightwell's customer ids are the usernames in the pool, so the access
-token's <code>username</code> claim is the customer id. The agent decodes the payload
-and takes the customer from there:</p>
+token's <code>username</code> claim is the customer id. The agent decodes the
+payload, checks it is an access token rather than an ID token, and takes
+the customer from there:</p>
 <pre><code class="language-python">def claims_from(headers):
     auth = headers.get(&quot;Authorization&quot;, &quot;&quot;)
     if not auth.startswith(&quot;Bearer &quot;):
@@ -268,7 +281,10 @@ and takes the customer from there:</p>
 
 
 def customer_from(headers):
-    username = (claims_from(headers) or {}).get(&quot;username&quot;)
+    claims = claims_from(headers) or {}
+    if claims.get(&quot;token_use&quot;) != &quot;access&quot;:
+        return None
+    username = claims.get(&quot;username&quot;)
     return username if isinstance(username, str) and username else None
 </code></pre>
 <p>Decoding without verifying is the documented pattern here. The runtime has
@@ -280,14 +296,18 @@ says as much:</p>
 <p>You can skip validating the token signature here because AgentCore
 Runtime has already validated the token during inbound authorization.</p>
 </blockquote>
-<p>A request that arrives without a usable token still gets a 401 from the
-agent. That should never happen, and the check is there so a
-misconfiguration fails loudly rather than defaulting to anyone.</p>
+<p>A request that reaches the agent without a usable access token still gets
+a 401 from the agent. That is not a second authentication, a forged
+payload would pass it, since nothing here checks a signature. It catches a
+missing or unusable token so the agent fails loudly rather than carrying
+on with no customer at all. The runtime's authorizer is the only control.</p>
 <p>Every route from posts 02 and 03 now takes the customer from that claim.
 <code>remember</code> and <code>recap</code> use it as the memory actor, and the <code>actor</code> field
-in the request body is gone. Order questions resolve through the customer's
-own orders, so an order id from another account is not found rather than
-looked up:</p>
+in the request body is gone. Order questions are answered from the
+customer's own order list, so an order id from another account comes back
+as not on the account rather than being fetched by id. Post 02's
+<code>lookup_order</code> tool, which answered for any order id, comes off the gateway
+target, since nothing acting for a customer has a use for it:</p>
 <pre><code class="language-python">def find_order(order_id, customer, workload_token):
     listed = json.loads(list_orders(customer, workload_token))
     for order in listed.get(&quot;orders&quot;, []):
@@ -298,9 +318,11 @@ looked up:</p>
 <h2>3 - Outbound, the agent's own credentials</h2>
 <p>Since post 02 the agent has read its Cognito client secret from Secrets
 Manager and minted its own gateway token. AgentCore Identity takes that
-over. An OAuth2 credential provider holds the client's credentials in the
-token vault, and Terraform sends them write-only, so they are never
-persisted in state:</p>
+over. An OAuth2 credential provider holds the agent client's id and secret
+in the token vault. Terraform passes them as write-only arguments, so this
+resource keeps no copy of the secret in state. The Cognito app client still
+holds its computed secret in state, as it has since post 02, which is why
+the state backend is encrypted and locked down:</p>
 <pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_oauth2_credential_provider&quot; &quot;gateway&quot; {
   name                       = &quot;${local.name_prefix}-gateway&quot;
   credential_provider_vendor = &quot;CustomOauth2&quot;
@@ -316,12 +338,17 @@ persisted in state:</p>
       }
     }
   }
+
+  depends_on = [aws_cognito_user_pool_domain.agents]
 }
 </code></pre>
+<p>The provider fetches the discovery document when it is created, and the
+token endpoint is only in that document once the pool has a domain, hence
+the <code>depends_on</code>.</p>
 <p>Alongside the customer's token, the runtime hands the container a workload
-access token, an opaque token that identifies this agent, and the customer
-it is acting for, to AgentCore Identity. The agent presents it and gets a
-gateway token back. The secret read, the form post and the token cache
+access token in a request header. It represents the runtime's workload
+identity, and the agent treats it as opaque and presents it to AgentCore
+Identity, which hands a gateway token back. The secret read, the form post and the token cache
 from post 02 collapse to one call:</p>
 <pre><code class="language-python">def access_token(workload_token):
     response = client().get_resource_oauth2_token(
@@ -333,14 +360,17 @@ from post 02 collapse to one call:</p>
     return response[&quot;accessToken&quot;]
 </code></pre>
 <p><code>M2M</code> is the <code>client_credentials</code> flow. The same call with
-<code>USER_FEDERATION</code> is how an agent gets a token for a third party such as
-Google or GitHub on the customer's behalf, with the consent step and the
-per-customer token both handled by the vault. Brightwell's agent has no
-third party to reach yet, so that stays a sentence.</p>
+<code>USER_FEDERATION</code> is the path to a third party such as Google or GitHub on
+the customer's behalf. That needs an OAuth app registered with the
+provider and a callback URL on the workload identity, and this demo does
+not build it.</p>
 <p>The execution role needs two statements for this. The token call is scoped
 to this provider and this runtime's workload identity, and the vault reads
 the client secret in the caller's name, so the role also has to be allowed
-to read that one secret:</p>
+to read that one secret. That second statement is worth being clear about.
+The agent's code no longer handles the secret, but the role it runs under
+can still read it, so this is about credentials staying out of the code
+rather than about isolating a compromised agent from them:</p>
 <pre><code class="language-hcl">{
   Sid    = &quot;GatewayTokenFromVault&quot;
   Effect = &quot;Allow&quot;
@@ -362,23 +392,35 @@ to read that one secret:</p>
 <blockquote>
 <p>NOTE: leave the second statement out and the token call fails with an
 <code>AccessDeniedException</code> naming a secret under
-<code>bedrock-agentcore-identity!default/oauth2/</code>. The vault owns that secret
-and reads it with the runtime's role, so the role has to be allowed to.</p>
+<code>bedrock-agentcore-identity!default/oauth2/</code>.</p>
 </blockquote>
 <h2>4 - Running it</h2>
-<p>A customer account, with the password set out of band and never written
-down:</p>
-<pre><code class="language-bash">aws cognito-idp admin-create-user \
+<p>With the stack deployed (<code>make demo-init demo-image demo-apply
+DEMO=agentcore/05-identity</code> from the repository root), the region, the
+pool, the customers' client id and the runtime's invocation URL are
+Terraform outputs. The password is read from the terminal so nothing in
+the repo or the shell history holds it:</p>
+<pre><code class="language-bash">cd agentcore/05-identity
+REGION=$(terraform -chdir=terraform output -raw aws_region)
+POOL=$(terraform -chdir=terraform output -raw user_pool_id)
+CLIENT_ID=$(terraform -chdir=terraform output -raw customers_client_id)
+INVOKE_URL=$(terraform -chdir=terraform output -raw invoke_url)
+SESSION=identity-demo-session-00000000000000001
+read -rsp &quot;Customer password: &quot; PASSWORD; echo
+</code></pre>
+<p>Then a customer account:</p>
+<pre><code class="language-bash">aws cognito-idp admin-create-user --region &quot;$REGION&quot; \
   --user-pool-id &quot;$POOL&quot; --username c-1000 --message-action SUPPRESS
-aws cognito-idp admin-set-user-password \
+aws cognito-idp admin-set-user-password --region &quot;$REGION&quot; \
   --user-pool-id &quot;$POOL&quot; --username c-1000 --password &quot;$PASSWORD&quot; --permanent
 </code></pre>
 <p>The customer signs in and gets an access token whose <code>username</code> is their
 customer id:</p>
-<pre><code class="language-bash">TOKEN=$(aws cognito-idp initiate-auth --client-id &quot;$CLIENT_ID&quot; \
+<pre><code class="language-bash">TOKEN=$(aws cognito-idp initiate-auth --region &quot;$REGION&quot; --client-id &quot;$CLIENT_ID&quot; \
   --auth-flow USER_PASSWORD_AUTH \
   --auth-parameters USERNAME=c-1000,PASSWORD=&quot;$PASSWORD&quot; \
   --query AuthenticationResult.AccessToken --output text)
+unset PASSWORD
 </code></pre>
 <p>With a JWT authorizer the runtime is called over HTTPS with that token
 rather than through the SigV4-signed CLI, and the body no longer says who
@@ -389,7 +431,8 @@ is asking:</p>
   -H &quot;X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION&quot; \
   -d '{&quot;prompt&quot;: &quot;list my orders&quot;}'
 </code></pre>
-<pre><code class="language-json">{&quot;result&quot;: {&quot;customer_id&quot;: &quot;c-1000&quot;, &quot;orders&quot;: [
+<p>The response, abridged to the first two orders and the last:</p>
+<pre><code>{&quot;result&quot;: {&quot;customer_id&quot;: &quot;c-1000&quot;, &quot;orders&quot;: [
   {&quot;order_id&quot;: 1033, &quot;placed_at&quot;: &quot;2026-01-22&quot;, &quot;items&quot;: 1, &quot;total&quot;: 12.0, &quot;status&quot;: &quot;delivered&quot;, &quot;carrier&quot;: &quot;DPD&quot;, &quot;eta&quot;: null},
   {&quot;order_id&quot;: 1038, &quot;placed_at&quot;: &quot;2026-01-26&quot;, &quot;items&quot;: 4, &quot;total&quot;: 238.0, &quot;status&quot;: &quot;delivered&quot;, &quot;carrier&quot;: &quot;DPD&quot;, &quot;eta&quot;: null},
   ...
@@ -399,7 +442,11 @@ is asking:</p>
 <p>Seven orders, all c-1000's, because the agent asked for c-1000's orders
 and nothing in the request could have said otherwise. An order on someone
 else's account gets nothing:</p>
-<pre><code class="language-bash">-d '{&quot;prompt&quot;: &quot;where is order 1014?&quot;}'
+<pre><code class="language-bash">curl -s &quot;$INVOKE_URL&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -H &quot;X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION&quot; \
+  -d '{&quot;prompt&quot;: &quot;where is order 1014?&quot;}'
 # {&quot;result&quot;: {&quot;error&quot;: &quot;order 1014 is not on your account&quot;}}
 </code></pre>
 <p>And without a token the request never reaches the agent:</p>
@@ -409,23 +456,26 @@ www-authenticate: Bearer resource_metadata=&quot;https://bedrock-agentcore.us-ea
 {&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;error&quot;:{&quot;code&quot;:-32001,&quot;message&quot;:&quot;Missing Authentication Token&quot;}}
 </code></pre>
 <blockquote>
-<p>NOTE: the session id header is still required and still has to be at
-least 33 characters, exactly as with the CLI. <code>$INVOKE_URL</code> is the
-runtime ARN URL-encoded into the service endpoint, and the demo's
-Terraform emits it as an output.</p>
+<p>NOTE: the session id header is optional, the service allocates one when
+it is absent, but when you send one it still has to be at least 33
+characters, exactly as with the CLI. <code>$INVOKE_URL</code> is the runtime ARN
+URL-encoded into the service endpoint, and the demo's Terraform emits it
+as an output.</p>
 </blockquote>
 <h2>Conclusion</h2>
 <p>The agent now knows who it is acting for. The runtime validates the
-customer's token, the agent takes the customer from claims it did not
-have to trust, and every order lookup, memory read and memory write is
-scoped to that customer. The agent's own credentials live in the token
-vault and its code holds no secret, one Terraform resource, two IAM
-statements and one API call.</p>
+customer's token, the agent takes the customer from claims the runtime
+has already verified, and it scopes every order question, memory read and memory
+write to that customer. The gateway still trusts the agent's arguments,
+which is the boundary to keep in mind when a model starts choosing them. The agent's own credentials live in the token
+vault and its code holds no secret, and that took one Terraform resource,
+two IAM statements and one API call.</p>
 <p>That is the precondition for the next post, where a Bedrock model is
 handed the tools this series has built, the order lookups, memory and the
 sandbox, and asked a question nobody wrote code for. It will answer as
-the customer this post identified, which is the only sensible way to let
-a model choose.</p>
+the customer this post identified, which means the customer id is
+injected by the agent from the verified token and kept out of any tool
+argument the model controls.</p>
 <p>References:</p>
 <ul>
 <li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity">https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity</a></li>
