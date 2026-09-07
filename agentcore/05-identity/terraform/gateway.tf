@@ -1,0 +1,103 @@
+# The gateway: fronts the tool Lambda as an MCP server, authenticating
+# callers with JWTs issued by the Cognito pool in cognito.tf.
+
+resource "aws_iam_role" "gateway" {
+  name = "${local.name_prefix}-gateway"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = { Service = "bedrock-agentcore.amazonaws.com" }
+        Action    = "sts:AssumeRole"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+          ArnLike = {
+            "aws:SourceArn" = "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Project = "demos"
+    Demo    = local.demo_slug
+  }
+}
+
+resource "aws_iam_role_policy" "gateway" {
+  name = "invoke-tools"
+  role = aws_iam_role.gateway.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = aws_lambda_function.tool.arn
+      }
+    ]
+  })
+}
+
+# CUSTOM_JWT: the gateway fetches the pool's signing keys from the
+# discovery URL and validates every caller's token itself. Note that
+# authorizer_type is immutable, so changing it later means replacing the
+# gateway.
+resource "aws_bedrockagentcore_gateway" "orders" {
+  name            = "${local.name_prefix}-gw"
+  role_arn        = aws_iam_role.gateway.arn
+  protocol_type   = "MCP"
+  authorizer_type = "CUSTOM_JWT"
+
+  authorizer_configuration {
+    custom_jwt_authorizer {
+      discovery_url   = local.discovery_url
+      allowed_clients = [aws_cognito_user_pool_client.agent.id]
+      allowed_scopes  = aws_cognito_resource_server.orders.scope_identifiers
+    }
+  }
+}
+
+resource "aws_bedrockagentcore_gateway_target" "orders" {
+  gateway_identifier = aws_bedrockagentcore_gateway.orders.gateway_id
+  name               = "orders"
+
+  credential_provider_configuration {
+    gateway_iam_role {}
+  }
+
+  target_configuration {
+    mcp {
+      lambda {
+        lambda_arn = aws_lambda_function.tool.arn
+
+        # One tool, scoped to a customer. Post 02's lookup_order took any
+        # order id and answered for any customer, which nothing scoped to
+        # a caller can use, so it is not carried forward.
+        tool_schema {
+          inline_payload {
+            name        = "list_orders"
+            description = "List every order on a customer's account, with totals and status"
+
+            input_schema {
+              type = "object"
+
+              property {
+                name        = "customer_id"
+                type        = "string"
+                description = "The customer id whose orders to list"
+                required    = true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
