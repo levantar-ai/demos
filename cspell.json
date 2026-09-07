@@ -133,7 +133,8 @@
     "urlsafe",
     "isinstance",
     "Oauth",
-    "oauth2credentialprovider"
+    "oauth2credentialprovider",
+    "PKCE"
   ],
   "ignorePaths": [
     "node_modules/**",

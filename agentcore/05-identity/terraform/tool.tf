@@ -37,7 +37,7 @@ resource "aws_lambda_function" "tool" {
   function_name    = "${local.name_prefix}-orders"
   role             = aws_iam_role.tool.arn
   runtime          = "python3.12"
-  handler          = "lookup_order.handler"
+  handler          = "orders.handler"
   filename         = data.archive_file.tool.output_path
   source_code_hash = data.archive_file.tool.output_base64sha256
 

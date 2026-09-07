@@ -7,6 +7,13 @@
 resource "aws_cognito_user_pool" "agents" {
   name = "${local.name_prefix}-pool"
 
+  # Usernames are Brightwell's customer ids, so Brightwell creates the
+  # accounts. Cognito's default allows self sign-up, which would let anyone
+  # with the public client id register a customer id before its owner.
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+  }
+
   tags = {
     Project = "demos"
     Demo    = local.demo_slug

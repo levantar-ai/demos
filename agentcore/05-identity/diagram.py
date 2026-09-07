@@ -64,7 +64,7 @@ with Diagram(
 
     customer >> Edge(label="sign in", style="dashed") >> cognito
     customer >> Edge(label="invoke\n(Bearer JWT)") >> agent
-    agent >> Edge(label="gateway token\n(workload token)") >> identity
+    agent >> Edge(label="GetResourceOauth2Token\n(workload token)") >> identity
     # constraint=false keeps the pool beside the runtime rather than after
     # the vault, so the sign-in edge stays short.
     identity >> Edge(label="client_credentials", style="dashed", constraint="false") >> cognito

@@ -77,23 +77,10 @@ resource "aws_bedrockagentcore_gateway_target" "orders" {
       lambda {
         lambda_arn = aws_lambda_function.tool.arn
 
+        # One tool, scoped to a customer. Post 02's lookup_order took any
+        # order id and answered for any customer, which nothing scoped to
+        # a caller can use, so it is not carried forward.
         tool_schema {
-          inline_payload {
-            name        = "lookup_order"
-            description = "Look up the status of an order by its order id"
-
-            input_schema {
-              type = "object"
-
-              property {
-                name        = "order_id"
-                type        = "string"
-                description = "The order id to look up"
-                required    = true
-              }
-            }
-          }
-
           inline_payload {
             name        = "list_orders"
             description = "List every order on a customer's account, with totals and status"

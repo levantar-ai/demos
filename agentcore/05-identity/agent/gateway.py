@@ -31,8 +31,8 @@ def client():
 def access_token(workload_token):
     """A gateway bearer token from the vault, for this workload, M2M.
 
-    The vault does the client_credentials exchange with Cognito. The agent
-    sees the resulting access token and nothing else.
+    The vault does the client_credentials exchange with Cognito. This call
+    returns the resulting access token and does not return the client secret.
     """
     response = client().get_resource_oauth2_token(
         workloadIdentityToken=workload_token,

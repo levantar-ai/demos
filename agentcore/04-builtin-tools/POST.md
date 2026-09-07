@@ -252,9 +252,9 @@ has built, the order lookups, memory and this sandbox, and asks it a
 question nobody wrote code for. That is when the sandbox runs code a model
 wrote, which is the case it exists for.
 
-The next post gives the agent an identity of its own, inbound
-authentication for callers and outbound OAuth so it can act on a user's
-behalf.
+The next post gives the agent an identity at both ends, inbound
+authentication so it knows which customer is calling, and its own
+credentials held by AgentCore Identity rather than in its code.
 
 References:
 

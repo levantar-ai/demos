@@ -27,9 +27,13 @@ PORT = 8080
 ORDER_RE = re.compile(r"\border\s*#?\s*(\d+)\b", re.IGNORECASE)
 MY_ORDERS_RE = re.compile(r"\bmy orders\b", re.IGNORECASE)
 
-# Headers the runtime adds. The workload access token identifies this agent
-# to AgentCore Identity for the duration of the request; the SDK accepts
-# either spelling, so this does too.
+# Headers the runtime adds. The workload access token represents this
+# runtime's workload identity; the agent treats it as opaque and presents it
+# to AgentCore Identity. AWS's docs name the header WorkloadAccessToken; the
+# SDK (bedrock_agentcore/runtime/app.py) reads
+# X-Amz-Bedrock-AgentCore-Identity-WAT first and falls back to that, so this
+# does the same. Neither can arrive from a caller, the runtime only forwards
+# allowlisted headers.
 WORKLOAD_TOKEN_HEADERS = ("X-Amz-Bedrock-AgentCore-Identity-WAT", "WorkloadAccessToken")
 
 # Runs inside the sandbox, carried forward from post 04.
@@ -63,8 +67,15 @@ def claims_from(headers):
 
 
 def customer_from(headers):
-    """The calling customer. Brightwell's customer ids are the pool's usernames."""
-    username = (claims_from(headers) or {}).get("username")
+    """The calling customer. Brightwell's customer ids are the pool's usernames.
+
+    Only an access token carries the username claim this relies on, so the
+    token type is checked rather than assumed from the authorizer settings.
+    """
+    claims = claims_from(headers) or {}
+    if claims.get("token_use") != "access":
+        return None
+    username = claims.get("username")
     return username if isinstance(username, str) and username else None
 
 
@@ -180,13 +191,6 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/invocations":
             self._send(404, {"error": "not found"})
             return
-        # Who is asking comes from the token the runtime verified, never from
-        # the body. A request that reaches here without one did not come through
-        # the runtime's authorizer.
-        customer = customer_from(self.headers)
-        if customer is None:
-            self._send(401, {"error": "no verified caller"})
-            return
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
@@ -195,8 +199,18 @@ class Handler(BaseHTTPRequestHandler):
         if length <= 0 or length > MAX_BODY_BYTES:
             self._send(413, {"error": "request body must be 1..2MB"})
             return
+        # The body is read before anything is decided about it, so an early
+        # response never races a client that is still sending.
+        body = self.rfile.read(length)
+        # Who is asking comes from the token the runtime verified, never from
+        # the body. This catches a missing or unusable token, it is not a
+        # second authentication, the runtime's authorizer is the only one.
+        customer = customer_from(self.headers)
+        if customer is None:
+            self._send(401, {"error": "no verified caller"})
+            return
         try:
-            payload = json.loads(self.rfile.read(length) or b"{}")
+            payload = json.loads(body or b"{}")
         except json.JSONDecodeError:
             self._send(400, {"error": "invalid JSON"})
             return

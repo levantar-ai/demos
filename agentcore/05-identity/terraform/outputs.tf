@@ -10,6 +10,11 @@ output "invoke_url" {
   value       = "https://bedrock-agentcore.${var.aws_region}.amazonaws.com/runtimes/${urlencode(aws_bedrockagentcore_agent_runtime.agent.agent_runtime_arn)}/invocations?qualifier=DEFAULT"
 }
 
+output "aws_region" {
+  description = "Region the stack is deployed in, for the CLI commands"
+  value       = var.aws_region
+}
+
 output "user_pool_id" {
   description = "Cognito pool the customer accounts live in"
   value       = aws_cognito_user_pool.agents.id

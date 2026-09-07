@@ -22,7 +22,11 @@ covers them.
 - Everything from demo 02, a Lambda behind an AgentCore Gateway with a
   Cognito pool issuing the JWT the gateway validates. The pool gains a
   second app client, `demos-agentcore-05-identity-customers`, with no
-  secret and `USER_PASSWORD_AUTH`, for customers
+  secret and `USER_PASSWORD_AUTH`, for customers, and only admins can
+  create users, so nobody can register a customer id before its owner.
+  The target now exposes `list_orders` only. Post 02's `lookup_order`
+  answered for any order id to whoever held the agent's token, and nothing
+  acting for a customer has a use for it
 - Everything from demo 03 (memory store and `UserPreferences` strategy)
   and demo 04 (Code Interpreter in `SANDBOX` mode)
 - An OAuth2 credential provider, `demos-agentcore-05-identity-gateway`,
@@ -44,23 +48,29 @@ managed key and denies non-TLS and unencrypted writes.
 
 ## Run it
 
+From the repository root:
+
 ```bash
 make demo-init demo-image demo-apply DEMO=agentcore/05-identity
+cd agentcore/05-identity
 ```
 
 Create a customer. Brightwell's customer ids are the pool's usernames, so
-the username is the customer id from `tool/orders.csv`. Pick a password
-that meets Cognito's default policy and keep it out of the shell history:
+the username is the customer id from `tool/orders.csv`. The password has
+to meet Cognito's default policy, and reading it from the terminal keeps
+it out of the shell history:
 
 ```bash
+REGION=$(cd terraform && aws-vault exec lev:andy.rea -- terraform output -raw aws_region)
 POOL=$(cd terraform && aws-vault exec lev:andy.rea -- terraform output -raw user_pool_id)
 CLIENT_ID=$(cd terraform && aws-vault exec lev:andy.rea -- terraform output -raw customers_client_id)
 INVOKE_URL=$(cd terraform && aws-vault exec lev:andy.rea -- terraform output -raw invoke_url)
+read -rsp "Customer password: " PASSWORD; echo
 
-aws-vault exec lev:andy.rea -- aws cognito-idp admin-create-user \
-  --user-pool-id "$POOL" --username c-1000 --message-action SUPPRESS --region us-east-1
-aws-vault exec lev:andy.rea -- aws cognito-idp admin-set-user-password \
-  --user-pool-id "$POOL" --username c-1000 --password "$PASSWORD" --permanent --region us-east-1
+aws-vault exec lev:andy.rea -- aws cognito-idp admin-create-user --region "$REGION" \
+  --user-pool-id "$POOL" --username c-1000 --message-action SUPPRESS
+aws-vault exec lev:andy.rea -- aws cognito-idp admin-set-user-password --region "$REGION" \
+  --user-pool-id "$POOL" --username c-1000 --password "$PASSWORD" --permanent
 ```
 
 Sign in as the customer and call the runtime with the token. With a JWT
@@ -68,10 +78,11 @@ authorizer the runtime is called over HTTPS with a bearer token, the
 SigV4-signed CLI no longer applies:
 
 ```bash
-TOKEN=$(aws-vault exec lev:andy.rea -- aws cognito-idp initiate-auth \
+TOKEN=$(aws-vault exec lev:andy.rea -- aws cognito-idp initiate-auth --region "$REGION" \
   --client-id "$CLIENT_ID" --auth-flow USER_PASSWORD_AUTH \
-  --auth-parameters USERNAME=c-1000,PASSWORD="$PASSWORD" --region us-east-1 \
+  --auth-parameters USERNAME=c-1000,PASSWORD="$PASSWORD" \
   --query AuthenticationResult.AccessToken --output text)
+unset PASSWORD
 
 curl -s "$INVOKE_URL" \
   -H "Authorization: Bearer $TOKEN" \
@@ -88,6 +99,15 @@ the service answers 401 before the agent is involved.
 
 ## Notes kept out of the post
 
+- The two Cognito commands take the password as an argument, so it is
+  visible in the local process table while they run. That is the AWS
+  walkthrough's own shape and fine on a workstation; a provisioning
+  pipeline would use `--cli-input-json` from a file descriptor instead.
+
+- The gateway and the Lambda behind it still only know the agent's
+  identity. Scoping to the customer happens in the agent, which is fine
+  while the agent's code chooses the arguments and is the boundary to
+  think about once a model does.
 - The vault stores the client secret in a Secrets Manager secret named
   `bedrock-agentcore-identity!default/oauth2/<provider>-...` and reads it
   with the caller's role. The provider exports that ARN as

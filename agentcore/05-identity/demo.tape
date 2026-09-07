@@ -19,7 +19,7 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 2s
-Type `unset PROMPT_COMMAND; export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && export INVOKE_URL=$(terraform -chdir=terraform output -raw invoke_url) CLIENT_ID=$(terraform -chdir=terraform output -raw customers_client_id) PASSWORD=$(cat "$BRIGHTWELL_PASSWORD_FILE") SESSION=identity-demo-video-session-00000000000000005 && clear`
+Type `unset PROMPT_COMMAND; export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] ' && export INVOKE_URL=$(terraform -chdir=terraform output -raw invoke_url) CLIENT_ID=$(terraform -chdir=terraform output -raw customers_client_id) REGION=$(terraform -chdir=terraform output -raw aws_region) PASSWORD=$(cat "$BRIGHTWELL_PASSWORD_FILE") SESSION=identity-demo-video-session-00000000000000005 && clear`
 Enter
 Sleep 3s
 Type "clear"
@@ -36,7 +36,7 @@ Type "# sign in as Brightwell customer c-1000 and keep the access token"
 Enter
 Sleep 1s
 
-Type `TOKEN=$(aws cognito-idp initiate-auth --client-id "$CLIENT_ID" --auth-flow USER_PASSWORD_AUTH --auth-parameters USERNAME=c-1000,PASSWORD="$PASSWORD" --region us-east-1 --query AuthenticationResult.AccessToken --output text)`
+Type `TOKEN=$(aws cognito-idp initiate-auth --client-id "$CLIENT_ID" --auth-flow USER_PASSWORD_AUTH --auth-parameters USERNAME=c-1000,PASSWORD="$PASSWORD" --region "$REGION" --query AuthenticationResult.AccessToken --output text)`
 Enter
 Wait
 Sleep 1s

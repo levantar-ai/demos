@@ -66,7 +66,9 @@ def token_for(claims):
 def headers_for(username="c-1000", workload_token="wat-123"):
     headers = {"Content-Type": "application/json"}
     if username is not None:
-        headers["Authorization"] = f"Bearer {token_for({'username': username, 'sub': 'x'})}"
+        headers["Authorization"] = (
+            f"Bearer {token_for({'username': username, 'sub': 'x', 'token_use': 'access'})}"
+        )
     if workload_token:
         headers["WorkloadAccessToken"] = workload_token
     return headers
@@ -101,8 +103,28 @@ def test_a_request_without_a_bearer_token_is_refused(server_url):
 
 def test_a_token_without_a_username_claim_is_refused(server_url):
     headers = headers_for()
-    headers["Authorization"] = f"Bearer {token_for({'sub': 'x'})}"
+    headers["Authorization"] = f"Bearer {token_for({'sub': 'x', 'token_use': 'access'})}"
     assert status_of(f"{server_url}/invocations", {"prompt": "my orders"}, headers) == 401
+
+
+def test_an_id_token_is_refused(server_url):
+    headers = headers_for()
+    claims = {"cognito:username": "c-1000", "username": "c-1000", "token_use": "id"}
+    headers["Authorization"] = f"Bearer {token_for(claims)}"
+    assert status_of(f"{server_url}/invocations", {"prompt": "my orders"}, headers) == 401
+
+
+def test_a_token_without_token_use_is_refused(server_url):
+    headers = headers_for()
+    headers["Authorization"] = f"Bearer {token_for({'username': 'c-1000'})}"
+    assert status_of(f"{server_url}/invocations", {"prompt": "my orders"}, headers) == 401
+
+
+def test_the_body_is_read_before_an_early_401(server_url):
+    """A large body with no token gets the JSON 401, not a reset."""
+    headers = headers_for(username=None)
+    big = {"prompt": "x" * 200_000}
+    assert status_of(f"{server_url}/invocations", big, headers) == 401
 
 
 def test_a_malformed_token_is_refused(server_url):
@@ -176,7 +198,8 @@ def test_invalid_json_is_rejected(server_url):
 
 
 def test_claims_are_decoded_without_verification():
-    headers = {"Authorization": f"Bearer {token_for({'username': 'c-1001', 'exp': 1})}"}
+    claims = {"username": "c-1001", "exp": 1, "token_use": "access"}
+    headers = {"Authorization": f"Bearer {token_for(claims)}"}
     assert main.customer_from(headers) == "c-1001"
     assert main.customer_from({"Authorization": "Basic abc"}) is None
     assert main.customer_from({}) is None
