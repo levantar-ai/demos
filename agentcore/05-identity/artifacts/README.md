@@ -181,7 +181,22 @@ Declined:
   series-wide change with a live check that the service's source ARN
   matches the narrower pattern, not a change in one demo.
 
-No further redeploy for the prose. The code changes (token_use check,
-body-first ordering, comment and docstring) and the Terraform changes
-(admin-only pool, single tool on the target, aws_region output) are in
-the final image and apply, and the checks above were re-run against it.
+## Final image, `c0173ad`, 2026-09-07
+
+The review's code changes (token_use check, body-first ordering, comment
+and docstring) and Terraform changes (admin-only pool, single tool on the
+target, aws_region output) deployed as image `c0173ad`. Re-run against it:
+
+- `list my orders` as `c-1000`: the same seven orders.
+- `where is order 1255?`: the order. `where is order 1014?`: `not on your
+  account`. `recap`: the event stored earlier under actor `c-1000`.
+- The customer's ID token (from the same sign-in) presented to the
+  runtime: `HTTP 401 Claim 'client_id' value mismatch with configuration`.
+  Cognito ID tokens carry `aud` rather than `client_id`, so the runtime's
+  `allowed_clients` check refuses them before the agent's own `token_use`
+  check would.
+- No token: `HTTP 401`.
+
+Video re-recorded against this image with `vhs demo.tape`, 47 seconds,
+last frame showing the seven orders, the not-on-your-account answer and
+the 401, no account id on screen.
