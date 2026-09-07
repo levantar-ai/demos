@@ -127,7 +127,13 @@
     "Brightwell's",
     "groupby",
     "iterrows",
-    "timespec"
+    "timespec",
+    "initialisation",
+    "neighbour",
+    "urlsafe",
+    "isinstance",
+    "Oauth",
+    "oauth2credentialprovider"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Knowing who your agent is acting for, with AgentCore Identity — Levantar Demos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is a known customer, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault so the agent's code never handles a secret. >">
+<link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-05-identity/">
+<meta name="author" content="Andy Rea">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Levantar">
+<meta property="og:locale" content="en_GB">
+<meta property="og:title" content="Knowing who your agent is acting for, with AgentCore Identity">
+<meta property="og:description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is a known customer, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault so the agent's code never handles a secret. >">
+<meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Knowing who your agent is acting for, with AgentCore Identity">
+<meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-05-identity/">
+<meta property="article:published_time" content="2026-09-07">
+<meta property="article:author" content="Andy Rea">
+<meta property="article:section" content="Engineering">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Knowing who your agent is acting for, with AgentCore Identity">
+<meta name="twitter:description" content="How to put a JWT authorizer on an AgentCore Runtime so every caller is a known customer, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault so the agent's code never handles a secret. >">
+<meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
+<meta name="twitter:image:alt" content="Knowing who your agent is acting for, with AgentCore Identity">
+<link rel="icon" type="image/png" href="../favicon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Knowing who your agent is acting for, with AgentCore Identity",
+  "description": "How to put a JWT authorizer on an AgentCore Runtime so every caller is a known customer, have the agent take that identity from the verified token rather than the request body, and move the agent's own credentials into AgentCore Identity's token vault so the agent's code never handles a secret. >",
+  "image": "https://levantar-ai.github.io/demos/agentcore-05-identity/social.png",
+  "datePublished": "2026-09-07",
+  "dateModified": "2026-09-07",
+  "wordCount": 1200,
+  "inLanguage": "en-GB",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://levantar-ai.github.io/demos/agentcore-05-identity/"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "Andy Rea",
+    "jobTitle": "Co-Founder & CTO",
+    "worksFor": {
+      "@type": "Organization",
+      "name": "Levantar",
+      "url": "https://levantar.ai"
+    }
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Levantar",
+    "url": "https://levantar.ai",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://levantar-ai.github.io/demos/levantar-logo-white.png"
+    }
+  },
+  "isPartOf": {
+    "@type": "CreativeWorkSeries",
+    "name": "AgentCore series"
+  }
+}
+</script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-7C1NXQ0H0E');
+</script>
+<style>
+  :root {
+    --bg: #0b1120; --card: #152037; --line: #243352; --fg: #e7edf7;
+    --muted: #93a4c3; --accent: #22d3ee; --hl: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 24px 80px; color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%) var(--bg);
+    line-height: 1.7; overflow-wrap: break-word;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+  .top a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  .top a:hover { color: var(--accent); }
+  .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--fg) !important; font-weight: 600; font-size: 15px; }
+  .brand img { height: 32px; }
+  article h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.25; margin: 0 0 6px; }
+  article h2 { font-size: 21px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  article p, article li { color: #c6d2e6; font-size: 16px; }
+  article a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+  article a:hover { text-decoration: underline; }
+  article img { max-width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 10px; margin: 10px 0; }
+  article code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; overflow-wrap: anywhere; }
+  article pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  article pre code { background: none; border: none; padding: 0; font-size: 13.5px; line-height: 1.6; color: #d8e2f3; overflow-wrap: normal; }
+  .table-wrap { max-width: 100%; margin: 14px 0; overflow-x: auto; overscroll-behavior-x: contain; }
+  article table { border-collapse: collapse; width: 100%; margin: 0; font-size: 14.5px; }
+  article th, article td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  article th { background: var(--card); }
+  article blockquote { border-left: 3px solid var(--accent); margin: 0; padding: 2px 18px; color: var(--muted); }
+  .post-meta {
+    display: flex; align-items: center; gap: 14px;
+    margin: 16px 0 34px; padding-bottom: 22px; border-bottom: 1px solid var(--line);
+  }
+  .post-meta .avatar {
+    width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%;
+    object-fit: cover; border: 1px solid var(--line); background: var(--card);
+  }
+  .post-meta .who { min-width: 0; line-height: 1.45; }
+  .post-meta .name {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--fg); font-weight: 600; font-size: 15px; text-decoration: none;
+  }
+  .post-meta a.name:hover { color: var(--accent); text-decoration: none; }
+  .post-meta a.name:hover svg { color: var(--accent); }
+  .post-meta .name svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
+  .post-meta .role { color: var(--muted); font-size: 13.5px; }
+  .post-meta .role a.org { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .post-meta .role a.org:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .post-meta .facts { color: var(--muted); font-size: 13px; }
+  .post-meta .facts .sep { padding: 0 5px; opacity: 0.45; }
+  .series-nav a {
+    display: block; padding: 13px 17px; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--card); text-decoration: none;
+    transition: border-color 0.15s ease;
+  }
+  .series-nav a:hover { border-color: var(--accent); text-decoration: none; }
+  .series-nav .label {
+    display: block; font-size: 11.5px; color: var(--muted);
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .series-nav .title {
+    display: block; margin-top: 3px; font-size: 15px;
+    color: var(--fg); font-weight: 600; line-height: 1.4;
+  }
+  .series-nav.prev { margin: 0 0 32px; }
+  .series-nav.next { margin: 44px 0 0; }
+  @media (max-width: 640px) {
+    body { padding: 32px 16px 64px; }
+    .top { margin-bottom: 28px; }
+    article h1 { font-size: 25px; }
+    article h2 { font-size: 19px; margin: 32px 0 10px; }
+    article p, article li { font-size: 15.5px; }
+    article pre { padding: 14px 15px; border-radius: 10px; }
+    article pre code { font-size: 12.5px; }
+    .post-meta { gap: 12px; margin-bottom: 28px; }
+    .post-meta .avatar { width: 46px; height: 46px; flex-basis: 46px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
+        <img src="../levantar-logo-white.png" alt="Levantar"><span>Levantar</span>
+      </a>
+      <a href="../">← All demos</a>
+    </div>
+    <article>
+      <h1>Knowing who your agent is acting for, with AgentCore Identity</h1>
+      <div class="post-meta">
+        <img class="avatar" src="../avatar.jpg" alt="Andy Rea" width="52" height="52">
+        <div class="who">
+          <div><span class="name">Andy Rea</span></div>
+          <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
+          <div class="facts"><time datetime="2026-09-07">7 September 2026</time><span class="sep">·</span>6 min read<span class="sep">·</span>AgentCore series</div>
+        </div>
+      </div>
+      <nav class="series-nav prev">
+        <a href="../agentcore-04-builtin-tools/">
+          <span class="label">Previous in this series</span>
+          <span class="title">Letting an agent run code, without letting it run loose</span>
+        </a>
+      </nav>
+<h2>TL;DR;</h2>
+<p>How to put a JWT authorizer on an AgentCore Runtime so every caller is a
+known customer, have the agent take that identity from the verified token
+rather than the request body, and move the agent's own credentials into
+AgentCore Identity's token vault so the agent's code never handles a
+secret.</p>
+<blockquote>
+<p>SOURCE CODE - All code for this post is available at:
+<a href="https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity">https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity</a></p>
+</blockquote>
+<h2>Longer version</h2>
+<p>This series is building one thing, the order support agent for
+Brightwell, a small online retailer of outdoor kit that ships with DPD and
+Royal Mail. Posts 01 to 04 gave it a runtime, a tool that looks orders up,
+memory and a sandbox. None of them knew who was asking.</p>
+<p>That was deliberate, and it left two gaps that were flagged as they went
+past. Post 02 noted that every call to the gateway carried the same
+workload identity, so the gateway established that a legitimate client was
+calling, not that it was entitled to a particular order. Post 03 took the
+memory actor straight from the request body, with a note that a real
+application maps it from an identity the workload has actually verified.
+Until now, anyone who could invoke the runtime could say they were anyone.</p>
+<p>This post closes both. Inbound, the runtime validates a customer's bearer
+token before the agent sees the request, and the agent takes the customer
+from the token's claims. Outbound, the agent stops holding a client secret
+to reach the gateway and asks AgentCore Identity for a token instead. Both
+halves are the precondition for the next post, where a model is handed
+these tools and has to act as a known customer rather than as a string the
+caller supplied.</p>
+<p><img alt="Architecture" src="architecture.png" /></p>
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
+<h2>1 - Inbound, the runtime checks the caller</h2>
+<p>The Cognito pool from post 02 gains a second app client. The agent's
+client is a machine with a secret and the <code>client_credentials</code> grant.
+Customers are people, so their client has no secret and signs in with a
+password:</p>
+<pre><code class="language-hcl">resource &quot;aws_cognito_user_pool_client&quot; &quot;customers&quot; {
+  name         = &quot;${local.name_prefix}-customers&quot;
+  user_pool_id = aws_cognito_user_pool.agents.id
+
+  generate_secret     = false
+  explicit_auth_flows = [&quot;ALLOW_USER_PASSWORD_AUTH&quot;, &quot;ALLOW_REFRESH_TOKEN_AUTH&quot;]
+}
+</code></pre>
+<p>The runtime then gets a JWT authorizer pointed at the pool's discovery
+document, allowing only that client, and is told to forward the
+<code>Authorization</code> header to the container:</p>
+<pre><code class="language-hcl">authorizer_configuration {
+  custom_jwt_authorizer {
+    discovery_url   = local.discovery_url
+    allowed_clients = [aws_cognito_user_pool_client.customers.id]
+  }
+}
+
+request_header_configuration {
+  request_header_allowlist = [&quot;Authorization&quot;]
+}
+</code></pre>
+<p>From here the runtime checks the signature, issuer, expiry and client id
+of every bearer token before a request reaches the agent. A missing token
+gets a 401 from the service, a valid token from the wrong client gets a
+401 naming the mismatched claim, and IAM SigV4 invocation is off, a
+runtime accepts one method or the other.</p>
+<blockquote>
+<p>NOTE: the allowlist is what makes the token visible to the agent. Without
+it the runtime still validates the token, but the container never sees
+it and the agent has no way of knowing who called.</p>
+</blockquote>
+<h2>2 - The agent reads who is calling</h2>
+<p>Brightwell's customer ids are the usernames in the pool, so the access
+token's <code>username</code> claim is the customer id. The agent decodes the payload
+and takes the customer from there:</p>
+<pre><code class="language-python">def claims_from(headers):
+    auth = headers.get(&quot;Authorization&quot;, &quot;&quot;)
+    if not auth.startswith(&quot;Bearer &quot;):
+        return None
+    try:
+        payload = auth[len(&quot;Bearer &quot;):].split(&quot;.&quot;)[1]
+        payload += &quot;=&quot; * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except (IndexError, ValueError):
+        return None
+    return claims if isinstance(claims, dict) else None
+
+
+def customer_from(headers):
+    username = (claims_from(headers) or {}).get(&quot;username&quot;)
+    return username if isinstance(username, str) and username else None
+</code></pre>
+<p>Decoding without verifying is the documented pattern here. The runtime has
+already done the verification, nothing reaches the container except
+through the runtime, and AWS's
+<a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html">own walkthrough</a>
+says as much:</p>
+<blockquote>
+<p>You can skip validating the token signature here because AgentCore
+Runtime has already validated the token during inbound authorization.</p>
+</blockquote>
+<p>A request that arrives without a usable token still gets a 401 from the
+agent. That should never happen, and the check is there so a
+misconfiguration fails loudly rather than defaulting to anyone.</p>
+<p>Every route from posts 02 and 03 now takes the customer from that claim.
+<code>remember</code> and <code>recap</code> use it as the memory actor, and the <code>actor</code> field
+in the request body is gone. Order questions resolve through the customer's
+own orders, so an order id from another account is not found rather than
+looked up:</p>
+<pre><code class="language-python">def find_order(order_id, customer, workload_token):
+    listed = json.loads(list_orders(customer, workload_token))
+    for order in listed.get(&quot;orders&quot;, []):
+        if str(order.get(&quot;order_id&quot;)) == str(order_id):
+            return order
+    return {&quot;error&quot;: f&quot;order {order_id} is not on your account&quot;}
+</code></pre>
+<h2>3 - Outbound, the agent's own credentials</h2>
+<p>Since post 02 the agent has read its Cognito client secret from Secrets
+Manager and minted its own gateway token. AgentCore Identity takes that
+over. An OAuth2 credential provider holds the client's credentials in the
+token vault, and Terraform sends them write-only, so they are never
+persisted in state:</p>
+<pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_oauth2_credential_provider&quot; &quot;gateway&quot; {
+  name                       = &quot;${local.name_prefix}-gateway&quot;
+  credential_provider_vendor = &quot;CustomOauth2&quot;
+
+  oauth2_provider_config {
+    custom_oauth2_provider_config {
+      client_id_wo                  = aws_cognito_user_pool_client.agent.id
+      client_secret_wo              = aws_cognito_user_pool_client.agent.client_secret
+      client_credentials_wo_version = 1
+
+      oauth_discovery {
+        discovery_url = local.discovery_url
+      }
+    }
+  }
+}
+</code></pre>
+<p>Alongside the customer's token, the runtime hands the container a workload
+access token, an opaque token that identifies this agent, and the customer
+it is acting for, to AgentCore Identity. The agent presents it and gets a
+gateway token back. The secret read, the form post and the token cache
+from post 02 collapse to one call:</p>
+<pre><code class="language-python">def access_token(workload_token):
+    response = client().get_resource_oauth2_token(
+        workloadIdentityToken=workload_token,
+        resourceCredentialProviderName=os.environ[&quot;CREDENTIAL_PROVIDER&quot;],
+        scopes=[os.environ[&quot;TOKEN_SCOPE&quot;]],
+        oauth2Flow=&quot;M2M&quot;,
+    )
+    return response[&quot;accessToken&quot;]
+</code></pre>
+<p><code>M2M</code> is the <code>client_credentials</code> flow. The same call with
+<code>USER_FEDERATION</code> is how an agent gets a token for a third party such as
+Google or GitHub on the customer's behalf, with the consent step and the
+per-customer token both handled by the vault. Brightwell's agent has no
+third party to reach yet, so that stays a sentence.</p>
+<p>The execution role needs two statements for this. The token call is scoped
+to this provider and this runtime's workload identity, and the vault reads
+the client secret in the caller's name, so the role also has to be allowed
+to read that one secret:</p>
+<pre><code class="language-hcl">{
+  Sid    = &quot;GatewayTokenFromVault&quot;
+  Effect = &quot;Allow&quot;
+  Action = [&quot;bedrock-agentcore:GetResourceOauth2Token&quot;]
+  Resource = [
+    aws_bedrockagentcore_oauth2_credential_provider.gateway.credential_provider_arn,
+    &quot;arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:token-vault/default&quot;,
+    &quot;arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default&quot;,
+    &quot;arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default/workload-identity/${local.runtime_name}-*&quot;
+  ]
+},
+{
+  Sid      = &quot;ReadVaultedClientSecret&quot;
+  Effect   = &quot;Allow&quot;
+  Action   = [&quot;secretsmanager:GetSecretValue&quot;]
+  Resource = one(aws_bedrockagentcore_oauth2_credential_provider.gateway.client_secret_arn).secret_arn
+}
+</code></pre>
+<blockquote>
+<p>NOTE: leave the second statement out and the token call fails with an
+<code>AccessDeniedException</code> naming a secret under
+<code>bedrock-agentcore-identity!default/oauth2/</code>. The vault owns that secret
+and reads it with the runtime's role, so the role has to be allowed to.</p>
+</blockquote>
+<h2>4 - Running it</h2>
+<p>A customer account, with the password set out of band and never written
+down:</p>
+<pre><code class="language-bash">aws cognito-idp admin-create-user \
+  --user-pool-id &quot;$POOL&quot; --username c-1000 --message-action SUPPRESS
+aws cognito-idp admin-set-user-password \
+  --user-pool-id &quot;$POOL&quot; --username c-1000 --password &quot;$PASSWORD&quot; --permanent
+</code></pre>
+<p>The customer signs in and gets an access token whose <code>username</code> is their
+customer id:</p>
+<pre><code class="language-bash">TOKEN=$(aws cognito-idp initiate-auth --client-id &quot;$CLIENT_ID&quot; \
+  --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters USERNAME=c-1000,PASSWORD=&quot;$PASSWORD&quot; \
+  --query AuthenticationResult.AccessToken --output text)
+</code></pre>
+<p>With a JWT authorizer the runtime is called over HTTPS with that token
+rather than through the SigV4-signed CLI, and the body no longer says who
+is asking:</p>
+<pre><code class="language-bash">curl -s &quot;$INVOKE_URL&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -H &quot;X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION&quot; \
+  -d '{&quot;prompt&quot;: &quot;list my orders&quot;}'
+</code></pre>
+<pre><code class="language-json">{&quot;result&quot;: {&quot;customer_id&quot;: &quot;c-1000&quot;, &quot;orders&quot;: [
+  {&quot;order_id&quot;: 1033, &quot;placed_at&quot;: &quot;2026-01-22&quot;, &quot;items&quot;: 1, &quot;total&quot;: 12.0, &quot;status&quot;: &quot;delivered&quot;, &quot;carrier&quot;: &quot;DPD&quot;, &quot;eta&quot;: null},
+  {&quot;order_id&quot;: 1038, &quot;placed_at&quot;: &quot;2026-01-26&quot;, &quot;items&quot;: 4, &quot;total&quot;: 238.0, &quot;status&quot;: &quot;delivered&quot;, &quot;carrier&quot;: &quot;DPD&quot;, &quot;eta&quot;: null},
+  ...
+  {&quot;order_id&quot;: 1255, &quot;placed_at&quot;: &quot;2026-07-20&quot;, &quot;items&quot;: 2, &quot;total&quot;: 106.5, &quot;status&quot;: &quot;delivered&quot;, &quot;carrier&quot;: &quot;DPD&quot;, &quot;eta&quot;: null}
+]}}
+</code></pre>
+<p>Seven orders, all c-1000's, because the agent asked for c-1000's orders
+and nothing in the request could have said otherwise. An order on someone
+else's account gets nothing:</p>
+<pre><code class="language-bash">-d '{&quot;prompt&quot;: &quot;where is order 1014?&quot;}'
+# {&quot;result&quot;: {&quot;error&quot;: &quot;order 1014 is not on your account&quot;}}
+</code></pre>
+<p>And without a token the request never reaches the agent:</p>
+<pre><code>HTTP/2 401
+www-authenticate: Bearer resource_metadata=&quot;https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/.../invocations/.well-known/oauth-protected-resource?qualifier=DEFAULT&quot;
+
+{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;error&quot;:{&quot;code&quot;:-32001,&quot;message&quot;:&quot;Missing Authentication Token&quot;}}
+</code></pre>
+<blockquote>
+<p>NOTE: the session id header is still required and still has to be at
+least 33 characters, exactly as with the CLI. <code>$INVOKE_URL</code> is the
+runtime ARN URL-encoded into the service endpoint, and the demo's
+Terraform emits it as an output.</p>
+</blockquote>
+<h2>Conclusion</h2>
+<p>The agent now knows who it is acting for. The runtime validates the
+customer's token, the agent takes the customer from claims it did not
+have to trust, and every order lookup, memory read and memory write is
+scoped to that customer. The agent's own credentials live in the token
+vault and its code holds no secret, one Terraform resource, two IAM
+statements and one API call.</p>
+<p>That is the precondition for the next post, where a Bedrock model is
+handed the tools this series has built, the order lookups, memory and the
+sandbox, and asked a question nobody wrote code for. It will answer as
+the customer this post identified, which is the only sensible way to let
+a model choose.</p>
+<p>References:</p>
+<ul>
+<li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity">https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/identity.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/identity.html</a></li>
+<li><a href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_oauth2_credential_provider">https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/bedrockagentcore_oauth2_credential_provider</a></li>
+</ul>
+
+    </article>
+  </div>
+</body>
+</html>

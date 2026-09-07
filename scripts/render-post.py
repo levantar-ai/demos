@@ -34,6 +34,7 @@ SERIES = [
     ("agentcore-02-gateway", "Giving your agent tools with AgentCore Gateway"),
     ("agentcore-03-memory", "Giving your agent memory that survives the session"),
     ("agentcore-04-builtin-tools", "Letting an agent run code, without letting it run loose"),
+    ("agentcore-05-identity", "Knowing who your agent is acting for, with AgentCore Identity"),
 ]
 
 LINKEDIN_ICON = (

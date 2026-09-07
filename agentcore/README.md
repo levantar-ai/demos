@@ -13,7 +13,8 @@ The series builds one thing, the order support agent for Brightwell, a small
 online retailer of outdoor kit that ships with DPD and Royal Mail. Posts 01
 to 04 put the primitives in place, a runtime, a tool that looks orders up,
 memory and a sandbox, each as a plain Python handler with no model in it.
-A later post puts a model in the loop and hands it those primitives, which
+Post 05 makes the agent know who it is acting for. A later post puts a
+model in the loop and hands it those primitives, which
 is where they start working together, and the posts after that make the one
 agent fit for production.
 
@@ -29,7 +30,7 @@ same data and the same customer ids.
 | 02 | [`02-gateway/`](02-gateway/) | [read →](02-gateway/POST.md) | Tools via AgentCore Gateway, authenticated with Cognito |
 | 03 | [`03-memory/`](03-memory/) | [read →](03-memory/POST.md) | Short- and long-term memory |
 | 04 | [`04-builtin-tools/`](04-builtin-tools/) | [read →](04-builtin-tools/POST.md) | Code Interpreter sandbox |
-| 05 | `05-identity/` *(planned)* | | Inbound/outbound auth |
+| 05 | [`05-identity/`](05-identity/) | [read →](05-identity/POST.md) | Who is calling, and the agent's own credentials in the token vault |
 | 06 | `06-model-in-the-loop/` *(planned)* | | A model given the tools, choosing how to answer |
 | 07 | `07-observability/` *(planned)* | | Tracing and debugging |
 | 08 | `08-evals/` *(planned)* | | Evals: testing agent behaviour as a quality gate |
