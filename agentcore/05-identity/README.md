@@ -90,8 +90,15 @@ curl -s "$INVOKE_URL" -H "Authorization: Bearer $TOKEN" -H "Content-Type: applic
   -d '{"prompt": "list my orders"}'
 ```
 
-To see the gateway enforce, call it directly with `probe_gateway.py`. Your
-own customer id is allowed, anyone else's is denied by the policy:
+To see the gateway enforce, call it directly with `probe_gateway.py`. It
+needs the MCP client, so install it first (a virtualenv keeps it off the
+system Python):
+
+```bash
+python3 -m venv .venv && . .venv/bin/activate && pip install mcp==1.29.0
+```
+
+Your own customer id is allowed, anyone else's is denied by the policy:
 
 ```bash
 GATEWAY_URL=$(cd terraform && aws-vault exec lev:andy.rea -- terraform state show \

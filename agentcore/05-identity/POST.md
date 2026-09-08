@@ -52,9 +52,9 @@ next thing you would move behind the same pattern.
 
 The Cognito pool from post 02 keeps a public client for customers, who sign
 in with a password and get an access token. The runtime validates that
-token before the agent sees the request, and forwards it, exactly as post
-05's first cut did. What is new is that the gateway now validates the same
-customer token rather than a token the agent minted for itself:
+token before the agent sees the request and forwards it. What is new is that
+the gateway now validates the same customer token rather than a machine
+token the agent obtained through AgentCore Identity:
 
 ```hcl
 authorizer_configuration {
@@ -75,8 +75,12 @@ identity the next section authorizes against.
 
 > NOTE: this is the same pool for customer accounts that Brightwell already
 > controls. Only an admin creates users, so a username is a real customer id
-> and not something an attacker can register. `authorizer_type` is
-> immutable, so a gateway that starts on the wrong client has to be replaced.
+> and not something an attacker can register. The policy matches on the
+> `username`, while the Cedar principal is the immutable `sub`, so it also
+> assumes Brightwell never reassigns a customer id to a different person; bind
+> the data and the rule to `sub` if that assumption does not hold.
+> `authorizer_type` is immutable, so a gateway that starts on the wrong
+> client has to be replaced.
 
 ## 2 - The policy engine and the Cedar rules
 
@@ -232,9 +236,12 @@ for temporary credentials with STS `AssumeRoleWithWebIdentity`, and scope
 those credentials to the customer. IAM does not filter arbitrary rows, so
 the table has to be keyed on a stable identity from the token, the immutable
 `sub`, with the role policy conditioning `dynamodb:LeadingKeys` on it. That
-binding is in the signed token, so the agent cannot widen it. This is the
-shape, and it re-keys the data on `sub` and changes the inbound token, so it
-is a different contract from this post, not a drop-in.
+binding is in the signed token, so the agent cannot widen it. The role's
+trust policy has to pin the issuer and the app client through the ID token's
+`aud`, and its permissions have to leave out `Scan` and anything else
+`LeadingKeys` cannot constrain. This is the shape, and it re-keys the data on
+`sub` and changes the inbound token, so it is a different contract from this
+post, not a drop-in.
 
 ![Web-identity alternative](alt-aws.png)
 
@@ -255,10 +262,11 @@ infrastructure that keeps it there. AgentCore Identity establishes the
 customer at the runtime and the gateway, Policy in AgentCore evaluates a
 Cedar policy on every call to that tool, and a request for anyone else's
 orders is denied by default before the tool runs. The agent has no gateway
-credential of its own, and for that tool its code is not the thing standing
-between a caller and someone else's account. The memory and sandbox paths
-are still scoped in the agent, and moving them behind the same gateway and
-policy is how you would finish the job.
+credential of its own, and for that tool the choice of `customer_id` is no
+longer the only thing standing between a caller and someone else's account.
+The relay is still trusted to present the current caller's token, and the
+memory and sandbox paths are still scoped in the agent, so moving those
+behind the same gateway and policy is how you would finish the job.
 
 That is the precondition for the next post, where a Bedrock model is handed
 the tools this series has built and asked a question nobody wrote code for.

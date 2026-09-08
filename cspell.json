@@ -144,7 +144,9 @@
     "Entra",
     "defence",
     "authorise",
-    "Salesforce"
+    "Salesforce",
+    "virtualenv",
+    "venv"
   ],
   "ignorePaths": [
     "node_modules/**",
