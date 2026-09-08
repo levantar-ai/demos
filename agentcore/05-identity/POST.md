@@ -179,11 +179,13 @@ travelling as claims rather than the agent standing in for the user:
 > signed token claims through the call chain without the agent ever assuming
 > the user's credentials.
 
-Be precise about what this buys. The customer's token is still a credential,
-a short-lived one for that customer, and the agent handles it, so treat it
-as sensitive and never log or store it. What the gateway guarantees is that
-the `customer_id` argument matches the identity in whatever token is
-presented, so a model or agent that chooses a mismatched id is denied. It is
+Be precise about what this buys. There is no token exchange here, the agent
+relays the customer's own access token unchanged. That token is still a
+credential, short-lived because a Cognito access token expires within the
+hour, and the agent handles it, so treat it as sensitive and never log or
+store it. What the gateway guarantees is that the `customer_id` argument
+matches the identity in that token, so a model or agent that chooses a
+mismatched id is denied. It is
 not a defence against an agent that has somehow obtained another customer's
 token, that is a different threat handled by not leaking tokens in the first
 place. Within its scope, the check holds even when the agent's own logic is
