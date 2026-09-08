@@ -17,8 +17,8 @@ from diagrams.aws.database import Dynamodb
 from diagrams.aws.ml import Bedrock
 from diagrams.aws.security import IdentityAndAccessManagementIamRole
 from diagrams.onprem.client import User
-from diagrams.programming.language import Python
 from diagrams.onprem.compute import Server
+from diagrams.programming.language import Python
 
 graph_attr = {"pad": "0.5", "nodesep": "0.8", "ranksep": "1.1", "fontsize": _fs(19), "fontcolor": "#0e1216"}
 node_attr = {"fontsize": _fs(13)}

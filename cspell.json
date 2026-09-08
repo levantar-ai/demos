@@ -147,7 +147,8 @@
     "Salesforce",
     "virtualenv",
     "venv",
-    "getpass"
+    "getpass",
+    "Agentic"
   ],
   "ignorePaths": [
     "node_modules/**",
