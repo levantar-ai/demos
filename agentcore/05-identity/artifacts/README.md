@@ -125,3 +125,19 @@ because the post's subject is doing agent identity safely.
 No redeploy was needed for the prose rounds. The two live changes, the
 `forbid` policy and the tightened trust policies, were applied and verified
 against the running stack, image `f32c415`.
+
+## Section 6 added and reviewed (gpt-5.6), 2026-09-08
+
+A reader asked whether passing a short-lived Cognito bearer token to an
+autonomous agent is safe (attribution, prompt injection, bearer replay). A
+section 6, "What it does not solve, and where it fits", was added: Cedar
+answers the wrong-customer vector, the bearer token is mitigated but not
+neutralised, attribution is weaker than an on-behalf-of exchange, and a
+comparison table plus the Well-Architected mapping. Reviewed over three
+rounds. Corrections made: OBO's actor attribution is provider-dependent, not
+guaranteed (RFC 8693 defines `act` but does not require it, RFC 7523 does
+not define it); the Lambda sees the approved `customer_id` and the gateway
+role, not the customer principal; expiry alone bounds replay while TLS and
+non-persistence lower disclosure; guardrails/tracing/evals help but are not a
+hard boundary on returned data; AGENTSEC02 enforcement is at the gateway and
+policy engine, scoped to the orders tool. Verdict: ready to publish.
