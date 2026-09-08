@@ -3,7 +3,8 @@
 # With a JWT authorizer the runtime validates every caller's bearer token
 # against the pool's discovery document before the request reaches the
 # agent, and IAM SigV4 invocation is off. The Authorization header is
-# forwarded to the container so the agent can read the verified claims.
+# forwarded to the container so the agent can read the verified claims and
+# relay the same token to the gateway.
 
 resource "aws_bedrockagentcore_agent_runtime" "agent" {
   agent_runtime_name = local.runtime_name
@@ -37,8 +38,6 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
   environment_variables = {
     CODE_INTERPRETER_ID = aws_bedrockagentcore_code_interpreter.sandbox.code_interpreter_id
     GATEWAY_URL         = aws_bedrockagentcore_gateway.orders.gateway_url
-    CREDENTIAL_PROVIDER = aws_bedrockagentcore_oauth2_credential_provider.gateway.name
-    TOKEN_SCOPE         = "${aws_cognito_resource_server.orders.identifier}/invoke"
     MEMORY_ID           = aws_bedrockagentcore_memory.agent.id
   }
 

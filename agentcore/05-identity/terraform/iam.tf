@@ -103,30 +103,7 @@ resource "aws_iam_role_policy" "runtime" {
         ]
         Resource = aws_bedrockagentcore_memory.agent.arn
       },
-      {
-        # The one call the agent makes to get a gateway token. The workload
-        # identity is created with the runtime and carries its name, and the
-        # provider is the only one in the vault this role may draw on.
-        Sid    = "GatewayTokenFromVault"
-        Effect = "Allow"
-        Action = ["bedrock-agentcore:GetResourceOauth2Token"]
-        Resource = [
-          aws_bedrockagentcore_oauth2_credential_provider.gateway.credential_provider_arn,
-          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:token-vault/default",
-          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default",
-          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default/workload-identity/${local.runtime_name}-*"
-        ]
-      },
-      {
-        # The vault keeps the client secret in a Secrets Manager secret it
-        # owns and reads it in the caller's name, so the role that asks for a
-        # token needs to be allowed to read that one secret. Without this the
-        # token call fails with an AccessDeniedException naming the secret.
-        Sid      = "ReadVaultedClientSecret"
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = one(aws_bedrockagentcore_oauth2_credential_provider.gateway.client_secret_arn).secret_arn
-      }
+
     ]
   })
 }

@@ -4,11 +4,12 @@ Runtime HTTP contract as post 01 (POST /invocations, GET /ping). The runtime
 now validates a customer's bearer token before a request reaches this
 handler and forwards the Authorization header, so the caller's identity
 comes from claims the runtime has verified rather than from the request
-body. The runtime also hands over a workload access token for the request,
-which is what the agent presents to AgentCore Identity when it needs a
-gateway token. There is still no model in this agent, the routing below is
-code. Post 06 is where a model is handed these tools, acting as the
-customer this post identifies.
+body. The agent relays that same verified token to the gateway, where
+Policy in AgentCore evaluates a Cedar policy on every tool call and refuses
+anything outside the caller's own orders, so the boundary is enforced at
+the gateway rather than trusted to this code. There is still no model in
+this agent, the routing below is code. Post 06 is where a model is handed
+these tools, acting as the customer this post identifies.
 """
 
 import base64
@@ -26,15 +27,6 @@ PORT = 8080
 # Anchored on the word "order" so a stray number in the prompt is ignored.
 ORDER_RE = re.compile(r"\border\s*#?\s*(\d+)\b", re.IGNORECASE)
 MY_ORDERS_RE = re.compile(r"\bmy orders\b", re.IGNORECASE)
-
-# Headers the runtime adds. The workload access token represents this
-# runtime's workload identity; the agent treats it as opaque and presents it
-# to AgentCore Identity. AWS's docs name the header WorkloadAccessToken; the
-# SDK (bedrock_agentcore/runtime/app.py) reads
-# X-Amz-Bedrock-AgentCore-Identity-WAT first and falls back to that, so this
-# does the same. Neither can arrive from a caller, the runtime only forwards
-# allowlisted headers.
-WORKLOAD_TOKEN_HEADERS = ("X-Amz-Bedrock-AgentCore-Identity-WAT", "WorkloadAccessToken")
 
 # Runs inside the sandbox, carried forward from post 04.
 ANALYSIS = """
@@ -79,18 +71,16 @@ def customer_from(headers):
     return username if isinstance(username, str) and username else None
 
 
-def workload_token_from(headers):
-    for name in WORKLOAD_TOKEN_HEADERS:
-        value = headers.get(name)
-        if value:
-            return value
-    return None
+def bearer_from(headers):
+    """The raw bearer token the runtime forwarded, to relay to the gateway."""
+    auth = headers.get("Authorization", "")
+    return auth[len("Bearer "):] if auth.startswith("Bearer ") else None
 
 
-def find_order(order_id, customer, workload_token):
+def find_order(order_id, customer, customer_token):
     """One of the customer's own orders, so an id from someone else's
     account is not found rather than looked up."""
-    listed = json.loads(list_orders(customer, workload_token))
+    listed = json.loads(list_orders(customer, customer_token))
     for order in listed.get("orders", []):
         if str(order.get("order_id")) == str(order_id):
             return order
@@ -243,7 +233,7 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_prompt(self, payload, prompt, customer):
         """The routes from posts 02 and 03, now scoped to the verified customer."""
         session = payload.get("session", "default")
-        workload_token = workload_token_from(self.headers)
+        token = bearer_from(self.headers)
         order = ORDER_RE.search(prompt)
         try:
             if prompt.lower().startswith("remember"):
@@ -252,9 +242,9 @@ class Handler(BaseHTTPRequestHandler):
             elif prompt.lower().startswith("recap"):
                 self._send(200, {"result": self.history(customer, session)})
             elif MY_ORDERS_RE.search(prompt):
-                self._send(200, {"result": json.loads(self.orders(customer, workload_token))})
+                self._send(200, {"result": json.loads(self.orders(customer, token))})
             elif order:
-                self._send(200, {"result": self.order(order.group(1), customer, workload_token)})
+                self._send(200, {"result": self.order(order.group(1), customer, token)})
             else:
                 self._send(200, {"result": self.search(customer, prompt)})
         except Exception as exc:  # noqa: BLE001 — any carried-forward failure is a 502

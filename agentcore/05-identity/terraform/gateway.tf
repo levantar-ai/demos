@@ -45,10 +45,15 @@ resource "aws_iam_role_policy" "gateway" {
   })
 }
 
-# CUSTOM_JWT: the gateway fetches the pool's signing keys from the
-# discovery URL and validates every caller's token itself. Note that
-# authorizer_type is immutable, so changing it later means replacing the
-# gateway.
+# CUSTOM_JWT against the customers client, so the gateway validates the
+# customer's own token and the caller it establishes is the customer, not
+# the agent. Cognito access tokens carry client_id and username but no aud,
+# so validation is by allowed_clients and no allowed_audience is set.
+# authorizer_type is immutable; changing it later means replacing the gateway.
+#
+# The policy engine is what enforces per-customer access. It evaluates a
+# Cedar policy on every tool call, before the target runs, using the caller
+# established here. See policy.tf.
 resource "aws_bedrockagentcore_gateway" "orders" {
   name            = "${local.name_prefix}-gw"
   role_arn        = aws_iam_role.gateway.arn
@@ -58,9 +63,13 @@ resource "aws_bedrockagentcore_gateway" "orders" {
   authorizer_configuration {
     custom_jwt_authorizer {
       discovery_url   = local.discovery_url
-      allowed_clients = [aws_cognito_user_pool_client.agent.id]
-      allowed_scopes  = aws_cognito_resource_server.orders.scope_identifiers
+      allowed_clients = [aws_cognito_user_pool_client.customers.id]
     }
+  }
+
+  policy_engine_configuration {
+    arn  = aws_bedrockagentcore_policy_engine.orders.policy_engine_arn
+    mode = var.policy_mode
   }
 }
 
