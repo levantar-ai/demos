@@ -157,7 +157,7 @@ forbid(
 > do not support resource-level scoping and so are granted on `*`. The
 > gateway still evaluates only the engine its configuration points at.
 
-## 3 - The agent carries the token, not a credential
+## 3 - The agent carries the customer's token, not its own credential
 
 Since post 02 the agent asked AgentCore Identity for a machine token to call
 the gateway, through `GetResourceOauth2Token` against an OAuth2 credential
@@ -205,9 +205,9 @@ GATEWAY_URL=... TOKEN=<c-1000's token> python3 probe_gateway.py c-1001
 # policy enforcement [Policy evaluation denied due to deny_other_customers_orders].
 ```
 
-The same token that reads c-1000's orders cannot read c-1001's, because the
-Cedar policy has no `permit` for a `customer_id` that is not the caller's,
-and default-deny does the rest. The agent's own logic did not have to be
+The same token that reads c-1000's orders cannot read c-1001's, because no
+`permit` matches a `customer_id` that is not the caller's and the `forbid`
+guard denies it outright, which is what the message names. The agent's own logic did not have to be
 correct for that call to be refused. This is what AWS means when it explains
 why Policy in AgentCore sits at the gateway:
 

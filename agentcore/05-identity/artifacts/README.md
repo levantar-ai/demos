@@ -95,3 +95,33 @@ project's own guidance predicts.
   mismatch`, because a Cognito ID token has no `client_id` claim and the
   authorizer validates `allowed_clients`. The handler's `token_use` check is
   a second line behind that.
+
+## External review (gpt-5.6-sol via OpenAI API), 2026-09-08
+
+Five rounds, focused on the security of the design as much as the prose,
+because the post's subject is doing agent identity safely.
+
+- Round one, fourteen findings, three blockers. The Cedar boundary covers
+  only the orders gateway tool, so claims of enforcing all customer data were
+  scoped down and memory and the sandbox called out as still agent-scoped;
+  the "no credential / compromised agent" language was narrowed to what the
+  gateway guarantees; `LOG_ONLY` was reframed as fail-open. A `forbid` guard
+  was added so the invariant survives future additive permits.
+- Round two, five findings. Enforcement claims scoped in the TL;DR and
+  conclusion; the two Cedar policies reflected everywhere; precise vault,
+  IAM-scoping, RFC 8693 versus 7523 and web-identity wording.
+- Round three, one blocker and five more. The conclusion's compromised-agent
+  claim made consistent with the caveat; the username-versus-`sub` lifecycle
+  assumption stated; the web-identity alternative given its trust and Scan
+  constraints; the README installs the MCP client for the probe.
+- Round four, three findings. The ID-token refusal re-attributed to the JWT
+  authorizer with the live 401 as evidence; the role trust policies narrowed
+  to `runtime/*` and `gateway/*` and re-verified live; the password-argv note
+  qualified.
+- Round five, clean. Verdict: ready to publish, no remaining blocker or
+  should-fix issue in the security design, AWS claims, implementation or
+  walkthrough.
+
+No redeploy was needed for the prose rounds. The two live changes, the
+`forbid` policy and the tightened trust policies, were applied and verified
+against the running stack, image `f32c415`.
