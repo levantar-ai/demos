@@ -31,7 +31,7 @@ locals {
   memory_name      = "demos_agentcore_05_memory"
   ecr_repo         = "demos/agentcore/${local.demo_slug}"
 
-  # One pool issues both kinds of token. Its discovery document is what the
-  # runtime, the gateway and the credential provider all validate against.
+  # The pool's discovery document is what the runtime and the gateway both
+  # validate the customer's token against.
   discovery_url = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.agents.id}/.well-known/openid-configuration"
 }

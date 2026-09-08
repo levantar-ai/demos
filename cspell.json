@@ -134,7 +134,21 @@
     "isinstance",
     "Oauth",
     "oauth2credentialprovider",
-    "PKCE"
+    "PKCE",
+    "AGENTSEC",
+    "asyncio",
+    "travelling",
+    "Cedar",
+    "OAuthUser",
+    "Dogwood",
+    "Entra",
+    "defence",
+    "authorise",
+    "Salesforce",
+    "virtualenv",
+    "venv",
+    "getpass",
+    "Agentic"
   ],
   "ignorePaths": [
     "node_modules/**",

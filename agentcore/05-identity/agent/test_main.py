@@ -63,14 +63,15 @@ def token_for(claims):
     return f"{_b64({'alg': 'RS256'})}.{_b64(claims)}.signature"
 
 
-def headers_for(username="c-1000", workload_token="wat-123"):
+def bearer_for(username):
+    """The access token string the runtime would forward for this customer."""
+    return token_for({"username": username, "sub": "x", "token_use": "access"})
+
+
+def headers_for(username="c-1000"):
     headers = {"Content-Type": "application/json"}
     if username is not None:
-        headers["Authorization"] = (
-            f"Bearer {token_for({'username': username, 'sub': 'x', 'token_use': 'access'})}"
-        )
-    if workload_token:
-        headers["WorkloadAccessToken"] = workload_token
+        headers["Authorization"] = f"Bearer {bearer_for(username)}"
     return headers
 
 
@@ -138,7 +139,7 @@ def test_my_orders_lists_the_callers_orders(server_url):
     status, body = post(f"{server_url}/invocations", {"prompt": "list my orders"})
     assert status == 200
     assert body == {"result": ORDERS}
-    assert listed == [("c-1000", "wat-123")]
+    assert listed == [("c-1000", bearer_for("c-1000"))]
 
 
 def test_the_customer_comes_from_the_token_not_the_body(server_url):
@@ -152,7 +153,7 @@ def test_an_order_is_found_through_the_callers_own_orders(server_url):
     status, body = post(f"{server_url}/invocations", {"prompt": "where is order 1275?"})
     assert status == 200
     assert body == {"result": {"order_id": 1275, "status": "shipped"}}
-    assert listed == [("c-1000", "wat-123")]
+    assert listed == [("c-1000", bearer_for("c-1000"))]
 
 
 def test_someone_elses_order_is_not_on_your_account(server_url):
@@ -205,35 +206,41 @@ def test_claims_are_decoded_without_verification():
     assert main.customer_from({}) is None
 
 
-def test_either_workload_token_header_is_accepted():
-    assert main.workload_token_from({"WorkloadAccessToken": "a"}) == "a"
-    assert main.workload_token_from({"X-Amz-Bedrock-AgentCore-Identity-WAT": "b"}) == "b"
-    assert main.workload_token_from({}) is None
+def test_the_raw_bearer_token_is_extracted_for_relay():
+    token = bearer_for("c-1000")
+    assert main.bearer_from({"Authorization": f"Bearer {token}"}) == token
+    assert main.bearer_from({"Authorization": "Basic abc"}) is None
+    assert main.bearer_from({}) is None
 
 
-class FakeIdentity:
-    def __init__(self):
-        self.requests = []
+def test_the_agent_relays_the_customers_own_token_to_the_gateway(server_url):
+    """The gateway is called with the caller's token and their own id, so the
+    policy engine has the caller it needs. The gateway, not this test, is
+    what refuses a mismatched id; that is verified live against the deployed
+    Cedar policy, see artifacts/README.md."""
+    listed.clear()
+    post(f"{server_url}/invocations", {"prompt": "list my orders"})
+    customer, token = listed[-1]
+    assert customer == "c-1000"
+    assert token == bearer_for("c-1000")
 
-    def get_resource_oauth2_token(self, **kwargs):
-        self.requests.append(kwargs)
-        return {"accessToken": "gateway-jwt"}
 
+def test_gateway_list_orders_forwards_the_id_and_token(monkeypatch):
+    captured = {}
 
-def test_the_gateway_token_comes_from_the_vault(monkeypatch):
-    fake = FakeIdentity()
-    monkeypatch.setenv("CREDENTIAL_PROVIDER", "demos-agentcore-05-identity-gateway")
-    monkeypatch.setenv("TOKEN_SCOPE", "orders-api/invoke")
-    monkeypatch.setattr(gateway, "client", lambda: fake)
-    assert gateway.access_token("wat-123") == "gateway-jwt"
-    assert fake.requests == [
-        {
-            "workloadIdentityToken": "wat-123",
-            "resourceCredentialProviderName": "demos-agentcore-05-identity-gateway",
-            "scopes": ["orders-api/invoke"],
-            "oauth2Flow": "M2M",
-        }
-    ]
+    async def fake_call(tool, arguments, customer_token):
+        captured["tool"] = tool
+        captured["arguments"] = arguments
+        captured["token"] = customer_token
+        return json.dumps({"customer_id": "c-1000", "orders": []})
+
+    monkeypatch.setattr(gateway, "_call_tool", fake_call)
+    gateway.list_orders("c-1000", "tok-123")
+    assert captured == {
+        "tool": "list_orders",
+        "arguments": {"customer_id": "c-1000"},
+        "token": "tok-123",
+    }
 
 
 class FakeInterpreter:

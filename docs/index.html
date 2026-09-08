@@ -65,9 +65,9 @@
         <h2 class="text-[19px] font-bold">AgentCore series 05 &mdash; Knowing who your agent is acting for, with AgentCore Identity</h2>
         <time datetime="2026-09-07" class="text-xs text-muted whitespace-nowrap shrink-0">7 Sep 2026</time>
       </div>
-      <p class="text-muted text-sm leading-relaxed">How to put a JWT authorizer on an AgentCore Runtime so every caller is a
-         known customer, have the agent take that identity from the verified token rather than the
-         request body, and move the agent's own credentials into AgentCore Identity's token vault.</p>
+      <p class="text-muted text-sm leading-relaxed">How to establish the customer with AgentCore Identity and then enforce
+         that identity on every tool call with Policy in AgentCore, so a Cedar policy at the gateway
+         refuses any call outside the caller's own data, outside the agent's code.</p>
       <span class="inline-block mt-3.5 text-xs text-accent border border-line rounded-full px-3 py-[3px]">Read the post &rarr;</span>
     </a>
 

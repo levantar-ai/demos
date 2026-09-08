@@ -14,31 +14,23 @@ from diagram_sizing import fs as _fs
 from diagram_sizing import node_height as _h
 from diagrams import Cluster, Diagram, Edge
 from diagrams.aws.compute import Lambda
-from diagrams.aws.ml import Bedrock
 from diagrams.aws.network import APIGateway
-from diagrams.aws.security import Cognito
+from diagrams.aws.security import Cognito, IdentityAndAccessManagementIamPermissions
 from diagrams.onprem.client import User
 from diagrams.programming.language import Python
 
 graph_attr = {
     "pad": "0.6",
     "nodesep": "0.9",
-    "ranksep": "1.1",
+    "ranksep": "1.2",
     "fontsize": _fs(20),
-    "fontcolor": "#0e1216",  # --ink
+    "fontcolor": "#0e1216",
 }
-
-node_attr = {
-    "fontsize": _fs(13),
-}
-
-edge_attr = {
-    "fontsize": _fs(12),
-    "fontcolor": "#4a5158",  # --ink-2
-}
+node_attr = {"fontsize": _fs(13)}
+edge_attr = {"fontsize": _fs(12), "fontcolor": "#4a5158"}
 
 with Diagram(
-    "An agent that knows who is calling",
+    "The customer's identity enforced at the gateway",
     filename=os.environ.get("DIAGRAM_OUT", "architecture"),
     outformat="png",
     show=False,
@@ -56,17 +48,20 @@ with Diagram(
     ):
         agent = Python("agent", height=_h(1))
 
-    identity = Bedrock("AgentCore Identity\ntoken vault", height=_h(2))
+    with Cluster(
+        "AgentCore Gateway  -  Policy in AgentCore evaluates Cedar per call",
+        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#efece4"},
+    ):
+        gateway = APIGateway("gateway", height=_h(1))
+        policy = IdentityAndAccessManagementIamPermissions(
+            "Cedar policy\ncustomer_id == caller", height=_h(2)
+        )
 
-    gateway = APIGateway("AgentCore Gateway\n(MCP)", height=_h(2))
-
-    tool = Lambda("orders", height=_h(1))
+    orders = Lambda("orders", height=_h(1))
 
     customer >> Edge(label="sign in", style="dashed") >> cognito
     customer >> Edge(label="invoke\n(Bearer JWT)") >> agent
-    agent >> Edge(label="GetResourceOauth2Token\n(workload token)") >> identity
-    # constraint=false keeps the pool beside the runtime rather than after
-    # the vault, so the sign-in edge stays short.
-    identity >> Edge(label="client_credentials", style="dashed", constraint="false") >> cognito
-    agent >> Edge(label="tools/call\n(Bearer JWT)") >> gateway
-    gateway >> Edge(label="invoke") >> tool
+    agent >> Edge(label="list_orders\n(customer's JWT)") >> gateway
+    gateway >> Edge(label="validates JWT", style="dashed", constraint="false") >> cognito
+    gateway >> Edge(label="evaluate", style="dashed") >> policy
+    gateway >> Edge(label="permit:\ncaller's own orders") >> orders
