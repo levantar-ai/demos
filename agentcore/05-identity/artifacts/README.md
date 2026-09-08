@@ -82,3 +82,16 @@ project's own guidance predicts.
   the invariant survives any future additive `permit` (forbid wins). With it,
   a mismatched call is denied explicitly by `deny_other_customers_orders`
   rather than by default.
+
+## Round-four hardening (gpt-5.6), 2026-09-08
+
+- The runtime and gateway role trust policies had `aws:SourceArn` as the
+  account-wide `…:*`. Narrowed to `…:runtime/*` and `…:gateway/*`
+  respectively, and verified live that the agent still lists orders and the
+  gateway still denies a cross-customer call, so the tighter confused-deputy
+  scope holds.
+- An ID token is refused at the JWT authorizer, not at Cedar: a live call
+  with the customer's ID token returned `401 Claim 'client_id' value
+  mismatch`, because a Cognito ID token has no `client_id` claim and the
+  authorizer validates `allowed_clients`. The handler's `token_use` check is
+  a second line behind that.

@@ -241,10 +241,12 @@ token the agent obtained through AgentCore Identity:</p>
 <p>The access token this demo's sign-in produces carries <code>client_id</code> and
 <code>username</code> but no <code>aud</code>, so the gateway validates it by <code>allowed_clients</code>
 and no audience is set. The caller the gateway establishes from that token
-is the customer, and their username is Brightwell's customer id. An ID token,
-which is shaped differently and has no <code>username</code> claim in that form, would
-not satisfy the Cedar rule and would be refused. That username is the
-identity the next section authorizes against.</p>
+is the customer, and their username is Brightwell's customer id. An ID token
+puts the client in <code>aud</code> and carries no <code>client_id</code>, so the JWT authorizer
+refuses it before the agent or Cedar sees it, which a live check confirmed
+with <code>401 Claim 'client_id' value mismatch</code>. The handler's <code>token_use</code> check
+is a second line behind that. That username is the identity the next section
+authorizes against.</p>
 <blockquote>
 <p>NOTE: this is the same pool for customer accounts that Brightwell already
 controls. Only an admin creates users, so a username is a real customer id

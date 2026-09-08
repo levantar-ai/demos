@@ -68,10 +68,12 @@ authorizer_configuration {
 The access token this demo's sign-in produces carries `client_id` and
 `username` but no `aud`, so the gateway validates it by `allowed_clients`
 and no audience is set. The caller the gateway establishes from that token
-is the customer, and their username is Brightwell's customer id. An ID token,
-which is shaped differently and has no `username` claim in that form, would
-not satisfy the Cedar rule and would be refused. That username is the
-identity the next section authorizes against.
+is the customer, and their username is Brightwell's customer id. An ID token
+puts the client in `aud` and carries no `client_id`, so the JWT authorizer
+refuses it before the agent or Cedar sees it, which a live check confirmed
+with `401 Claim 'client_id' value mismatch`. The handler's `token_use` check
+is a second line behind that. That username is the identity the next section
+authorizes against.
 
 > NOTE: this is the same pool for customer accounts that Brightwell already
 > controls. Only an admin creates users, so a username is a real customer id

@@ -146,7 +146,8 @@
     "authorise",
     "Salesforce",
     "virtualenv",
-    "venv"
+    "venv",
+    "getpass"
   ],
   "ignorePaths": [
     "node_modules/**",

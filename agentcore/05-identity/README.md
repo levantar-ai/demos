@@ -111,8 +111,8 @@ GATEWAY_URL="$GATEWAY_URL" TOKEN="$TOKEN" python3 probe_gateway.py c-1001
 
 - The two Cognito commands take the password as an argument, so it is briefly
   visible in the local process table. That is the AWS walkthrough's shape and
-  fine on a workstation; a provisioning pipeline would pass it through stdin
-  or the SDK instead.
+  acceptable only in an isolated single-user demo account. Anywhere real,
+  pass it through the SDK with `getpass` so it never reaches argv.
 
 - `AuthorizeAction` and `PartiallyAuthorizeActions` do not support
   resource-level scoping, so the gateway role grants them on `*`. Which
