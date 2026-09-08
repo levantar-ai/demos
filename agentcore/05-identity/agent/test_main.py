@@ -215,7 +215,9 @@ def test_the_raw_bearer_token_is_extracted_for_relay():
 
 def test_the_agent_relays_the_customers_own_token_to_the_gateway(server_url):
     """The gateway is called with the caller's token and their own id, so the
-    policy engine has the caller it needs and the agent cannot forge another."""
+    policy engine has the caller it needs. The gateway, not this test, is
+    what refuses a mismatched id; that is verified live against the deployed
+    Cedar policy, see artifacts/README.md."""
     listed.clear()
     post(f"{server_url}/invocations", {"prompt": "list my orders"})
     customer, token = listed[-1]

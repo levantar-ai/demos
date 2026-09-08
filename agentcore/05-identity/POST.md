@@ -4,8 +4,9 @@
 
 How to establish who a customer is on the way into an agent with AgentCore
 Identity, and then enforce that identity on every tool call with Policy in
-AgentCore, so a Cedar policy at the gateway refuses any call outside the
-caller's own data, before the tool runs and outside the agent's code.
+AgentCore, so a Cedar policy at the gateway refuses any call to the orders tool
+outside the caller's own orders, before the tool runs and outside the
+agent's code.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity
@@ -38,8 +39,12 @@ passing the right id, a model that can be talked into passing a different
 one has just read someone else's account.
 
 So this post does two things. AgentCore Identity establishes the customer
-on the way in, and Policy in AgentCore enforces that customer on every tool
-call at the gateway. The enforcement point is deliberately not the agent.
+on the way in, and Policy in AgentCore enforces that customer on the tool
+behind the gateway. The enforcement point is deliberately not the agent.
+The orders tool is the one behind the gateway, so it is the one this post
+puts under Cedar; the memory and sandbox carried forward from posts 03 and
+04 are called directly and are still scoped in the agent code, which is the
+next thing you would move behind the same pattern.
 
 ![Architecture](architecture.png)
 
@@ -60,11 +65,13 @@ authorizer_configuration {
 }
 ```
 
-A Cognito access token carries `client_id` and `username` but no `aud`, so
-the gateway validates it by `allowed_clients` and no audience is set. The
-caller the gateway establishes from that token is the customer, and their
-username is Brightwell's customer id. That is the identity the next section
-authorizes against.
+The access token this demo's sign-in produces carries `client_id` and
+`username` but no `aud`, so the gateway validates it by `allowed_clients`
+and no audience is set. The caller the gateway establishes from that token
+is the customer, and their username is Brightwell's customer id. An ID token,
+which is shaped differently and has no `username` claim in that form, would
+not satisfy the Cedar rule and would be refused. That username is the
+identity the next section authorizes against.
 
 > NOTE: this is the same pool for customer accounts that Brightwell already
 > controls. Only an admin creates users, so a username is a real customer id
@@ -119,19 +126,37 @@ The `permit` only fires when the `customer_id` argument equals the caller's
 own username. Because Cedar denies by default, a call for any other customer
 matches no `permit` and is refused. The check is on the token's claim, which
 the gateway verified, so it is not something the agent or a model can talk
-its way around.
+its way around by choosing a different argument.
+
+Cedar permits are additive, so a broad permit added in a later post could
+otherwise re-open this. A `forbid`, which wins over any permit, keeps the
+invariant regardless of what is added later:
+
+```hcl
+forbid(
+  principal is AgentCore::OAuthUser,
+  action == AgentCore::Action::"orders___list_orders",
+  resource == AgentCore::Gateway::"${aws_bedrockagentcore_gateway.orders.gateway_arn}"
+) unless {
+  principal.hasTag("username") &&
+  principal.getTag("username") == context.input.customer_id
+};
+```
 
 > NOTE: a tool-specific action must name a specific gateway resource, not a
 > wildcard, or `CreatePolicy` refuses the statement. The gateway's role also
-> needs the policy-engine read and evaluate actions, and the two evaluate
-> actions, `AuthorizeAction` and `PartiallyAuthorizeActions`, do not take a
-> resource, so they are granted on `*` while the engine itself stays scoped.
+> needs the policy-engine read actions, scoped to the one engine, and the two
+> evaluate actions, `AuthorizeAction` and `PartiallyAuthorizeActions`, which
+> do not support resource-level scoping and so are granted on `*`. The
+> gateway still evaluates only the engine its configuration points at.
 
 ## 3 - The agent carries the token, not a credential
 
-Since post 02 the agent minted its own gateway token from a client secret in
-the vault. That is gone. The agent relays the customer's own token, the one
-the runtime handed it, so it holds no broad credential of its own:
+Since post 02 the agent asked AgentCore Identity for a machine token to call
+the gateway, through `GetResourceOauth2Token` against an OAuth2 credential
+provider. That path and its provider are gone. The agent relays the
+customer's own token, the one the runtime handed it, so it has no gateway
+credential of its own:
 
 ```python
 def list_orders(customer_id, customer_token):
@@ -147,10 +172,15 @@ travelling as claims rather than the agent standing in for the user:
 > signed token claims through the call chain without the agent ever assuming
 > the user's credentials.
 
-The agent still passes `customer_id`, and it still passes the verified one.
-That belt is useful, but it is not the boundary. The gateway is, and it
-holds even when the agent's own logic is wrong, which is the point of moving
-the check out of the agent.
+Be precise about what this buys. The customer's token is still a credential,
+a short-lived one for that customer, and the agent handles it, so treat it
+as sensitive and never log or store it. What the gateway guarantees is that
+the `customer_id` argument matches the identity in whatever token is
+presented, so a model or agent that chooses a mismatched id is denied. It is
+not a defence against an agent that has somehow obtained another customer's
+token, that is a different threat handled by not leaking tokens in the first
+place. Within its scope, the check holds even when the agent's own logic is
+wrong, which is the point of moving it out of the agent.
 
 ## 4 - Running it
 
@@ -165,14 +195,14 @@ GATEWAY_URL=... TOKEN=<c-1000's token> python3 probe_gateway.py c-1000
 
 GATEWAY_URL=... TOKEN=<c-1000's token> python3 probe_gateway.py c-1001
 # denied by the gateway: Tool Execution Denied: Tool call not allowed due to
-# policy enforcement [No policy applies to the request (denied by default).]
+# policy enforcement [Policy evaluation denied due to deny_other_customers_orders].
 ```
 
 The same token that reads c-1000's orders cannot read c-1001's, because the
 Cedar policy has no `permit` for a `customer_id` that is not the caller's,
-and default-deny does the rest. Nothing in the agent had to be correct for
-that to hold. This is what AWS means when it explains why Policy in AgentCore
-sits at the gateway:
+and default-deny does the rest. The agent's own logic did not have to be
+correct for that call to be refused. This is what AWS means when it explains
+why Policy in AgentCore sits at the gateway:
 
 > Centralizing authorization outside both gives you a single checkpoint the
 > LLM can't circumvent; one that's auditable and can be verified independently
@@ -180,10 +210,13 @@ sits at the gateway:
 
 <!-- -->
 
-> NOTE: validate before you enforce. The engine takes a `LOG_ONLY` mode that
-> evaluates and records decisions without acting on them, so you can confirm
-> the principal, its tags and the decision are what you expect, then switch to
-> `ENFORCE`. This demo's Terraform carries a `policy_mode` variable for that.
+> NOTE: the engine takes a `LOG_ONLY` mode that records what it would decide
+> but lets the call run, so a denied call still returns the data. That is
+> fail-open, useful only against synthetic data in an isolated account to
+> confirm the principal, its tags and the decision look right before you turn
+> on `ENFORCE`. It is not a safe preliminary against real customer data.
+> This demo's Terraform carries a `policy_mode` variable, defaulting to
+> `ENFORCE`.
 
 ## 5 - When it is not a gateway tool
 
@@ -193,30 +226,37 @@ shapes come up, and both keep authorization out of the agent.
 
 For a first-party AWS store such as DynamoDB, you do not need a policy engine
 at all. Register the Cognito pool as an IAM OIDC provider, exchange the
-customer's ID token for customer-scoped credentials with STS
-`AssumeRoleWithWebIdentity`, and let IAM enforce which rows the agent can
-read. The federation id comes from the signed token, so the agent cannot
-widen it.
+customer's ID token for temporary credentials with STS
+`AssumeRoleWithWebIdentity`, and scope those credentials to the customer.
+IAM does not filter arbitrary rows, so this works when the table's partition
+key is the customer id and the role policy conditions
+`dynamodb:LeadingKeys` on the token's immutable `sub`. That binding is in
+the signed token, so the agent cannot widen it. This is the shape, not a
+drop-in recipe.
 
 ![Web-identity alternative](alt-aws.png)
 
-For a third-party SaaS that IAM cannot reach, AgentCore Identity does carry
-the delegation itself, through on-behalf-of token exchange. The agent
-exchanges the customer's inbound token for a user-scoped token the SaaS
-accepts, and the SaaS enforces its own sharing rules. It needs the provider
-to support RFC 8693 token exchange, which Cognito does not, so it is the
-answer for a Salesforce or an Entra, not for a first-party Cognito tool.
+For a third-party SaaS that IAM cannot reach, AgentCore Identity carries the
+delegation itself, through on-behalf-of token exchange. The agent exchanges
+the customer's inbound token for a user-scoped token the SaaS accepts, and
+the SaaS enforces its own sharing rules. It needs a provider that supports
+OAuth token exchange, RFC 8693 or the JWT-bearer profile RFC 7523, such as
+Salesforce or Microsoft Entra, which Cognito is not. So it is the answer for
+a third-party resource, not for a first-party Cognito tool.
 
 ![On-behalf-of alternative](alt-saas.png)
 
 ## Conclusion
 
-The agent now acts for a known customer, and it is the infrastructure that
-keeps it there. AgentCore Identity establishes the customer at the runtime
-and the gateway, Policy in AgentCore evaluates a Cedar policy on every tool
-call, and a request for anyone else's orders is denied by default before the
-tool runs. The agent holds no broad credential and its own code is not the
-thing standing between a caller and someone else's account.
+The agent now acts for a known customer, and for the orders tool it is the
+infrastructure that keeps it there. AgentCore Identity establishes the
+customer at the runtime and the gateway, Policy in AgentCore evaluates a
+Cedar policy on every call to that tool, and a request for anyone else's
+orders is denied by default before the tool runs. The agent has no gateway
+credential of its own, and for that tool its code is not the thing standing
+between a caller and someone else's account. The memory and sandbox paths
+are still scoped in the agent, and moving them behind the same gateway and
+policy is how you would finish the job.
 
 That is the precondition for the next post, where a Bedrock model is handed
 the tools this series has built and asked a question nobody wrote code for.

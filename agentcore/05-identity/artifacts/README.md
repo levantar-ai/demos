@@ -31,10 +31,11 @@ permit(
   `customer_id=c-1001` returned c-1001's orders. The engine logs but does not
   act, which is the leak `ENFORCE` closes.
 - Switched to `ENFORCE` and repeated. c-1000 for c-1000: allowed. c-1000 for
-  c-1001: denied, `McpError: Tool Execution Denied: Tool call not allowed due
-  to policy enforcement [No policy applies to the request (denied by
-  default).]`.
-- Symmetric: c-1001's token for c-1001 allowed, for c-1000 denied by default.
+  c-1001: denied. With only the `permit`, the message was `[No policy applies
+  to the request (denied by default).]`; after adding the `forbid` guard it is
+  `[Policy evaluation denied due to deny_other_customers_orders].`, the
+  forbid winning explicitly.
+- Symmetric: c-1001's token for c-1001 allowed, for c-1000 denied.
 
 ## Through the agent
 
@@ -77,3 +78,7 @@ project's own guidance predicts.
 - The principal's `username` tag is populated from the Cognito access token's
   `username` claim, and `context.input.customer_id` is the tool argument, so
   the equality check works as written. Confirmed by the allow and deny above.
+- A second policy, a `forbid` with the same condition negated, was added so
+  the invariant survives any future additive `permit` (forbid wins). With it,
+  a mismatched call is denied explicitly by `deny_other_customers_orders`
+  rather than by default.

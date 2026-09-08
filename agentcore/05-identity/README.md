@@ -44,9 +44,16 @@ make demo-init demo-image demo-apply DEMO=agentcore/05-identity
 cd agentcore/05-identity
 ```
 
-`demo-apply` defaults the policy engine to `ENFORCE`. To validate the policy
-before it denies anything, apply once with `TF_VAR_policy_mode=LOG_ONLY`,
-confirm the decisions in the traces, then apply again without it.
+NOTE: the apply that attaches the policy engine grants the gateway role new
+permissions and then uses them in the same run, so it races IAM's eventual
+consistency. If the first `demo-apply` fails with an access-denied on
+`AuthorizeAction` or `PartiallyAuthorizeActions`, run it again; it succeeds
+once the permissions propagate.
+
+`demo-apply` defaults the policy engine to `ENFORCE`. `LOG_ONLY` mode records what the policy would decide but lets the call run,
+so a denied call still returns the data. Use it only against synthetic data
+in an isolated account, never against real customer data, and prefer keeping
+this stack in `ENFORCE`.
 
 Create a customer. Brightwell's customer ids are the pool's usernames, so
 the username is a customer id from `tool/orders.csv`. Read the password from
@@ -91,6 +98,11 @@ GATEWAY_URL="$GATEWAY_URL" TOKEN="$TOKEN" python3 probe_gateway.py c-1001
 ```
 
 ## Notes kept out of the post
+
+- The two Cognito commands take the password as an argument, so it is briefly
+  visible in the local process table. That is the AWS walkthrough's shape and
+  fine on a workstation; a provisioning pipeline would pass it through stdin
+  or the SDK instead.
 
 - `AuthorizeAction` and `PartiallyAuthorizeActions` do not support
   resource-level scoping, so the gateway role grants them on `*`. Which

@@ -39,3 +39,28 @@ resource "aws_bedrockagentcore_policy" "own_orders" {
     }
   }
 }
+
+# Cedar permits are additive, so a broad permit added in a later post could
+# otherwise authorise a cross-customer call. This forbid, which wins over any
+# permit, keeps the invariant: the action is refused whenever the customer_id
+# argument is not the caller's own username.
+resource "aws_bedrockagentcore_policy" "deny_other_orders" {
+  name             = "deny_other_customers_orders"
+  policy_engine_id = aws_bedrockagentcore_policy_engine.orders.policy_engine_id
+  description      = "Forbid list_orders for any customer_id that is not the caller"
+
+  definition {
+    cedar {
+      statement = <<-CEDAR
+        forbid(
+          principal is AgentCore::OAuthUser,
+          action == AgentCore::Action::"orders___list_orders",
+          resource == AgentCore::Gateway::"${aws_bedrockagentcore_gateway.orders.gateway_arn}"
+        ) unless {
+          principal.hasTag("username") &&
+          principal.getTag("username") == context.input.customer_id
+        };
+      CEDAR
+    }
+  }
+}

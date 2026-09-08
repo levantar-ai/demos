@@ -141,7 +141,10 @@
     "Cedar",
     "OAuthUser",
     "Dogwood",
-    "Entra"
+    "Entra",
+    "defence",
+    "authorise",
+    "Salesforce"
   ],
   "ignorePaths": [
     "node_modules/**",
