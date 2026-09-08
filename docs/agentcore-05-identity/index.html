@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Knowing who your agent is acting for, with AgentCore Identity — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every tool call with Policy in AgentCore, so a Cedar policy at the gateway refuses any call to the orders tool outside the caller's own orders, before the tool runs and outside the ">
+<meta name="description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every invocation of the orders gateway tool with Policy in AgentCore, so a Cedar policy at the gateway refuses any call outside the caller's own orders, before the tool runs and out">
 <link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-05-identity/">
 <meta name="author" content="Andy Rea">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -12,7 +12,7 @@
 <meta property="og:site_name" content="Levantar">
 <meta property="og:locale" content="en_GB">
 <meta property="og:title" content="Knowing who your agent is acting for, with AgentCore Identity">
-<meta property="og:description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every tool call with Policy in AgentCore, so a Cedar policy at the gateway refuses any call to the orders tool outside the caller's own orders, before the tool runs and outside the ">
+<meta property="og:description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every invocation of the orders gateway tool with Policy in AgentCore, so a Cedar policy at the gateway refuses any call outside the caller's own orders, before the tool runs and out">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -23,7 +23,7 @@
 <meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Knowing who your agent is acting for, with AgentCore Identity">
-<meta name="twitter:description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every tool call with Policy in AgentCore, so a Cedar policy at the gateway refuses any call to the orders tool outside the caller's own orders, before the tool runs and outside the ">
+<meta name="twitter:description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every invocation of the orders gateway tool with Policy in AgentCore, so a Cedar policy at the gateway refuses any call outside the caller's own orders, before the tool runs and out">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
 <meta name="twitter:image:alt" content="Knowing who your agent is acting for, with AgentCore Identity">
 <link rel="icon" type="image/png" href="../favicon.png">
@@ -32,7 +32,7 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Knowing who your agent is acting for, with AgentCore Identity",
-  "description": "How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every tool call with Policy in AgentCore, so a Cedar policy at the gateway refuses any call to the orders tool outside the caller's own orders, before the tool runs and outside the ",
+  "description": "How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every invocation of the orders gateway tool with Policy in AgentCore, so a Cedar policy at the gateway refuses any call outside the caller's own orders, before the tool runs and out",
   "image": "https://levantar-ai.github.io/demos/agentcore-05-identity/social.png",
   "datePublished": "2026-09-08",
   "dateModified": "2026-09-08",
@@ -184,8 +184,8 @@
       </nav>
 <h2>TL;DR;</h2>
 <p>How to establish who a customer is on the way into an agent with AgentCore
-Identity, and then enforce that identity on every tool call with Policy in
-AgentCore, so a Cedar policy at the gateway refuses any call to the orders tool
+Identity, and then enforce that identity on every invocation of the orders gateway tool
+with Policy in AgentCore, so a Cedar policy at the gateway refuses any call
 outside the caller's own orders, before the tool runs and outside the
 agent's code.</p>
 <blockquote>
@@ -251,7 +251,7 @@ controls. Only an admin creates users, so a username is a real customer id
 and not something an attacker can register. <code>authorizer_type</code> is
 immutable, so a gateway that starts on the wrong client has to be replaced.</p>
 </blockquote>
-<h2>2 - The policy engine, and the one Cedar rule</h2>
+<h2>2 - The policy engine and the Cedar rules</h2>
 <p>Policy in AgentCore is a policy engine attached to the gateway. It holds
 Cedar policies and evaluates them on every tool call. AWS states the model
 plainly:</p>
@@ -269,8 +269,8 @@ from the JWT token's <code>sub</code> claim. OAuth principals support tags that
 contain JWT claims such as username, scope, role, etc.</p>
 </blockquote>
 <p>So the caller's <code>sub</code> is the Cedar principal, the verified <code>username</code> claim
-is a principal tag, and the tool's arguments arrive as <code>context.input</code>. One
-rule expresses the whole policy, a customer may list only their own orders:</p>
+is a principal tag, and the tool's arguments arrive as <code>context.input</code>. A
+<code>permit</code> expresses the allow, a customer may list only their own orders:</p>
 <pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_policy&quot; &quot;own_orders&quot; {
   name             = &quot;own_orders_only&quot;
   policy_engine_id = aws_bedrockagentcore_policy_engine.orders.policy_engine_id
@@ -298,7 +298,8 @@ the gateway verified, so it is not something the agent or a model can talk
 its way around by choosing a different argument.</p>
 <p>Cedar permits are additive, so a broad permit added in a later post could
 otherwise re-open this. A <code>forbid</code>, which wins over any permit, keeps the
-invariant regardless of what is added later:</p>
+invariant for this action on this gateway, it denies a mismatched customer
+id even if a later permit would match:</p>
 <pre><code class="language-hcl">forbid(
   principal is AgentCore::OAuthUser,
   action == AgentCore::Action::&quot;orders___list_orders&quot;,
@@ -381,14 +382,15 @@ This demo's Terraform carries a <code>policy_mode</code> variable, defaulting to
 which is where this series has put its tools since post 02. Two other
 shapes come up, and both keep authorization out of the agent.</p>
 <p>For a first-party AWS store such as DynamoDB, you do not need a policy engine
-at all. Register the Cognito pool as an IAM OIDC provider, exchange the
-customer's ID token for temporary credentials with STS
-<code>AssumeRoleWithWebIdentity</code>, and scope those credentials to the customer.
-IAM does not filter arbitrary rows, so this works when the table's partition
-key is the customer id and the role policy conditions
-<code>dynamodb:LeadingKeys</code> on the token's immutable <code>sub</code>. That binding is in
-the signed token, so the agent cannot widen it. This is the shape, not a
-drop-in recipe.</p>
+at all. Register the Cognito pool as an IAM OIDC provider, take the
+customer's ID token rather than the access token this demo uses, exchange it
+for temporary credentials with STS <code>AssumeRoleWithWebIdentity</code>, and scope
+those credentials to the customer. IAM does not filter arbitrary rows, so
+the table has to be keyed on a stable identity from the token, the immutable
+<code>sub</code>, with the role policy conditioning <code>dynamodb:LeadingKeys</code> on it. That
+binding is in the signed token, so the agent cannot widen it. This is the
+shape, and it re-keys the data on <code>sub</code> and changes the inbound token, so it
+is a different contract from this post, not a drop-in.</p>
 <p><img alt="Web-identity alternative" src="alt-aws.png" /></p>
 <p>For a third-party SaaS that IAM cannot reach, AgentCore Identity carries the
 delegation itself, through on-behalf-of token exchange. The agent exchanges
@@ -411,8 +413,8 @@ policy is how you would finish the job.</p>
 <p>That is the precondition for the next post, where a Bedrock model is handed
 the tools this series has built and asked a question nobody wrote code for.
 It will choose the arguments to those tools, including the customer id, and
-the reason that is safe is that the gateway, not the model, decides whose
-orders come back.</p>
+the reason its orders access is safe is that the gateway, not the model,
+decides whose orders come back.</p>
 <p>References:</p>
 <ul>
 <li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity">https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity</a></li>

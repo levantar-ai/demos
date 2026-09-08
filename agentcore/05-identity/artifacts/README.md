@@ -6,8 +6,8 @@ Captured from a deploy and invoke cycle of this demo on 2026-09-08 (region
 ## What was deployed
 
 The gateway's authorizer was pointed at the customers client, a Policy
-Engine (`demos_agentcore_05_orders`) was created with one Cedar policy
-(`own_orders_only`), and the gateway was attached to it. The OAuth2
+Engine (`demos_agentcore_05_orders`) was created with a `permit` policy (`own_orders_only`) and a `forbid`
+guard (`deny_other_customers_orders`), and the gateway was attached to it. The OAuth2
 credential provider, the token vault call, the agent Cognito client and the
 resource server were all removed. The agent relays the customer's token.
 

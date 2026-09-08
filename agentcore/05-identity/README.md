@@ -24,11 +24,14 @@ too. They are not re-explained, the post they belong to covers them.
   `allowed_clients` is the customers client), the pool has one public
   customers client with admin-only user creation, and the target exposes
   `list_orders` only
-- A Policy Engine (`demos_agentcore_05_orders`) and one Cedar policy,
-  `own_orders_only`, attached to the gateway in `ENFORCE` mode
+- A Policy Engine (`demos_agentcore_05_orders`) and two Cedar policies, a
+  `permit` (`own_orders_only`) and a `forbid` guard
+  (`deny_other_customers_orders`), attached to the gateway in `ENFORCE` mode
 - Everything from demo 03 (memory) and demo 04 (Code Interpreter sandbox)
-- No credential provider and no token vault. The agent holds no secret; the
-  gateway role gets the policy-engine read and evaluate actions
+- No OAuth2 credential provider and no `GetResourceOauth2Token` call. The
+  agent has no client secret or agent-owned gateway credential, though it
+  handles the customer's short-lived bearer token and must treat it as
+  sensitive. The gateway role gets the policy-engine read and evaluate actions
 
 ## Before you start, the state backend
 

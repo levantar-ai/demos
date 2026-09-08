@@ -3,8 +3,8 @@
 ## TL;DR;
 
 How to establish who a customer is on the way into an agent with AgentCore
-Identity, and then enforce that identity on every tool call with Policy in
-AgentCore, so a Cedar policy at the gateway refuses any call to the orders tool
+Identity, and then enforce that identity on every invocation of the orders gateway tool
+with Policy in AgentCore, so a Cedar policy at the gateway refuses any call
 outside the caller's own orders, before the tool runs and outside the
 agent's code.
 
@@ -78,7 +78,7 @@ identity the next section authorizes against.
 > and not something an attacker can register. `authorizer_type` is
 > immutable, so a gateway that starts on the wrong client has to be replaced.
 
-## 2 - The policy engine, and the one Cedar rule
+## 2 - The policy engine and the Cedar rules
 
 Policy in AgentCore is a policy engine attached to the gateway. It holds
 Cedar policies and evaluates them on every tool call. AWS states the model
@@ -97,8 +97,8 @@ which also says where the principal and its attributes come from:
 > contain JWT claims such as username, scope, role, etc.
 
 So the caller's `sub` is the Cedar principal, the verified `username` claim
-is a principal tag, and the tool's arguments arrive as `context.input`. One
-rule expresses the whole policy, a customer may list only their own orders:
+is a principal tag, and the tool's arguments arrive as `context.input`. A
+`permit` expresses the allow, a customer may list only their own orders:
 
 ```hcl
 resource "aws_bedrockagentcore_policy" "own_orders" {
@@ -130,7 +130,8 @@ its way around by choosing a different argument.
 
 Cedar permits are additive, so a broad permit added in a later post could
 otherwise re-open this. A `forbid`, which wins over any permit, keeps the
-invariant regardless of what is added later:
+invariant for this action on this gateway, it denies a mismatched customer
+id even if a later permit would match:
 
 ```hcl
 forbid(
@@ -225,14 +226,15 @@ which is where this series has put its tools since post 02. Two other
 shapes come up, and both keep authorization out of the agent.
 
 For a first-party AWS store such as DynamoDB, you do not need a policy engine
-at all. Register the Cognito pool as an IAM OIDC provider, exchange the
-customer's ID token for temporary credentials with STS
-`AssumeRoleWithWebIdentity`, and scope those credentials to the customer.
-IAM does not filter arbitrary rows, so this works when the table's partition
-key is the customer id and the role policy conditions
-`dynamodb:LeadingKeys` on the token's immutable `sub`. That binding is in
-the signed token, so the agent cannot widen it. This is the shape, not a
-drop-in recipe.
+at all. Register the Cognito pool as an IAM OIDC provider, take the
+customer's ID token rather than the access token this demo uses, exchange it
+for temporary credentials with STS `AssumeRoleWithWebIdentity`, and scope
+those credentials to the customer. IAM does not filter arbitrary rows, so
+the table has to be keyed on a stable identity from the token, the immutable
+`sub`, with the role policy conditioning `dynamodb:LeadingKeys` on it. That
+binding is in the signed token, so the agent cannot widen it. This is the
+shape, and it re-keys the data on `sub` and changes the inbound token, so it
+is a different contract from this post, not a drop-in.
 
 ![Web-identity alternative](alt-aws.png)
 
@@ -261,8 +263,8 @@ policy is how you would finish the job.
 That is the precondition for the next post, where a Bedrock model is handed
 the tools this series has built and asked a question nobody wrote code for.
 It will choose the arguments to those tools, including the customer id, and
-the reason that is safe is that the gateway, not the model, decides whose
-orders come back.
+the reason its orders access is safe is that the gateway, not the model,
+decides whose orders come back.
 
 References:
 
