@@ -1,206 +1,79 @@
 # Deployment artifacts — captured from a real run
 
-Captured from a deploy → invoke cycle of this demo on 2026-09-07 (region
-`us-east-1`), image tag `1dc054e`.
+Captured from a deploy and invoke cycle of this demo on 2026-09-08 (region
+`us-east-1`), image tag `f32c415`, policy engine in `ENFORCE`.
 
-## Deploy
+## What was deployed
 
-20 resources on top of the ECR repository. The memory store and its
-strategy were the slow ones again, two and a half minutes. The credential
-provider, the runtime and the gateway each created in seconds.
+The gateway's authorizer was pointed at the customers client, a Policy
+Engine (`demos_agentcore_05_orders`) was created with one Cedar policy
+(`own_orders_only`), and the gateway was attached to it. The OAuth2
+credential provider, the token vault call, the agent Cognito client and the
+resource server were all removed. The agent relays the customer's token.
 
-## First invocation, and the IAM gap it found
-
-The first `list my orders` as `c-1000` hung for two minutes and returned
-`HTTP 424 {"message":"Runtime initialization time exceeded. Please make
-sure that initialization completes in 120s."}`. The runtime log showed the
-container answering 502 to a POST every two seconds with:
+## The Cedar policy
 
 ```
-AccessDeniedException when calling the GetResourceOauth2Token operation:
-Access denied when retrieving secret 'arn:aws:secretsmanager:us-east-1:…:secret:bedrock-agentcore-identity!default/oauth2/demos-agentcore-05-identity-gateway-…'.
-User: arn:aws:sts::…:assumed-role/demos-agentcore-05-identity-runtime/… is not authorized to perform: secretsmanager:GetSecretValue
+permit(
+  principal is AgentCore::OAuthUser,
+  action == AgentCore::Action::"orders___list_orders",
+  resource == AgentCore::Gateway::"arn:aws:bedrock-agentcore:us-east-1:…:gateway/demos-agentcore-05-identity-gw-…"
+) when {
+  principal.hasTag("username") &&
+  principal.getTag("username") == context.input.customer_id
+};
 ```
 
-Two facts came out of that. The token vault reads the client secret with
-the caller's role, so the runtime role needs `secretsmanager:GetSecretValue`
-on the provider's `client_secret_arn`. And the runtime treats a 5xx from
-the container on a new session as a failed initialisation and retries until
-the 120s limit, so the caller sees a timeout rather than the error. Fixed
-with one IAM statement, no image change.
+## Validation, LOG_ONLY then ENFORCE
 
-## Identity from the token
+- In `LOG_ONLY`, a direct gateway call with c-1000's token for
+  `customer_id=c-1000` returned c-1000's seven orders, and the same token for
+  `customer_id=c-1001` returned c-1001's orders. The engine logs but does not
+  act, which is the leak `ENFORCE` closes.
+- Switched to `ENFORCE` and repeated. c-1000 for c-1000: allowed. c-1000 for
+  c-1001: denied, `McpError: Tool Execution Denied: Tool call not allowed due
+  to policy enforcement [No policy applies to the request (denied by
+  default).]`.
+- Symmetric: c-1001's token for c-1001 allowed, for c-1000 denied by default.
 
-Access token claims for `c-1000` (`sub`, `jti` and friends elided):
+## Through the agent
 
-```json
-{"iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_…",
- "client_id": "<customers client>", "token_use": "access",
- "scope": "aws.cognito.signin.user.admin", "username": "c-1000"}
-```
+- `list my orders` as c-1000 returned c-1000's seven orders (1033, 1038,
+  1059, 1084, 1218, 1242, 1255).
+- `where is order 1086?` (a c-1001 order) as c-1000 returned `order 1086 is
+  not on your account`, because the agent lists the caller's own orders,
+  which the gateway permits, and filters.
+- `payload.json` (the post 04 CSV) as c-1000 returned the same `describe()`
+  table and `rows: 8`, so the sandbox still works behind the new inbound auth.
 
-- `list my orders` as `c-1000` returned seven orders, all `customer_id`
-  `c-1000`, ids 1033, 1038, 1059, 1084, 1218, 1242, 1255.
-- `where is order 1255?` as `c-1000` returned that order. `where is order
-  1014?` returned `{"error": "order 1014 is not on your account"}`.
-- `list my orders` as `c-1001` returned c-1001's orders. `where is order
-  1255?` as `c-1001` returned `not on your account`.
-- `remember: I prefer DPD, leave parcels with the neighbour` sent with
-  `"actor": "c-1001"` in the body as `c-1000` was stored under actor
-  `c-1000`, confirmed with `list-events --actor-id c-1000`. `recap` as
-  `c-1000` returned it, `recap` as `c-1001` returned `[]`.
-- `payload.json` (the post 04 CSV) as `c-1000` returned the same
-  `describe()` table and `rows: 8` as post 04.
+## Negative paths
 
-## Negative paths at the runtime
+- No `Authorization` header at the runtime: `HTTP 401`.
+- The gateway deny above is the key result. The tool never runs for a
+  mismatched customer id.
 
-- No `Authorization` header: `HTTP/2 401`, `www-authenticate: Bearer
-  resource_metadata="…/invocations/.well-known/oauth-protected-resource?qualifier=DEFAULT"`,
-  body `{"jsonrpc":"2.0","error":{"code":-32001,"message":"Missing
-  Authentication Token"}}`.
-- `Bearer not.a.token`: `HTTP 403 {"message":"OAuth authorization failed:
-  Failed to parse token"}`.
-- The agent's own M2M token (client_credentials from the agent app
-  client, valid for the gateway): `HTTP 401 {"jsonrpc":"2.0","error":
-  {"code":-32001,"message":"Claim 'client_id' value mismatch with
-  configuration."}}`. The runtime enforces `allowed_clients`.
-- No session id header at all: `HTTP 200`, the service allocates one. A
-  five-character one: `HTTP 400 ... 'runtimeSessionId' failed to satisfy
-  constraint: Member must have length greater than or equal to 33`.
-- `aws cognito-idp sign-up` against the customers client, after the pool
-  was set to admin-only creation: `NotAuthorizedException: SignUp is not
-  permitted for this user pool`.
-- The SigV4 CLI, `aws bedrock-agentcore invoke-agent-runtime`, as the
-  earlier posts used it: `AccessDeniedException ... Authorization method
-  mismatch. The agent is configured for a different authorization method
-  than what was used in your request.` A runtime takes one or the other.
+## IAM findings during the build
 
-## Gotchas
+The gateway role needed, in order of discovery:
 
-- `client_secret_arn` on the credential provider resource is a nested
-  block, so the IAM reference is
-  `one(...client_secret_arn).secret_arn`, not the attribute itself.
-  A bare reference produces `MalformedPolicyDocument: Syntax errors in
-  policy` at apply.
-- The workload identity the runtime creates is named
-  `<runtime name>-<id>`, so the IAM pattern `<runtime name>-*` from the AWS
-  docs matches it and avoids a dependency from the role policy on the
-  runtime.
-- `namespaces` on `aws_bedrockagentcore_memory_strategy` is deprecated in
-  provider 6.63 in favour of `namespace_templates`, changed here.
+- `bedrock-agentcore:GetPolicyEngine` on the engine, or `UpdateGateway`
+  fails to attach it.
+- `bedrock-agentcore:AuthorizeAction`, which does not support resource-level
+  scoping and had to be granted on `*` (a specific gateway ARN, even a
+  matching wildcard, was denied).
+- `bedrock-agentcore:PartiallyAuthorizeActions`, likewise on `*`.
+- The read set (`GetPolicyEngine`, `GetPolicyEngineSummary`, `ListPolicies`,
+  `GetPolicy`) stays scoped to the engine ARN.
 
-## Internal review, 2026-09-07
+Each addition raced IAM eventual consistency, so the first apply after adding
+a permission failed with an access-denied and succeeded on a retry, as the
+project's own guidance predicts.
 
-Three adversarial passes (AWS facts, code and prose consistency, voice)
-before the external review. Findings actioned:
+## Cedar findings
 
-- The pool allowed self sign-up by default, so anyone holding the public
-  customers client id could have registered a customer id before its
-  owner and Brightwell's `admin-create-user` would then have failed. Now
-  `allow_admin_create_user_only = true`, verified live (above).
-- `lookup_order` was still on the gateway target, answering for any order
-  id to whoever held the agent's token, with nothing calling it. Removed
-  from the target and the Lambda; the target exposes `list_orders` only.
-- The post claimed to close post 02's gap outright. The gateway and Lambda
-  still see only the agent's identity, the scoping lives in the agent.
-  The post now says so, in the intro and the conclusion.
-- "never persisted in state" was wrong, the Cognito client resource holds
-  the secret as a computed attribute. Narrowed to what write-only actually
-  does.
-- The session id header was described as required. Tested, it is optional
-  and the 33-character rule applies when it is sent. NOTE reworded.
-- The 3LO sentence had the vault handling consent. It hands back an
-  authorization URL for the customer the first time. Reworded.
-- The credential provider snippet in the post had dropped the load-bearing
-  `depends_on` on the pool domain. Restored, with a sentence on why.
-- The agent's comment on the workload token header cited the SDK
-  loosely. Now cites the SDK source and says why both names are read.
-- Post 04's closing line promised outbound OAuth on a user's behalf, which
-  this post defers. Softened to what 05 delivers.
-- Twelve voice edits, mostly the intro re-explaining posts 02 and 03, a
-  duplicated forward pointer, and a NOTE repeating its own paragraph.
-
-## External review (gpt-5.6-sol via OpenAI API), 2026-09-07
-
-Four rounds. Round one, nine findings, two blockers, all actioned except
-one declined. Round two, seven, all actioned. Round three, seven, six
-actioned and one declined. Round four, a confirming pass on the round-three
-edits, closed the gate with no remaining or new findings and a ready-to-
-publish verdict. The round-four pass was run after publication, on 2026-09-08,
-because round three's fixes had been shipped without a final confirming
-review; it found nothing to change.
-
-Actioned, in rough order of weight:
-
-- The post claimed to close post 02's gateway gap and promised post 06's
-  model calls would be scoped to the customer. The gateway and Lambda
-  still only see the agent's identity. The post now says the scope is
-  enforced in the agent's code, does not reach the gateway, and that post
-  06 has to inject the customer id from the verified token and keep it
-  out of any model-controlled tool argument.
-- "the agent's code never handles a secret" and "the execution role no
-  longer reads a secret" overstated the vault. The role has GetSecretValue
-  on the vault's copy, so a compromised agent could read it. The post, the
-  TL;DR and the identity.tf comment now say credentials stay out of the
-  code, not away from the role, and that the Cognito client's computed
-  secret is still in state.
-- "every caller is a known customer" rested on admin-only provisioning the
-  post did not show. The pool setting is now in the post with the reason.
-- The agent accepted any token with a username claim. It now requires
-  `token_use == "access"`, with tests for an ID token and a missing claim.
-- The fallback 401 in the agent was described as protection against a
-  misconfigured authorizer. It is not, a forged payload passes it. The
-  post now says so and names the runtime's authorizer as the only control.
-- The handler responded 401 before reading the body, which could race a
-  client mid-upload. The body is read first now, with a 200KB test.
-- USER_PASSWORD_AUTH was presented as the natural customer design. Now
-  labelled a CLI convenience with managed login, authorization code and
-  PKCE named for a customer-facing app.
-- The workload token was described as carrying the customer identity,
-  which the M2M run does not demonstrate. Bounded to "represents the
-  workload identity, treated as opaque" in the post and the code.
-- USER_FEDERATION was described as the vault handling consent. Now named
-  as not built, with the provider registration and callback URL it needs.
-- Section 4 used $POOL, $CLIENT_ID, $INVOKE_URL, $SESSION and $PASSWORD
-  without defining them, omitted --region, and the README hard-coded the
-  region and never set PASSWORD. Both now start from the Terraform outputs
-  including a new aws_region output, read the password with read -rsp,
-  unset it after the token, and show the cd into the demo directory.
-- The 1014 example was a bare -d fragment in a bash block. Full command.
-- The abridged response was tagged json. Untagged and labelled abridged.
-- The diagram's agent to Identity edge was labelled with the returned
-  token. Relabelled with the call and what is sent.
-- The gateway.py docstring said the agent sees "the access token and
-  nothing else". Now says the call does not return the client secret.
-
-Declined:
-
-- Replace `aws-vault exec lev:andy.rea --` in the README with plain
-  commands. It is the convention across every demo README in the series
-  and the author's instruction.
-- Narrow the runtime and gateway roles' trust policy SourceArn from
-  `bedrock-agentcore:region:account:*` to the runtime and gateway ARN
-  namespaces. It is AWS's documented trust policy, carried forward from
-  post 01 across every demo, and not this post's subject. Worth a
-  series-wide change with a live check that the service's source ARN
-  matches the narrower pattern, not a change in one demo.
-
-## Final image, `c0173ad`, 2026-09-07
-
-The review's code changes (token_use check, body-first ordering, comment
-and docstring) and Terraform changes (admin-only pool, single tool on the
-target, aws_region output) deployed as image `c0173ad`. Re-run against it:
-
-- `list my orders` as `c-1000`: the same seven orders.
-- `where is order 1255?`: the order. `where is order 1014?`: `not on your
-  account`. `recap`: the event stored earlier under actor `c-1000`.
-- The customer's ID token (from the same sign-in) presented to the
-  runtime: `HTTP 401 Claim 'client_id' value mismatch with configuration`.
-  Cognito ID tokens carry `aud` rather than `client_id`, so the runtime's
-  `allowed_clients` check refuses them before the agent's own `token_use`
-  check would.
-- No token: `HTTP 401`.
-
-Video re-recorded against this image with `vhs demo.tape`, 47 seconds,
-last frame showing the seven orders, the not-on-your-account answer and
-the 401, no account id on screen.
+- A tool-specific action (`orders___list_orders`) requires the resource to
+  name a specific `AgentCore::Gateway`, not a wildcard, or `CreatePolicy`
+  refuses it.
+- The principal's `username` tag is populated from the Cognito access token's
+  `username` claim, and `context.input.customer_id` is the tool argument, so
+  the equality check works as written. Confirmed by the allow and deny above.
