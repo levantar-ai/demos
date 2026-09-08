@@ -40,6 +40,29 @@ resource "aws_iam_role_policy" "gateway" {
         Effect   = "Allow"
         Action   = ["lambda:InvokeFunction"]
         Resource = aws_lambda_function.tool.arn
+      },
+      {
+        # The gateway loads and evaluates its policy engine on every call.
+        # These are scoped to this one engine.
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:GetPolicyEngine",
+          "bedrock-agentcore:GetPolicyEngineSummary",
+          "bedrock-agentcore:ListPolicies",
+          "bedrock-agentcore:GetPolicy"
+        ]
+        Resource = aws_bedrockagentcore_policy_engine.orders.policy_engine_arn
+      },
+      {
+        # The two evaluation actions do not support resource-level scoping,
+        # so they are granted on "*". Which engine the gateway may read is
+        # still scoped by the statement above.
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:AuthorizeAction",
+          "bedrock-agentcore:PartiallyAuthorizeActions"
+        ]
+        Resource = "*"
       }
     ]
   })

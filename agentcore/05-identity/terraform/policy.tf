@@ -30,7 +30,7 @@ resource "aws_bedrockagentcore_policy" "own_orders" {
         permit(
           principal is AgentCore::OAuthUser,
           action == AgentCore::Action::"orders___list_orders",
-          resource
+          resource == AgentCore::Gateway::"${aws_bedrockagentcore_gateway.orders.gateway_arn}"
         ) when {
           principal.hasTag("username") &&
           principal.getTag("username") == context.input.customer_id
