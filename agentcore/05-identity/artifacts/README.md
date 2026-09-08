@@ -122,9 +122,13 @@ before the external review. Findings actioned:
 
 ## External review (gpt-5.6-sol via OpenAI API), 2026-09-07
 
-Three rounds. Round one, nine findings, two blockers, all actioned except
+Four rounds. Round one, nine findings, two blockers, all actioned except
 one declined. Round two, seven, all actioned. Round three, seven, six
-actioned and one declined.
+actioned and one declined. Round four, a confirming pass on the round-three
+edits, closed the gate with no remaining or new findings and a ready-to-
+publish verdict. The round-four pass was run after publication, on 2026-09-08,
+because round three's fixes had been shipped without a final confirming
+review; it found nothing to change.
 
 Actioned, in rough order of weight:
 
