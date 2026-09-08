@@ -148,7 +148,9 @@
     "virtualenv",
     "venv",
     "getpass",
-    "Agentic"
+    "Agentic",
+    "neutralised",
+    "neutralise"
   ],
   "ignorePaths": [
     "node_modules/**",

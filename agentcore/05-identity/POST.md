@@ -259,6 +259,68 @@ a third-party resource, not for a first-party Cognito tool.
 
 ![On-behalf-of alternative](alt-saas.png)
 
+## 6 - What it does not solve, and where it fits
+
+Handing an autonomous agent a bearer token is not free of risk, and it is
+worth saying plainly which risks this pattern answers, which it narrows, and
+which it leaves to you.
+
+A model asking for the wrong customer is the one the gateway answers outright.
+A prompt injection, or a model that simply gets it wrong, that makes the agent
+request another customer's id is denied by Cedar before the tool runs. That is
+the whole reason the check lives at the gateway and not in the agent.
+
+The token is a bearer credential, so anyone who obtains it can replay it
+until it expires, and there is no proof of possession. The demo sends it only
+over HTTPS and does not deliberately persist it, which lowers the chance of
+disclosure, and a Cognito access token expires within the hour, which is the
+only thing that actually bounds how long a stolen one is useful. None of that
+makes a leaked token harmless, so it stays sensitive and the agent's code is
+part of the trust boundary while it handles one.
+
+Attribution is where this pattern can be weaker than the on-behalf-of
+alternative. The gateway authenticates the customer, and the Lambda receives
+only the policy-approved `customer_id` and an invocation from the gateway
+role, so nothing on the tool side separates the agent from the customer. An
+on-behalf-of exchange can give a downstream both the user and an actor
+identity, but only when the authorization server puts an actor or client
+claim in the token and the downstream records it. RFC 8693 defines the `act`
+claim and does not require it, and RFC 7523 does not define it at all, so
+verify the token a provider actually issues. Where that trail matters, the
+exchange is the place to look.
+
+And Cedar constrains which customer, not what the agent does with the data
+once it comes back. Narrow tools reduce that exposure, and the guardrails,
+tracing and evals that later posts add help prevent or detect misuse, but a
+hard boundary on returned data also needs output and network-egress controls
+suited to the data, the more so with the runtime on a public network.
+
+The three shapes side by side.
+
+| | Cedar at the gateway | On-behalf-of exchange | Web-identity to IAM |
+|---|---|---|---|
+| Enforced at | the gateway, on the customer's token | the SaaS, on an exchanged token | IAM, on scoped credentials |
+| Carries the agent's identity | no | provider-dependent, verify | no |
+| Backend it fits | a tool behind the gateway | a third-party SaaS | a first-party AWS store |
+| Issuer it needs | a compatible JWT issuer, Cognito here | one that supports RFC 8693 or 7523 | Cognito as an OIDC provider |
+| Extra moving parts | a policy engine and a Cedar rule | a credential provider and the exchange | an OIDC role and its policy |
+
+This pattern fits a first-party tool behind the gateway, a Cognito login, and
+the customer's own data as the boundary, which is where this series has been
+since post 02. For the orders tool it implements the Well-Architected lens on tool
+authorization,
+[AGENTSEC02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html),
+the gateway and its policy engine authorize every invocation against a
+declarative policy before the Lambda runs, and it follows AGENTSEC03 by
+propagating the customer's identity to that enforcement point rather than
+giving the agent broad access. Where it stops
+short of that item's highest bar is that the agent handles the customer's
+token rather than a minted per-hop one. An on-behalf-of exchange narrows
+that, replacing the relayed token downstream with a provider-issued,
+audience-scoped one, though the agent still handles a bearer token, and
+keeping the customer's token away from the agent entirely means exchanging it
+before it ever reaches the agent.
+
 ## Conclusion
 
 The agent now acts for a known customer, and for the orders tool it is the
