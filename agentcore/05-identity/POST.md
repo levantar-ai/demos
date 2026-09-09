@@ -73,7 +73,7 @@ puts the client in `aud` and carries no `client_id`, so the JWT authorizer
 refuses it before the agent or Cedar sees it, which a live check confirmed
 with `401 Claim 'client_id' value mismatch`. The handler's `token_use` check
 is a second line behind that. That username is the identity the next section
-authorizes against.
+authorises against.
 
 > NOTE: this is the same pool for customer accounts that Brightwell already
 > controls. Only an admin creates users, so a username is a real customer id
@@ -193,6 +193,11 @@ wrong, which is the point of moving it out of the agent.
 
 ## 4 - Running it
 
+The whole path, one token minted at sign-in and checked twice, at the runtime
+and again at the gateway where Cedar decides:
+
+![The token's path and the two checks](sequence.png)
+
 A customer signs in and calls the agent, and the happy path is unremarkable,
 `list my orders` returns their orders. The interesting call is the one that
 should not work. Asking the gateway directly, with a customer's own token,
@@ -231,7 +236,7 @@ why Policy in AgentCore sits at the gateway:
 
 Policy at the gateway is the answer when the tool is behind the gateway,
 which is where this series has put its tools since post 02. Two other
-shapes come up, and both keep authorization out of the agent.
+shapes come up, and both keep authorisation out of the agent.
 
 For a first-party AWS store such as DynamoDB, you do not need a policy engine
 at all. Register the Cognito pool as an IAM OIDC provider, take the
@@ -283,7 +288,7 @@ alternative. The gateway authenticates the customer, and the Lambda receives
 only the policy-approved `customer_id` and an invocation from the gateway
 role, so nothing on the tool side separates the agent from the customer. An
 on-behalf-of exchange can give a downstream both the user and an actor
-identity, but only when the authorization server puts an actor or client
+identity, but only when the authorisation server puts an actor or client
 claim in the token and the downstream records it. RFC 8693 defines the `act`
 claim and does not require it, and RFC 7523 does not define it at all, so
 verify the token a provider actually issues. Where that trail matters, the
@@ -297,7 +302,7 @@ suited to the data, the more so with the runtime on a public network.
 
 The three shapes side by side.
 
-| | Cedar at the gateway | On-behalf-of exchange | Web-identity to IAM |
+| | **Cedar at the gateway (this post)** | On-behalf-of exchange | Web-identity to IAM |
 |---|---|---|---|
 | Enforced at | the gateway, on the customer's token | the SaaS, on an exchanged token | IAM, on scoped credentials |
 | Carries the agent's identity | no | provider-dependent, verify | no |
@@ -308,9 +313,9 @@ The three shapes side by side.
 This pattern fits a first-party tool behind the gateway, a Cognito login, and
 the customer's own data as the boundary, which is where this series has been
 since post 02. For the orders tool it implements the Well-Architected lens on tool
-authorization,
+authorisation,
 [AGENTSEC02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html),
-the gateway and its policy engine authorize every invocation against a
+the gateway and its policy engine authorise every invocation against a
 declarative policy before the Lambda runs, and it follows AGENTSEC03 by
 propagating the customer's identity to that enforcement point rather than
 giving the agent broad access. Where it stops
@@ -324,7 +329,7 @@ before it ever reaches the agent.
 On-behalf-of is the natural way to harden this further, and this post does
 not build it for a concrete reason. Cognito does not implement RFC 8693 token exchange, so there
 is no exchange grant to ask it for, and as section 5 noted it cannot be the
-exchange target. The exchange needs another authorization
+exchange target. The exchange needs another authorisation
 server, and a later post stands up a self-hosted one, though a managed
 provider that supports the exchange profile would do as well. That server
 validates the customer and the agent, then deliberately mints a shorter-lived
@@ -355,7 +360,7 @@ That is the precondition for the next post, where a model is handed the tools
 this series has built and lets it choose the arguments, including the
 customer id, and the reason its orders access stays safe is that the gateway,
 not the model, decides whose orders come back. A later post strengthens the
-delegation further with the on-behalf-of exchange, where an authorization
+delegation further with the on-behalf-of exchange, where an authorisation
 server mints a token scoped to the gateway that can name both the customer
 and the agent, so the agent presents that rather than relaying the customer's
 own.

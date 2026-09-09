@@ -36,7 +36,7 @@
   "image": "https://levantar-ai.github.io/demos/agentcore-05-identity/social.png",
   "datePublished": "2026-09-08",
   "dateModified": "2026-09-08",
-  "wordCount": 2800,
+  "wordCount": 3000,
   "inLanguage": "en-GB",
   "mainEntityOfPage": {
     "@type": "WebPage",
@@ -173,7 +173,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
-          <div class="facts"><time datetime="2026-09-08">8 September 2026</time><span class="sep">·</span>14 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-09-08">8 September 2026</time><span class="sep">·</span>15 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
       <nav class="series-nav prev">
@@ -246,7 +246,7 @@ puts the client in <code>aud</code> and carries no <code>client_id</code>, so th
 refuses it before the agent or Cedar sees it, which a live check confirmed
 with <code>401 Claim 'client_id' value mismatch</code>. The handler's <code>token_use</code> check
 is a second line behind that. That username is the identity the next section
-authorizes against.</p>
+authorises against.</p>
 <blockquote>
 <p>NOTE: this is the same pool for customer accounts that Brightwell already
 controls. Only an admin creates users, so a username is a real customer id
@@ -353,6 +353,9 @@ token, that is a different threat handled by not leaking tokens in the first
 place. Within its scope, the check holds even when the agent's own logic is
 wrong, which is the point of moving it out of the agent.</p>
 <h2>4 - Running it</h2>
+<p>The whole path, one token minted at sign-in and checked twice, at the runtime
+and again at the gateway where Cedar decides:</p>
+<p><img alt="The token's path and the two checks" src="sequence.png" /></p>
 <p>A customer signs in and calls the agent, and the happy path is unremarkable,
 <code>list my orders</code> returns their orders. The interesting call is the one that
 should not work. Asking the gateway directly, with a customer's own token,
@@ -388,7 +391,7 @@ This demo's Terraform carries a <code>policy_mode</code> variable, defaulting to
 <h2>5 - When it is not a gateway tool</h2>
 <p>Policy at the gateway is the answer when the tool is behind the gateway,
 which is where this series has put its tools since post 02. Two other
-shapes come up, and both keep authorization out of the agent.</p>
+shapes come up, and both keep authorisation out of the agent.</p>
 <p>For a first-party AWS store such as DynamoDB, you do not need a policy engine
 at all. Register the Cognito pool as an IAM OIDC provider, take the
 customer's ID token rather than the access token this demo uses, exchange it
@@ -431,7 +434,7 @@ alternative. The gateway authenticates the customer, and the Lambda receives
 only the policy-approved <code>customer_id</code> and an invocation from the gateway
 role, so nothing on the tool side separates the agent from the customer. An
 on-behalf-of exchange can give a downstream both the user and an actor
-identity, but only when the authorization server puts an actor or client
+identity, but only when the authorisation server puts an actor or client
 claim in the token and the downstream records it. RFC 8693 defines the <code>act</code>
 claim and does not require it, and RFC 7523 does not define it at all, so
 verify the token a provider actually issues. Where that trail matters, the
@@ -446,7 +449,7 @@ suited to the data, the more so with the runtime on a public network.</p>
 <thead>
 <tr>
 <th></th>
-<th>Cedar at the gateway</th>
+<th><strong>Cedar at the gateway (this post)</strong></th>
 <th>On-behalf-of exchange</th>
 <th>Web-identity to IAM</th>
 </tr>
@@ -487,9 +490,9 @@ suited to the data, the more so with the runtime on a public network.</p>
 <p>This pattern fits a first-party tool behind the gateway, a Cognito login, and
 the customer's own data as the boundary, which is where this series has been
 since post 02. For the orders tool it implements the Well-Architected lens on tool
-authorization,
+authorisation,
 <a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html">AGENTSEC02</a>,
-the gateway and its policy engine authorize every invocation against a
+the gateway and its policy engine authorise every invocation against a
 declarative policy before the Lambda runs, and it follows AGENTSEC03 by
 propagating the customer's identity to that enforcement point rather than
 giving the agent broad access. Where it stops
@@ -502,7 +505,7 @@ before it ever reaches the agent.</p>
 <p>On-behalf-of is the natural way to harden this further, and this post does
 not build it for a concrete reason. Cognito does not implement RFC 8693 token exchange, so there
 is no exchange grant to ask it for, and as section 5 noted it cannot be the
-exchange target. The exchange needs another authorization
+exchange target. The exchange needs another authorisation
 server, and a later post stands up a self-hosted one, though a managed
 provider that supports the exchange profile would do as well. That server
 validates the customer and the agent, then deliberately mints a shorter-lived
@@ -530,7 +533,7 @@ behind the same gateway and policy is how you would finish the job.</p>
 this series has built and lets it choose the arguments, including the
 customer id, and the reason its orders access stays safe is that the gateway,
 not the model, decides whose orders come back. A later post strengthens the
-delegation further with the on-behalf-of exchange, where an authorization
+delegation further with the on-behalf-of exchange, where an authorisation
 server mints a token scoped to the gateway that can name both the customer
 and the agent, so the agent presents that rather than relaying the customer's
 own.</p>

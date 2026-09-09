@@ -150,7 +150,9 @@
     "getpass",
     "Agentic",
     "neutralised",
-    "neutralise"
+    "neutralise",
+    "authorisation",
+    "authorises"
   ],
   "ignorePaths": [
     "node_modules/**",
