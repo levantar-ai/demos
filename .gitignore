@@ -20,3 +20,6 @@ agentcore/PLAN.md
 
 # Static font instances built from scripts/fonts by render-social.py
 .fonts-build/
+
+# Private working notes (kept out of the public repo)
+notes/
