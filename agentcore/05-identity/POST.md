@@ -321,18 +321,18 @@ audience-scoped one, though the agent still handles a bearer token, and
 keeping the customer's token away from the agent entirely means exchanging it
 before it ever reaches the agent.
 
-On-behalf-of is the obvious next step, and this post does not build it for a
-concrete reason. Cognito does not implement RFC 8693 token exchange, so there
+On-behalf-of is the natural way to harden this further, and this post does
+not build it for a concrete reason. Cognito does not implement RFC 8693 token exchange, so there
 is no exchange grant to ask it for, and as section 5 noted it cannot be the
 exchange target. The exchange needs another authorization
-server, and the next post stands up a self-hosted one, though a managed
+server, and a later post stands up a self-hosted one, though a managed
 provider that supports the exchange profile would do as well. That server
 validates the customer and the agent, then deliberately mints a shorter-lived
 token scoped to the gateway and, where it chooses to, an actor claim naming
 the agent. None of that comes from the exchange for free, the audience, the
 lifetime and the actor claim are the server's to mint and the gateway's to
 check. AgentCore Identity requests that token through its on-behalf-of flow
-and hands it to the agent. So the next post adds the audit trail and the
+and hands it to the agent. So a later post adds the audit trail and the
 audience-scoped token this design does without, on top of the gateway and the
 Cedar policy here. Relaying the token with Cedar enforcing the customer is
 the right foundation to build it on, and a sound design in its own right for
@@ -351,13 +351,14 @@ The relay is still trusted to present the current caller's token, and the
 memory and sandbox paths are still scoped in the agent, so moving those
 behind the same gateway and policy is how you would finish the job.
 
-The next post strengthens exactly this with the on-behalf-of exchange, where
-an authorization server mints a token scoped to the gateway that can name
-both the customer and the agent, and the agent presents that rather than
-relaying the customer's own. The post after that hands a model the tools and
-lets it choose the arguments,
-including the customer id, and the reason its orders access stays safe is
-that the gateway, not the model, decides whose orders come back.
+That is the precondition for the next post, where a model is handed the tools
+this series has built and lets it choose the arguments, including the
+customer id, and the reason its orders access stays safe is that the gateway,
+not the model, decides whose orders come back. A later post strengthens the
+delegation further with the on-behalf-of exchange, where an authorization
+server mints a token scoped to the gateway that can name both the customer
+and the agent, so the agent presents that rather than relaying the customer's
+own.
 
 References:
 
