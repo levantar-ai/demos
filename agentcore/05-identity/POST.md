@@ -75,6 +75,15 @@ with `401 Claim 'client_id' value mismatch`. The handler's `token_use` check
 is a second line behind that. That username is the identity the next section
 authorises against.
 
+> NOTE: the runtime's authorizer is built to accept an end user's token, so in
+> a real system the customer's own app, or a backend for it, would invoke the
+> runtime carrying that token. This demo has the customer call the runtime
+> directly, which changes nothing about the token or the checks below and keeps
+> the subject on the identity mechanism rather than the application wiring
+> around it.
+
+<!-- -->
+
 > NOTE: this is the same pool for customer accounts that Brightwell already
 > controls. Only an admin creates users, so a username is a real customer id
 > and not something an attacker can register. The policy matches on the
