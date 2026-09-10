@@ -115,6 +115,7 @@
     "bgcolor",
     "nodesep",
     "ranksep",
+    "labelloc",
     "instancer",
     "wght",
     "colours",
