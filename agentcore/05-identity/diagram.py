@@ -58,17 +58,17 @@ with Diagram(
         "AgentCore Runtime",
         graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f6f3ec"},
     ):
-        rt_auth = Bedrock(IDENTITY, height=_h(2))
+        rt_auth = Bedrock(IDENTITY, height=_h(3))
         agent = Python("agent", height=_h(1))
 
     with Cluster(
         "AgentCore Gateway  -  Policy in AgentCore evaluates Cedar per call",
         graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#efece4"},
     ):
-        gw_auth = Bedrock(IDENTITY, height=_h(2))
+        gw_auth = Bedrock(IDENTITY, height=_h(3))
         gateway = APIGateway("gateway", height=_h(1))
         policy = IdentityAndAccessManagementIamPermissions(
-            "Cedar policy\ncustomer_id ==\ncaller's username", height=_h(2)
+            "Cedar policy\ncustomer_id ==\ncaller's username", height=_h(3)
         )
 
     orders = Lambda("orders", height=_h(1))
