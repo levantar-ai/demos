@@ -223,7 +223,7 @@ The orders tool is the one behind the gateway, so it is the one this post
 puts under Cedar; the memory and sandbox carried forward from posts 03 and
 04 are called directly and are still scoped in the agent code, which is the
 next thing you would move behind the same pattern.</p>
-<p><img alt="Architecture" src="architecture.png" /></p>
+<p><img alt="The runtime and the gateway each validate the customer's Cognito token with their own AgentCore Identity inbound CUSTOM_JWT authorizer, configured against the pool's OIDC discovery and JWKS, before Cedar enforces the caller on the orders tool" src="architecture.png" /></p>
 <video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
 <h2>1 - Inbound, the runtime and the gateway check the customer</h2>
 <p>The Cognito pool from post 02 keeps a public client for customers, who sign

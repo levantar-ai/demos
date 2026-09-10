@@ -46,7 +46,7 @@ puts under Cedar; the memory and sandbox carried forward from posts 03 and
 04 are called directly and are still scoped in the agent code, which is the
 next thing you would move behind the same pattern.
 
-![Architecture](architecture.png)
+![The runtime and the gateway each validate the customer's Cognito token with their own AgentCore Identity inbound CUSTOM_JWT authorizer, configured against the pool's OIDC discovery and JWKS, before Cedar enforces the caller on the orders tool](architecture.png)
 
 ## 1 - Inbound, the runtime and the gateway check the customer
 

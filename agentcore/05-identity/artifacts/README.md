@@ -141,3 +141,42 @@ role, not the customer principal; expiry alone bounds replay while TLS and
 non-persistence lower disclosure; guardrails/tracing/evals help but are not a
 hard boundary on returned data; AGENTSEC02 enforcement is at the gateway and
 policy engine, scoped to the orders tool. Verdict: ready to publish.
+
+## Main diagram, AgentCore Identity added and reviewed (gpt-5.6), 2026-09-10
+
+The subject of the post, AgentCore Identity, was missing from the main
+diagram. It was added as what it is in this design, the inbound auth. Inbound
+Auth is one half of AgentCore Identity, the other being Outbound Auth (the
+credential provider and token vault this rewrite removed), and AWS documents
+JWT authentication for the runtime and gateway as being done "with AgentCore
+Identity". It is a `CUSTOM_JWT` authorizer configured on each endpoint, not a
+shared service the two call out to, so it is drawn as a checkpoint inside each
+of the runtime and gateway clusters, on the way in, with the customer's token
+passing through it before the agent runs and before the gateway processes the
+tool call. Each authorizer's dashed line to the pool shows it validating
+against the pool's OIDC discovery and JWKS.
+
+Reviewed over three rounds.
+
+- Round one caught a first attempt that drew AgentCore Identity as a single
+  shared node the runtime and gateway called out to, with the agent calling a
+  validator after it already had the request. That invented a call path and
+  got the ordering backwards, since the runtime validates the token before the
+  agent sees it. Redrawn as a per-endpoint checkpoint at each cluster's
+  ingress, correctly ordered.
+- Round two confirmed the topology and ordering but objected to naming the
+  endpoint-local authorizers "AgentCore Identity". Checked against AWS's own
+  documentation ("Authenticate and authorize with Inbound Auth and Outbound
+  Auth"), which frames inbound JWT authentication for the runtime and gateway
+  as being done with AgentCore Identity, and says AgentCore Identity validates
+  the `client_id` claim. The Cedar label was also tightened from
+  `customer_id == caller` to `customer_id == caller's username` to match the
+  policy, which compares `principal.getTag("username")` to
+  `context.input.customer_id`.
+- Round three, given that documentation, withdrew the naming objection as too
+  strict and confirmed the ordering, the two independent authorizers, the
+  Cedar label and the OIDC/JWKS trust lines. Verdict: accurate and ready to
+  publish.
+
+The stack was already destroyed, so this was an asset and prose change only,
+no redeploy.
