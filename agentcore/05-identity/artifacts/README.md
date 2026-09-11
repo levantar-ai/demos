@@ -1,9 +1,11 @@
 # Deployment artifacts — captured from a real run
 
 Captured from a deploy and invoke cycle of this demo on 2026-09-11 (region
-`us-east-1`, account `134570442530`), agent image tag `2e36c2d`, policy engine
-in `ENFORCE`. This is the on-behalf-of design. The earlier token-relay design
-and its reviews are kept as history at the end.
+`us-east-1`, account `134570442530`), first on agent image tag `2e36c2d` and
+finally, after the review rounds below, on `f989799` (the committed code), with
+the policy engine in `ENFORCE`. The chain, the minted token and every probe
+were re-run on that final image and matched. This is the on-behalf-of design.
+The earlier token-relay design and its reviews are kept as history at the end.
 
 ## What was deployed
 
