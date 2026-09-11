@@ -348,6 +348,13 @@ exchange-pool rewrite was then reviewed afresh, rounds 12 onward.
   sample's compromise, quoted, named as the part not to copy, with the
   handle-and-record shape a real exchange needs described. Round 16: "No
   material findings remain. Verdict: ready to publish."
+- **Rounds 17 and 18**, on one paragraph Andy asked for, saying plainly
+  that this post is a step up in complexity from the four before it and
+  why. Round 17 corrected its count of secrets, its description of the
+  earlier posts, and its framing of the components as universal OBO
+  requirements rather than the cost of doing the exchange through Cognito's
+  custom authentication, and removed a sentence about the review process.
+  Round 18: "No material findings remain. Verdict: ready to publish."
 
 ## History: the KMS-signed issuer, 2026-09-11 (replaced the same day)
 
