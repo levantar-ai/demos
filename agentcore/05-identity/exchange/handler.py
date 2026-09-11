@@ -1,6 +1,10 @@
 """A minimal RFC 8693 token-exchange service, the on-behalf-of target for
-AgentCore Identity. Cognito can't be an exchange target, so this stands in for
-what a managed IdP with a supported on-behalf-of integration would do. It is a
+AgentCore Identity. Cognito's token endpoint does not offer the exchange grant,
+so this stands in for what a managed IdP with a supported on-behalf-of
+integration would do. It is the same front door as AWS's
+sample-cognito-oauth2-token-exchange (API + Lambda, client-secret auth, subject
+token verified against the pool), signing with KMS rather than a second pool
+and adding the audience that sample's production guidance asks for. It is a
 TEACHING component: it is a token issuer, which is crown-jewel infrastructure.
 Compromise of this code or its signing role is total issuer compromise. KMS
 keeps the private key from being exported; it does NOT stop this process, once

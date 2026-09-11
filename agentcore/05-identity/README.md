@@ -6,10 +6,14 @@ Brightwell customer. Outbound, the agent does not relay that token. It asks
 AgentCore Identity for a token for the order service on the customer's
 behalf, the on-behalf-of exchange, and AgentCore Identity brokers one from the
 customer's token that a separate issuer mints, audience-restricted to the
-gateway and short-lived. Cognito cannot be the RFC 8693 exchange target, so a
-small KMS-signed exchange service stands in for a managed IdP. The gateway trusts that issuer and Policy in AgentCore
-evaluates a Cedar policy on every tool call, permitting a customer to list
-only their own orders. Still no model in it; that is post 06.
+gateway and short-lived. Cognito's token endpoint does not offer the RFC 8693
+grant, so a small KMS-signed exchange service stands in for a managed IdP, the
+same front door AWS's `sample-cognito-oauth2-token-exchange` builds. The
+gateway trusts that issuer and Policy in AgentCore evaluates a Cedar policy on
+every tool call, permitting `list_orders` only when its `customer_id` matches
+the username in the presented token. It does not bind that token to the
+current runtime invocation; the post says what that leaves open. Still no
+model in it; that is post 06.
 
 Each demo in the series is independently deployable and carries the previous
 one forward, so the gateway, the memory store and the sandbox are all here
@@ -158,11 +162,6 @@ unset SECRET MINTED TOKEN
 - The gateway update that attaches the engine races IAM's eventual
   consistency on the new role permissions, so the first `apply` after adding
   them can fail with an access-denied and succeed on a retry.
-- For a first-party AWS store, web-identity federation with STS can put the
-  enforcement in IAM, no policy engine needed, given a token made for
-  federation (a Cognito ID token, not this demo's access token) and a role
-  whose permissions pin the partition key. For a third-party SaaS, AgentCore
-  Identity's user-delegated flow carries the consent. The post names both.
 
 ## Tear down
 

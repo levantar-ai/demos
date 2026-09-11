@@ -260,6 +260,26 @@ run, with the same reviewer.
   in the runbook and the Terraform comment; "no oracle" for the `/token`
   client-auth failures replaced with the accurate statement.
 - **Round 8**, "No material findings remain. Verdict: ready to publish."
+- **Rounds 9 to 11**, after Andy asked for two changes post-publication:
+  reference AWS's `sample-cognito-oauth2-token-exchange` (the same
+  exchange-endpoint pattern, delegating the minting to a second Cognito pool,
+  and whose production guidance asks for the audience restriction this demo
+  applies), and replace the alternatives paragraph with an explanation of
+  why the design does not let the agent into another service. Round 9 found
+  the first draft of that section claimed too much (the audience restriction
+  framed as what makes the token "safer" than the Cognito token; "the agent
+  can only reach this one provider" read as a network boundary when the
+  runtime is public; "nothing else in this stack trusts the pool" when the
+  runtime and the exchange both validate it; "AWS's own answer" for a
+  sample). All reframed to authorisation: the minted token authorises calls
+  to the order gateway alone, the audience limits replay once the token
+  leaves the agent, IAM limits which provider AgentCore Identity will serve
+  the role, no `lambda:InvokeFunction` on the runtime role, and the Cognito
+  token is accepted by nothing downstream as a bearer credential. Round 10
+  caught an `authorizer_config` typo in the copied snippet, the README and
+  policy.tf comments restating the invocation binding, and the diagrams'
+  `aud = orders` shorthand. Round 11: "No material findings remain. Verdict:
+  ready to publish."
 
 ## History: the token-relay design, 2026-09-08
 

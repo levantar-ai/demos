@@ -171,7 +171,8 @@
     "urlencode",
     "overclaim",
     "docstrings",
-    "runbook"
+    "runbook",
+    "downstreams"
   ],
   "ignorePaths": [
     "node_modules/**",
