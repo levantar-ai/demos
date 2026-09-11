@@ -1,7 +1,7 @@
 """The two isolation properties Cedar does not cover.
 
 Policy in AgentCore refuses a list_orders call whose customer_id differs from
-the token's username, but it cannot see the rows the tool returns, and the
+the token's customer_id claim, but it cannot see the rows the tool returns, and the
 memory and sandbox paths never pass through the gateway at all. Both rely on
 code, so both are tested here against the real implementations. Lives in
 agent/ so CI's single pytest run picks it up.

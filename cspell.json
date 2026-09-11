@@ -172,7 +172,11 @@
     "overclaim",
     "docstrings",
     "runbook",
-    "downstreams"
+    "downstreams",
+    "customisation",
+    "pretoken",
+    "unvalidated",
+    "HMAC"
   ],
   "ignorePaths": [
     "node_modules/**",

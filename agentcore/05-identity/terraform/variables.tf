@@ -10,7 +10,11 @@ variable "image_tag" {
 }
 
 variable "policy_mode" {
-  description = "Policy engine mode: LOG_ONLY to validate traces, ENFORCE to deny"
+  description = "Policy engine mode: ENFORCE denies; LOG_ONLY records the decision and lets the call through, for synthetic data in an isolated account only"
   type        = string
   default     = "ENFORCE"
+  validation {
+    condition     = contains(["ENFORCE", "LOG_ONLY"], var.policy_mode)
+    error_message = "policy_mode must be ENFORCE or LOG_ONLY."
+  }
 }

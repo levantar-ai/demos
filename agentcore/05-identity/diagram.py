@@ -16,11 +16,7 @@ from diagrams import Cluster, Diagram, Edge
 from diagrams.aws.compute import Lambda
 from diagrams.aws.ml import Bedrock
 from diagrams.aws.network import APIGateway
-from diagrams.aws.security import (
-    KMS,
-    Cognito,
-    IdentityAndAccessManagementIamPermissions,
-)
+from diagrams.aws.security import Cognito, IdentityAndAccessManagementIamPermissions
 from diagrams.onprem.client import User
 from diagrams.programming.language import Python
 
@@ -37,9 +33,11 @@ edge_attr = {"fontsize": _fs(12), "fontcolor": "#4a5158"}
 
 # The agent does not relay the customer's Cognito token to the gateway. It asks
 # AgentCore Identity, on the customer's behalf, to exchange that token for one
-# audience-restricted to the order gateway: the on-behalf-of flow. Cognito cannot be the
-# RFC 8693 exchange target, so a small KMS-signed exchange service stands in
-# for a managed IdP. The gateway trusts that issuer; Cedar still checks the
+# audience-restricted to the order gateway: the on-behalf-of flow. Cognito's
+# token endpoint does not offer the RFC 8693 grant, so, as in AWS's
+# sample-cognito-oauth2-token-exchange, a small front door implements the
+# grant and a second Cognito pool mints the token through its custom
+# authentication flow. The gateway trusts that pool; Cedar still checks the
 # customer. Inbound auth on the runtime is unchanged.
 
 with Diagram(
@@ -53,7 +51,7 @@ with Diagram(
     edge_attr=edge_attr,
 ):
     customer = User("customer\n(Bearer JWT)", height=_h(2))
-    cognito = Cognito("Cognito pool", height=_h(1))
+    cognito = Cognito("customer pool", height=_h(1))
 
     with Cluster(
         "AgentCore Runtime",
@@ -71,20 +69,20 @@ with Diagram(
         )
 
     with Cluster(
-        "token exchange service  -  the OBO target Cognito cannot be",
+        "token exchange  -  the AWS sample's shape: a front door, a second Cognito pool mints",
         graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f3eeee"},
     ):
-        exchange = Lambda("exchange (RFC 8693)\nverifies the customer's JWT,\nmints a token, up to 5 min", height=_h(3))
-        kms = KMS("KMS\nsigning key", height=_h(2))
+        exchange = Lambda("front door (RFC 8693)\nclient secret, request checks,\nverifies the customer's JWT", height=_h(3))
+        pool2 = Cognito("exchange pool\ntriggers verify again, then\nCognito mints, 5 min", height=_h(3))
 
     with Cluster(
         "AgentCore Gateway  -  Policy in AgentCore evaluates Cedar per call",
         graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#efece4"},
     ):
-        gw_auth = Bedrock("JWT authorizer\ntrusts the\nexchange issuer", height=_h(3))
+        gw_auth = Bedrock("JWT authorizer\ntrusts the exchange pool,\naud = orders client", height=_h(3))
         gateway = APIGateway("gateway", height=_h(1))
         policy = IdentityAndAccessManagementIamPermissions(
-            "Cedar policy\ncustomer_id ==\ntoken username", height=_h(3)
+            "Cedar policy\ncustomer_id ==\ntoken customer_id", height=_h(3)
         )
 
     orders = Lambda("orders", height=_h(1))
@@ -96,13 +94,14 @@ with Diagram(
 
     # On behalf of the customer: the agent asks AgentCore Identity for a token
     # for the order service. Identity brokers the RFC 8693 exchange with the
-    # customer's token as the subject, and hands the minted token back.
+    # customer's token as the subject; the front door runs the exchange pool's
+    # custom auth flow with that token as the answer, and Cognito mints.
     agent >> Edge(label="a token for the order service,\non behalf of the customer") >> identity
     identity >> Edge(label="RFC 8693 exchange\n(subject = the customer's JWT)") >> exchange
-    exchange >> Edge(label="sign, ES256", style="dashed") >> kms
+    exchange >> Edge(label="CUSTOM_AUTH,\nanswer = the customer's JWT") >> pool2
 
     # The minted token, not the customer's, goes to the gateway.
-    agent >> Edge(label="list_orders\n(the minted token,\nup to 5 min, aud = brightwell-orders)") >> gw_auth
+    agent >> Edge(label="list_orders\n(the minted token,\n5 min, aud = orders client)") >> gw_auth
     gw_auth >> Edge(label="validated") >> gateway
     gateway >> Edge(label="evaluate", style="dashed") >> policy
     gateway >> Edge(label="matching customer_id:\npermit the call") >> orders

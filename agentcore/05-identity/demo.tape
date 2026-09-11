@@ -1,5 +1,6 @@
 # VHS tape for the post 05 demo video: the agent's order-service token, brokered
-# by AgentCore Identity on the customer's behalf, minted by the exchange, enforced by Cedar.
+# by AgentCore Identity on the customer's behalf, minted by the exchange pool,
+# enforced by Cedar.
 #
 # The slow terraform and secret reads are done BEFORE the capture, not inside
 # it, or the hidden setup can still be on screen when Show fires. Export these
@@ -61,7 +62,7 @@ Enter
 Wait
 Sleep 3s
 
-Type "# AgentCore Identity brokered that exchange and the exchange service minted the token. mint one directly to look at it"
+Type "# AgentCore Identity brokered that exchange and a second Cognito pool minted the token. mint one directly to look at it"
 Enter
 Sleep 1s
 
@@ -75,7 +76,7 @@ Enter
 Wait
 Sleep 3.5s
 
-Type "# for the order gateway only, five minutes, and it carries my username. ask the gateway directly for my own orders with it"
+Type "# signed by Cognito, for the order gateway only, five minutes, and it carries my customer id. ask the gateway directly for my own orders with it"
 Enter
 Sleep 1s
 
@@ -93,7 +94,7 @@ Enter
 Wait
 Sleep 3s
 
-Type "# and my own Cognito token is not accepted at the gateway at all. the gateway trusts the exchange issuer, not Cognito"
+Type "# and my own sign-in token is not accepted at the gateway at all. the gateway trusts the exchange pool, not the customer pool"
 Enter
 Sleep 1s
 
