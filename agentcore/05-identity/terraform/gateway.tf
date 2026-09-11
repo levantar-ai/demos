@@ -68,10 +68,13 @@ resource "aws_iam_role_policy" "gateway" {
   })
 }
 
-# CUSTOM_JWT against the customers client, so the gateway validates the
-# customer's own token and the caller it establishes is the customer, not
-# the agent. Cognito access tokens carry client_id and username but no aud,
-# so validation is by allowed_clients and no allowed_audience is set.
+# CUSTOM_JWT against the exchange service's issuer. The agent does not relay
+# the customer's raw Cognito token here; it presents the on-behalf-of token
+# that AgentCore Identity minted from it. That token is issued by the exchange
+# service and carries an audience (unlike a Cognito access token), so the
+# gateway validates it by discovery against that issuer and by allowed_audience.
+# The token carries the customer's username, so the caller the gateway
+# establishes is still the customer, not the agent.
 # authorizer_type is immutable; changing it later means replacing the gateway.
 #
 # The policy engine is what enforces per-customer access. It evaluates a
@@ -85,8 +88,8 @@ resource "aws_bedrockagentcore_gateway" "orders" {
 
   authorizer_configuration {
     custom_jwt_authorizer {
-      discovery_url   = local.discovery_url
-      allowed_clients = [aws_cognito_user_pool_client.customers.id]
+      discovery_url    = "${local.exchange_issuer}/.well-known/openid-configuration"
+      allowed_audience = [local.orders_audience]
     }
   }
 

@@ -103,7 +103,27 @@ resource "aws_iam_role_policy" "runtime" {
         ]
         Resource = aws_bedrockagentcore_memory.agent.arn
       },
-
+      {
+        # The on-behalf-of chain: exchange the customer's JWT for a workload
+        # access token, then request the resource token from the credential
+        # provider. token-vault/default/* is wildcarded for the first apply
+        # because the provider ARN's exact form (service prefix, hyphenation)
+        # is inconsistent between the API and the IAM docs; tightened after a
+        # live run from CloudTrail. See artifacts/README.md.
+        Sid    = "OnBehalfOfExchange"
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:GetWorkloadAccessToken",
+          "bedrock-agentcore:GetWorkloadAccessTokenForJWT",
+          "bedrock-agentcore:GetResourceOauth2Token"
+        ]
+        Resource = [
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default",
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default/workload-identity/*",
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:token-vault/default",
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:token-vault/default/*"
+        ]
+      },
     ]
   })
 }

@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import boto3
 from gateway import list_orders
+from identity import orders_token
 from memory import recall, recap, remember
 
 PORT = 8080
@@ -165,6 +166,7 @@ class Handler(BaseHTTPRequestHandler):
     start = staticmethod(session_for)
     run = staticmethod(analyse)
     stop = staticmethod(stop_session)
+    exchange = staticmethod(orders_token)
     orders = staticmethod(list_orders)
     order = staticmethod(find_order)
     store = staticmethod(remember)
@@ -233,7 +235,7 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_prompt(self, payload, prompt, customer):
         """The routes from posts 02 and 03, now scoped to the verified customer."""
         session = payload.get("session", "default")
-        token = bearer_from(self.headers)
+        inbound = bearer_from(self.headers)
         order = ORDER_RE.search(prompt)
         try:
             if prompt.lower().startswith("remember"):
@@ -242,9 +244,11 @@ class Handler(BaseHTTPRequestHandler):
             elif prompt.lower().startswith("recap"):
                 self._send(200, {"result": self.history(customer, session)})
             elif MY_ORDERS_RE.search(prompt):
-                self._send(200, {"result": json.loads(self.orders(customer, token))})
+                gateway_token = self.exchange(inbound)
+                self._send(200, {"result": json.loads(self.orders(customer, gateway_token))})
             elif order:
-                self._send(200, {"result": self.order(order.group(1), customer, token)})
+                gateway_token = self.exchange(inbound)
+                self._send(200, {"result": self.order(order.group(1), customer, gateway_token)})
             else:
                 self._send(200, {"result": self.search(customer, prompt)})
         except Exception as exc:  # noqa: BLE001 — any carried-forward failure is a 502

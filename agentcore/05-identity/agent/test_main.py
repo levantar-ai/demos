@@ -32,6 +32,10 @@ class StubHandler(Handler):
         lambda csv_text, session_id: calls.append((csv_text, session_id)) or "rows: 3"
     )
     stop = staticmethod(lambda interpreter, session_id: stopped.append(session_id))
+    # The on-behalf-of exchange is stubbed: it stands for AgentCore Identity
+    # minting a gateway-scoped token from the customer's inbound JWT. The live
+    # exchange and Cedar enforcement are verified against the deployed stack.
+    exchange = staticmethod(lambda inbound: f"obo:{inbound}")
     orders = staticmethod(
         lambda customer, token: listed.append((customer, token)) or json.dumps(ORDERS)
     )
@@ -139,7 +143,7 @@ def test_my_orders_lists_the_callers_orders(server_url):
     status, body = post(f"{server_url}/invocations", {"prompt": "list my orders"})
     assert status == 200
     assert body == {"result": ORDERS}
-    assert listed == [("c-1000", bearer_for("c-1000"))]
+    assert listed == [("c-1000", f"obo:{bearer_for('c-1000')}")]
 
 
 def test_the_customer_comes_from_the_token_not_the_body(server_url):
@@ -153,7 +157,7 @@ def test_an_order_is_found_through_the_callers_own_orders(server_url):
     status, body = post(f"{server_url}/invocations", {"prompt": "where is order 1275?"})
     assert status == 200
     assert body == {"result": {"order_id": 1275, "status": "shipped"}}
-    assert listed == [("c-1000", bearer_for("c-1000"))]
+    assert listed == [("c-1000", f"obo:{bearer_for('c-1000')}")]
 
 
 def test_someone_elses_order_is_not_on_your_account(server_url):
@@ -213,16 +217,18 @@ def test_the_raw_bearer_token_is_extracted_for_relay():
     assert main.bearer_from({}) is None
 
 
-def test_the_agent_relays_the_customers_own_token_to_the_gateway(server_url):
-    """The gateway is called with the caller's token and their own id, so the
-    policy engine has the caller it needs. The gateway, not this test, is
-    what refuses a mismatched id; that is verified live against the deployed
-    Cedar policy, see artifacts/README.md."""
+def test_the_agent_relays_the_on_behalf_of_token_not_the_raw_bearer(server_url):
+    """The gateway is called with the on-behalf-of token minted from the
+    customer's inbound JWT, not the raw Cognito token, and with the caller's own
+    id. The gateway, not this test, is what refuses a mismatched id; the live
+    exchange and Cedar enforcement are verified against the deployed stack, see
+    artifacts/README.md."""
     listed.clear()
     post(f"{server_url}/invocations", {"prompt": "list my orders"})
     customer, token = listed[-1]
     assert customer == "c-1000"
-    assert token == bearer_for("c-1000")
+    assert token == f"obo:{bearer_for('c-1000')}"
+    assert token != bearer_for("c-1000")
 
 
 def test_gateway_list_orders_forwards_the_id_and_token(monkeypatch):

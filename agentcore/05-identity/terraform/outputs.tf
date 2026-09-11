@@ -39,3 +39,18 @@ output "ecr_repository_url" {
   description = "ECR repository for the agent image"
   value       = aws_ecr_repository.agent.repository_url
 }
+
+output "exchange_issuer" {
+  description = "Issuer URL of the self-hosted token-exchange service (the OBO target)"
+  value       = local.exchange_issuer
+}
+
+output "obo_provider_name" {
+  description = "AgentCore Identity OAuth2 credential provider that performs the exchange"
+  value       = local.obo_provider_name
+}
+
+output "agent_workload_name" {
+  description = "Workload identity name the agent presents for the on-behalf-of exchange"
+  value       = aws_bedrockagentcore_workload_identity.agent.name
+}

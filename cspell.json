@@ -153,7 +153,19 @@
     "neutralised",
     "neutralise",
     "authorisation",
-    "authorises"
+    "authorises",
+    "SECP",
+    "spki",
+    "urlencodes",
+    "urandom",
+    "autouse",
+    "Prehashed",
+    "apigatewayv",
+    "reqs",
+    "pipefail",
+    "manylinux",
+    "wildcarded",
+    "cloudcontrolapi"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -39,6 +39,9 @@ resource "aws_bedrockagentcore_agent_runtime" "agent" {
     CODE_INTERPRETER_ID = aws_bedrockagentcore_code_interpreter.sandbox.code_interpreter_id
     GATEWAY_URL         = aws_bedrockagentcore_gateway.orders.gateway_url
     MEMORY_ID           = aws_bedrockagentcore_memory.agent.id
+    WORKLOAD_NAME       = aws_bedrockagentcore_workload_identity.agent.name
+    OBO_PROVIDER_NAME   = local.obo_provider_name
+    ORDERS_SCOPE        = local.orders_scope
   }
 
   tags = {
