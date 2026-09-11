@@ -25,9 +25,14 @@ output "customers_client_id" {
   value       = aws_cognito_user_pool_client.customers.id
 }
 
-output "workload_identity_arn" {
-  description = "Workload identity AgentCore created for the runtime"
+output "runtime_auto_workload_identity_arn" {
+  description = "Workload identity AgentCore auto-created for the runtime (not the one the OBO chain uses)"
   value       = one(aws_bedrockagentcore_agent_runtime.agent.workload_identity_details).workload_identity_arn
+}
+
+output "agent_workload_identity_arn" {
+  description = "The explicit workload identity the agent presents in the on-behalf-of chain"
+  value       = aws_bedrockagentcore_workload_identity.agent.workload_identity_arn
 }
 
 output "code_interpreter_id" {
@@ -38,4 +43,19 @@ output "code_interpreter_id" {
 output "ecr_repository_url" {
   description = "ECR repository for the agent image"
   value       = aws_ecr_repository.agent.repository_url
+}
+
+output "exchange_issuer" {
+  description = "Issuer URL of the self-hosted token-exchange service (the OBO target)"
+  value       = local.exchange_issuer
+}
+
+output "obo_provider_name" {
+  description = "AgentCore Identity OAuth2 credential provider that performs the exchange"
+  value       = local.obo_provider_name
+}
+
+output "agent_workload_name" {
+  description = "Workload identity name the agent presents for the on-behalf-of exchange"
+  value       = aws_bedrockagentcore_workload_identity.agent.name
 }

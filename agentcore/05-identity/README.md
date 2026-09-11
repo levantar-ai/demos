@@ -1,13 +1,15 @@
-# 05 — Enforcing the customer's identity at the gateway with Policy in AgentCore
+# 05 — The agent's token for the order service, brokered by AgentCore Identity
 
-Extends the demo 04 agent with identity at both ends, done the way AWS's
-Well-Architected Agentic AI Lens asks for. Inbound, the runtime and the
-gateway both validate the customer's own token, so the caller is a known
-Brightwell customer. The agent relays that token rather than minting its
-own, and Policy in AgentCore evaluates a Cedar policy on every tool call at
-the gateway, permitting a customer to list only their own orders and denying
-anything else by default, before the tool runs and outside the agent's code.
-Still no model in it; that is post 06.
+Extends the demo 04 agent with identity at both ends. Inbound, the runtime
+validates the customer's own Cognito token, so the caller is a known
+Brightwell customer. Outbound, the agent does not relay that token. It asks
+AgentCore Identity for a token for the order service on the customer's
+behalf, the on-behalf-of exchange, and AgentCore Identity brokers one from the
+customer's token that a separate issuer mints, audience-restricted to the
+gateway and short-lived. Cognito cannot be the RFC 8693 exchange target, so a
+small KMS-signed exchange service stands in for a managed IdP. The gateway trusts that issuer and Policy in AgentCore
+evaluates a Cedar policy on every tool call, permitting a customer to list
+only their own orders. Still no model in it; that is post 06.
 
 Each demo in the series is independently deployable and carries the previous
 one forward, so the gateway, the memory store and the sandbox are all here
@@ -20,18 +22,25 @@ too. They are not re-explained, the post they belong to covers them.
   `custom_jwt_authorizer` for the customers client and forwards the
   `Authorization` header
 - Everything from demo 02, a Lambda behind an AgentCore Gateway with a
-  Cognito pool. The gateway now validates the customer's token (its
-  `allowed_clients` is the customers client), the pool has one public
-  customers client with admin-only user creation, and the target exposes
-  `list_orders` only
+  Cognito pool. The pool has one public customers client with admin-only user
+  creation, and the target exposes `list_orders` only. The gateway's
+  authorizer now trusts the exchange service's issuer, by `allowed_audience`,
+  and no longer accepts a Cognito token at all
+- The AgentCore Identity resources: an explicit workload identity
+  (`demos_agentcore_05_agent`) and an OAuth2 credential provider
+  (`demos_agentcore_05_obo`) configured for on-behalf-of exchange, created
+  through Cloud Control because the AWS provider's resource does not model it.
+  The runtime role gains `GetWorkloadAccessTokenForJWT`,
+  `GetResourceOauth2Token` and `GetSecretValue` on the provider's managed secret
+- The exchange service, the OBO target: one Lambda behind an HTTP API
+  (`/token`, `/authorize`, discovery, JWKS), a KMS `ECC_NIST_P256` signing key
+  its role can `Sign` and `GetPublicKey` with and not administer, and the
+  client secret in Secrets Manager.
+  Its deps are bundled at apply time by a `local-exec` pip install
 - A Policy Engine (`demos_agentcore_05_orders`) and two Cedar policies, a
   `permit` (`own_orders_only`) and a `forbid` guard
   (`deny_other_customers_orders`), attached to the gateway in `ENFORCE` mode
 - Everything from demo 03 (memory) and demo 04 (Code Interpreter sandbox)
-- No OAuth2 credential provider and no `GetResourceOauth2Token` call. The
-  agent has no client secret or agent-owned gateway credential, though it
-  handles the customer's short-lived bearer token and must treat it as
-  sensitive. The gateway role gets the policy-engine read and evaluate actions
 
 ## Before you start, the state backend
 
@@ -98,13 +107,38 @@ system Python):
 python3 -m venv .venv && . .venv/bin/activate && pip install mcp==1.29.0
 ```
 
-Your own customer id is allowed, anyone else's is denied by the policy:
+The gateway only accepts a token the exchange issuer mints, which the agent
+obtains through AgentCore Identity. To probe, exchange the customer's Cognito
+token at the exchange service directly. Two credentials pass through `curl`'s
+process arguments here, the provider's client secret from Secrets Manager and
+the customer's bearer token, and the minted token lands in a shell variable.
+That is acceptable only in an isolated single-user demo account with synthetic
+data; anywhere real, drive the exchange from a script that reads them from
+memory, never argv:
+
+```bash
+ISSUER=$(cd terraform && aws-vault exec lev:andy.rea -- terraform output -raw exchange_issuer)
+SECRET=$(aws-vault exec lev:andy.rea -- aws secretsmanager get-secret-value --region "$REGION" \
+  --secret-id demos-agentcore-05-identity-exchange-client --query SecretString --output text \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["client_secret"])')
+MINTED=$(curl -s -u "brightwell-orders-agent:$SECRET" "$ISSUER/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
+  --data-urlencode "subject_token=$TOKEN" \
+  --data-urlencode "subject_token_type=urn:ietf:params:oauth:token-type:jwt" \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])')
+```
+
+Your own customer id is allowed, anyone else's is denied by the policy, and
+the raw Cognito token is refused outright:
 
 ```bash
 GATEWAY_URL=$(cd terraform && aws-vault exec lev:andy.rea -- terraform state show \
   aws_bedrockagentcore_gateway.orders | sed -n 's/.*gateway_url *= *"\(.*\)"/\1/p')
-GATEWAY_URL="$GATEWAY_URL" TOKEN="$TOKEN" python3 probe_gateway.py c-1000
-GATEWAY_URL="$GATEWAY_URL" TOKEN="$TOKEN" python3 probe_gateway.py c-1001
+GATEWAY_URL="$GATEWAY_URL" TOKEN="$MINTED" python3 probe_gateway.py c-1000
+GATEWAY_URL="$GATEWAY_URL" TOKEN="$MINTED" python3 probe_gateway.py c-1001
+GATEWAY_URL="$GATEWAY_URL" TOKEN="$TOKEN"  python3 probe_gateway.py c-1000   # 403
+unset SECRET MINTED TOKEN
 ```
 
 ## Notes kept out of the post
@@ -115,18 +149,20 @@ GATEWAY_URL="$GATEWAY_URL" TOKEN="$TOKEN" python3 probe_gateway.py c-1001
   pass it through the SDK with `getpass` so it never reaches argv.
 
 - `AuthorizeAction` and `PartiallyAuthorizeActions` do not support
-  resource-level scoping, so the gateway role grants them on `*`. Which
-  policy engine the gateway may read is still scoped, so this does not widen
-  what it can evaluate.
+  resource-level scoping, so the gateway role grants them on `*`, and that
+  is account-wide. The read actions on the engine are scoped to this one,
+  but scoping them does not restrict what those two evaluation actions can
+  be asked to evaluate.
 - The Cedar policy's resource must name this gateway's ARN. A tool-specific
   action with a wildcard resource is refused by `CreatePolicy`.
 - The gateway update that attaches the engine races IAM's eventual
   consistency on the new role permissions, so the first `apply` after adding
   them can fail with an access-denied and succeed on a retry.
-- For a first-party AWS store, web-identity federation with STS and IAM is
-  the enforcement, no policy engine needed. For a third-party SaaS, AgentCore
-  Identity's on-behalf-of token exchange carries the delegation, which needs
-  an RFC 8693 provider and so is not for Cognito. The post names both.
+- For a first-party AWS store, web-identity federation with STS can put the
+  enforcement in IAM, no policy engine needed, given a token made for
+  federation (a Cognito ID token, not this demo's access token) and a role
+  whose permissions pin the partition key. For a third-party SaaS, AgentCore
+  Identity's user-delegated flow carries the consent. The post names both.
 
 ## Tear down
 

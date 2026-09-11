@@ -16,7 +16,11 @@ from diagrams import Cluster, Diagram, Edge
 from diagrams.aws.compute import Lambda
 from diagrams.aws.ml import Bedrock
 from diagrams.aws.network import APIGateway
-from diagrams.aws.security import Cognito, IdentityAndAccessManagementIamPermissions
+from diagrams.aws.security import (
+    KMS,
+    Cognito,
+    IdentityAndAccessManagementIamPermissions,
+)
 from diagrams.onprem.client import User
 from diagrams.programming.language import Python
 
@@ -31,18 +35,15 @@ graph_attr = {
 node_attr = {"fontsize": _fs(13)}
 edge_attr = {"fontsize": _fs(12), "fontcolor": "#4a5158"}
 
-# Inbound Auth is one half of AgentCore Identity (the other is Outbound Auth);
-# AWS documents JWT authentication for the runtime and gateway as being done
-# "with AgentCore Identity". It is not a shared service the two endpoints call
-# out to. It is a CUSTOM_JWT authorizer configured on each of them, validating
-# the customer's Cognito token at that endpoint's door before the request
-# reaches the agent or the gateway tool. So it is drawn as a checkpoint inside
-# each cluster, on the way in, using the pool's OIDC discovery to fetch and
-# cache the JWKS it validates against.
-IDENTITY = "AgentCore Identity\ninbound auth\n(CUSTOM_JWT)"
+# The agent does not relay the customer's Cognito token to the gateway. It asks
+# AgentCore Identity, on the customer's behalf, to exchange that token for one
+# audience-restricted to the order gateway: the on-behalf-of flow. Cognito cannot be the
+# RFC 8693 exchange target, so a small KMS-signed exchange service stands in
+# for a managed IdP. The gateway trusts that issuer; Cedar still checks the
+# customer. Inbound auth on the runtime is unchanged.
 
 with Diagram(
-    "The customer's identity enforced at the gateway",
+    "The agent's order-service token, brokered by AgentCore Identity on the customer's behalf",
     filename=os.environ.get("DIAGRAM_OUT", "architecture"),
     outformat="png",
     show=False,
@@ -58,34 +59,50 @@ with Diagram(
         "AgentCore Runtime",
         graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f6f3ec"},
     ):
-        rt_auth = Bedrock(IDENTITY, height=_h(3))
+        rt_auth = Bedrock("AgentCore Identity\ninbound auth\n(CUSTOM_JWT)", height=_h(3))
         agent = Python("agent", height=_h(1))
+
+    with Cluster(
+        "AgentCore Identity  -  on behalf of the customer",
+        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#eef3f1"},
+    ):
+        identity = Bedrock(
+            "workload identity,\nOBO credential provider,\nToken Vault", height=_h(3)
+        )
+
+    with Cluster(
+        "token exchange service  -  the OBO target Cognito cannot be",
+        graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#f3eeee"},
+    ):
+        exchange = Lambda("exchange (RFC 8693)\nverifies the customer's JWT,\nmints a token, up to 5 min", height=_h(3))
+        kms = KMS("KMS\nsigning key", height=_h(2))
 
     with Cluster(
         "AgentCore Gateway  -  Policy in AgentCore evaluates Cedar per call",
         graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#efece4"},
     ):
-        gw_auth = Bedrock(IDENTITY, height=_h(3))
+        gw_auth = Bedrock("JWT authorizer\ntrusts the\nexchange issuer", height=_h(3))
         gateway = APIGateway("gateway", height=_h(1))
         policy = IdentityAndAccessManagementIamPermissions(
-            "Cedar policy\ncustomer_id ==\ncaller's username", height=_h(3)
+            "Cedar policy\ncustomer_id ==\ntoken username", height=_h(3)
         )
 
     orders = Lambda("orders", height=_h(1))
 
-    # Main request path, left to right. The customer's token passes through the
-    # runtime authorizer before the agent runs, and through the gateway
-    # authorizer before the gateway processes the call.
+    # Inbound, unchanged: the customer's Cognito token, validated at the runtime.
     customer >> Edge(label="sign in", style="dashed") >> cognito
     customer >> Edge(label="invoke\n(Bearer JWT)") >> rt_auth
     rt_auth >> Edge(label="validated") >> agent
-    agent >> Edge(label="list_orders\n(customer's JWT)") >> gw_auth
+
+    # On behalf of the customer: the agent asks AgentCore Identity for a token
+    # for the order service. Identity brokers the RFC 8693 exchange with the
+    # customer's token as the subject, and hands the minted token back.
+    agent >> Edge(label="a token for the order service,\non behalf of the customer") >> identity
+    identity >> Edge(label="RFC 8693 exchange\n(subject = the customer's JWT)") >> exchange
+    exchange >> Edge(label="sign, ES256", style="dashed") >> kms
+
+    # The minted token, not the customer's, goes to the gateway.
+    agent >> Edge(label="list_orders\n(the minted token,\nup to 5 min, aud = orders)") >> gw_auth
     gw_auth >> Edge(label="validated") >> gateway
     gateway >> Edge(label="evaluate", style="dashed") >> policy
-    gateway >> Edge(label="permit:\ncaller's own orders") >> orders
-
-    # Each authorizer is configured with the pool's discovery URL and fetches
-    # the OIDC metadata and JWKS from it to validate signatures locally, with
-    # caching. Cognito does not push keys, and there is no per-request lookup.
-    rt_auth >> Edge(style="dashed", constraint="false") >> cognito
-    gw_auth >> Edge(style="dashed", constraint="false") >> cognito
+    gateway >> Edge(label="matching customer_id:\npermit the call") >> orders

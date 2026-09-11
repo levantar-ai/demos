@@ -103,7 +103,37 @@ resource "aws_iam_role_policy" "runtime" {
         ]
         Resource = aws_bedrockagentcore_memory.agent.arn
       },
-
+      {
+        # The on-behalf-of chain: exchange the customer's JWT for a workload
+        # access token for this agent's workload identity, then request the
+        # resource token from this one credential provider. Scoped to the
+        # exact resources (their ARN forms were confirmed by the live run,
+        # see artifacts/README.md), with the parent directory and vault the
+        # actions are authorised against. No other workload identity or
+        # provider in the account is reachable from this role.
+        Sid    = "OnBehalfOfExchange"
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:GetWorkloadAccessTokenForJWT",
+          "bedrock-agentcore:GetResourceOauth2Token"
+        ]
+        Resource = [
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default",
+          aws_bedrockagentcore_workload_identity.agent.workload_identity_arn,
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:token-vault/default",
+          local.obo_provider_arn
+        ]
+      },
+      {
+        # GetResourceOauth2Token reads the credential provider's client secret
+        # in the caller's context. The exact ARN of the secret AgentCore
+        # Identity manages for the provider comes from the provider itself, so
+        # the runtime role can read that one secret and no other.
+        Sid      = "ReadOboProviderSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = local.obo_provider_secret_arn
+      },
     ]
   })
 }

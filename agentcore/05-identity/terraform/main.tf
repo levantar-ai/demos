@@ -10,6 +10,14 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
   }
 
   # Key set at init time:
@@ -31,7 +39,8 @@ locals {
   memory_name      = "demos_agentcore_05_memory"
   ecr_repo         = "demos/agentcore/${local.demo_slug}"
 
-  # The pool's discovery document is what the runtime and the gateway both
-  # validate the customer's token against.
+  # The pool's discovery document is what the runtime validates the customer's
+  # Cognito token against. The gateway does not use it; it validates the
+  # resource token the exchange issuer mints (gateway.tf).
   discovery_url = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.agents.id}/.well-known/openid-configuration"
 }

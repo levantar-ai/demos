@@ -10,6 +10,7 @@ WORKDIR /app
 COPY main.py .
 COPY gateway.py .
 COPY memory.py .
+COPY identity.py .
 
 EXPOSE 8080
 USER nobody

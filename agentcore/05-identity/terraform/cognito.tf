@@ -1,7 +1,8 @@
 # One Cognito pool with a public client for customers. They sign in with a
-# password to get the access token the runtime and the gateway both check.
-# The confidential agent client from post 02 is gone, the agent no longer
-# mints its own token, it relays the customer's.
+# password to get the access token the runtime checks. The gateway does not
+# trust this pool; it trusts the exchange issuer, and the customer's token is
+# the subject of that exchange. The confidential agent client from post 02 is
+# gone, the agent no longer authenticates to the gateway as itself.
 
 resource "aws_cognito_user_pool" "agents" {
   name = "${local.name_prefix}-pool"
