@@ -38,6 +38,10 @@ resource "aws_bedrockagentcore_policy" "own_orders" {
       CEDAR
     }
   }
+
+  # The engine validates the action against the gateway target's tool schema,
+  # so the target (which registers orders___list_orders) must exist first.
+  depends_on = [aws_bedrockagentcore_gateway_target.orders]
 }
 
 # Cedar permits are additive, so a broad permit added in a later post could
@@ -63,4 +67,12 @@ resource "aws_bedrockagentcore_policy" "deny_other_orders" {
       CEDAR
     }
   }
+
+  # A forbid validated on its own, before any permit exists, is rejected by the
+  # engine as overly restrictive (default deny plus a forbid denies everything).
+  # So it is created after the permit, and after the target registers the action.
+  depends_on = [
+    aws_bedrockagentcore_policy.own_orders,
+    aws_bedrockagentcore_gateway_target.orders,
+  ]
 }

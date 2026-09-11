@@ -97,6 +97,16 @@ resource "aws_bedrockagentcore_gateway" "orders" {
     arn  = aws_bedrockagentcore_policy_engine.orders.policy_engine_arn
     mode = var.policy_mode
   }
+
+  # The authorizer's discovery URL is the exchange service. Only the API
+  # resource is referenced above, so make the routes, Lambda permission and
+  # stage explicit dependencies: the discovery document must be serving before
+  # the gateway is created, in case AgentCore fetches it at create time.
+  depends_on = [
+    aws_apigatewayv2_stage.exchange,
+    aws_apigatewayv2_route.exchange,
+    aws_lambda_permission.exchange,
+  ]
 }
 
 resource "aws_bedrockagentcore_gateway_target" "orders" {

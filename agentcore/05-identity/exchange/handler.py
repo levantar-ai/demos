@@ -406,9 +406,17 @@ def handle_token(event) -> dict:
 
 
 # --- discovery + jwks ---------------------------------------------------------
+def handle_authorize(_event) -> dict:
+    # OIDC Discovery requires an authorization_endpoint to be advertised. This
+    # issuer only performs token exchange, so the endpoint exists to say so.
+    return _oauth_error(400, "unsupported_response_type",
+                        "this issuer performs token exchange only")
+
+
 def handle_discovery(_event) -> dict:
     return _resp(200, {
         "issuer": ISSUER_URL,
+        "authorization_endpoint": f"{ISSUER_URL}/authorize",
         "token_endpoint": f"{ISSUER_URL}/token",
         "jwks_uri": f"{ISSUER_URL}/.well-known/jwks.json",
         "grant_types_supported": [TOKEN_EXCHANGE_GRANT],
@@ -428,6 +436,7 @@ def handle_jwks(_event) -> dict:
 # --- router -------------------------------------------------------------------
 _ROUTES = {
     ("POST", "/token"): handle_token,
+    ("GET", "/authorize"): handle_authorize,
     ("GET", "/.well-known/openid-configuration"): handle_discovery,
     ("GET", "/.well-known/jwks.json"): handle_jwks,
 }

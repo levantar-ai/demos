@@ -124,6 +124,15 @@ resource "aws_iam_role_policy" "runtime" {
           "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:token-vault/default/*"
         ]
       },
+      {
+        # GetResourceOauth2Token reads the credential provider's client secret
+        # in the caller's context. AgentCore Identity manages that secret under
+        # a fixed name for the provider, so the runtime role reads only it.
+        Sid      = "ReadOboProviderSecret"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bedrock-agentcore-identity!default/oauth2/${local.obo_provider_name}-*"
+      },
     ]
   })
 }

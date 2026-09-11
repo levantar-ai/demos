@@ -163,7 +163,7 @@ resource "aws_apigatewayv2_integration" "exchange" {
 }
 
 resource "aws_apigatewayv2_route" "exchange" {
-  for_each  = toset(["POST /token", "GET /.well-known/openid-configuration", "GET /.well-known/jwks.json"])
+  for_each  = toset(["POST /token", "GET /authorize", "GET /.well-known/openid-configuration", "GET /.well-known/jwks.json"])
   api_id    = aws_apigatewayv2_api.exchange.id
   route_key = each.value
   target    = "integrations/${aws_apigatewayv2_integration.exchange.id}"
