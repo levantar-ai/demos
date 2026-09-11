@@ -1,182 +1,203 @@
 # Deployment artifacts — captured from a real run
 
-Captured from a deploy and invoke cycle of this demo on 2026-09-08 (region
-`us-east-1`), image tag `f32c415`, policy engine in `ENFORCE`.
+Captured from a deploy and invoke cycle of this demo on 2026-09-11 (region
+`us-east-1`, account `134570442530`), agent image tag `2e36c2d`, policy engine
+in `ENFORCE`. This is the on-behalf-of design. The earlier token-relay design
+and its reviews are kept as history at the end.
 
 ## What was deployed
 
-The gateway's authorizer was pointed at the customers client, a Policy
-Engine (`demos_agentcore_05_orders`) was created with a `permit` policy (`own_orders_only`) and a `forbid`
-guard (`deny_other_customers_orders`), and the gateway was attached to it. The OAuth2
-credential provider, the token vault call, the agent Cognito client and the
-resource server were all removed. The agent relays the customer's token.
+The agent gets its token for the order service from AgentCore Identity, on
+behalf of the customer, instead of relaying the customer's Cognito token.
 
-## The Cedar policy
+- Cognito pool `us-east-1_…`, one public customers client, admin-only
+  user creation. Unchanged. The runtime's inbound `CUSTOM_JWT` authorizer still
+  validates the customer's Cognito access token.
+- An explicit AgentCore Identity workload identity, `demos_agentcore_05_agent`,
+  the name the agent presents. (The runtime also auto-created its own,
+  `demos_agentcore_05_identity-…`; the explicit one is what the token
+  call uses, see findings.)
+- An AgentCore Identity OAuth2 credential provider, `demos_agentcore_05_obo`,
+  created through Cloud Control (`AWS::BedrockAgentCore::OAuth2CredentialProvider`)
+  with `OnBehalfOfTokenExchangeConfig { GrantType TOKEN_EXCHANGE,
+  ActorTokenContent NONE }`, `CLIENT_SECRET_BASIC`, discovery pointed at the
+  exchange service. ARN
+  `arn:aws:bedrock-agentcore:us-east-1:…:token-vault/default/oauth2credentialprovider/demos_agentcore_05_obo`.
+- The exchange service, the OBO target Cognito cannot be: an HTTP API at
+  `https://kc5n0arhqc.execute-api.us-east-1.amazonaws.com` fronting one Lambda
+  (`/token`, `/authorize`, `/.well-known/openid-configuration`,
+  `/.well-known/jwks.json`), signing ES256 with a KMS `ECC_NIST_P256` key the
+  Lambda role can only `Sign` with. Client secret in Secrets Manager.
+- The gateway `demos-agentcore-05-identity-gw-…`, its `CUSTOM_JWT`
+  authorizer now pointed at the exchange service's discovery URL with
+  `allowed_audience = ["brightwell-orders"]`. It no longer trusts Cognito's
+  issuer at all.
+- Policy engine `demos_agentcore_05_orders` with the same `permit`
+  (`own_orders_only`) and `forbid` guard (`deny_other_customers_orders`) on
+  `principal.getTag("username") == context.input.customer_id`. Unchanged.
+- Runtime `demos_agentcore_05_identity-…`, env `WORKLOAD_NAME`,
+  `OBO_PROVIDER_NAME`, `ORDERS_SCOPE`; role gains `GetWorkloadAccessTokenForJWT`,
+  `GetResourceOauth2Token`, and `GetSecretValue` on the provider's managed secret.
+
+## The chain, end to end
+
+`list my orders` as c-1000 through the runtime returned c-1000's seven orders
+(1033, 1038, 1059, 1084, 1218, 1242, 1255), `HTTP 200`. Under the hood, in
+order, each step verified by the ones after it:
+
+1. The runtime validated the inbound Cognito access token.
+2. The agent called `GetWorkloadAccessTokenForJWT(workloadName=
+   demos_agentcore_05_agent, userToken=<the Cognito token>)`.
+3. It called `GetResourceOauth2Token(oauth2Flow=ON_BEHALF_OF_TOKEN_EXCHANGE,
+   resourceCredentialProviderName=demos_agentcore_05_obo, scopes=["orders/read"],
+   workloadIdentityToken=<the workload access token>)`.
+4. AgentCore Identity brokered RFC 8693 against the exchange service's `/token`
+   with the customer's Cognito token as `subject_token` and the registered
+   client's basic auth.
+5. The exchange service validated that Cognito token and minted the token below.
+6. The agent relayed the minted token to the gateway.
+7. The gateway validated it against the exchange issuer and audience, Cedar
+   permitted `username == customer_id`, the Lambda ran.
+
+## The minted token
+
+Minted directly from the exchange service with c-1000's Cognito token, to
+inspect it. Response `{access_token, issued_token_type:
+urn:ietf:params:oauth:token-type:access_token, token_type: Bearer, expires_in:
+300, scope: orders/read}`.
 
 ```
-permit(
-  principal is AgentCore::OAuthUser,
-  action == AgentCore::Action::"orders___list_orders",
-  resource == AgentCore::Gateway::"arn:aws:bedrock-agentcore:us-east-1:…:gateway/demos-agentcore-05-identity-gw-…"
-) when {
-  principal.hasTag("username") &&
-  principal.getTag("username") == context.input.customer_id
-};
+header  {"alg": "ES256", "typ": "JWT", "kid": "emymRDGf8v466M6hq75KAmkU99TbImBeNM7I1oeCrSg"}
+claims  iss      https://kc5n0arhqc.execute-api.us-east-1.amazonaws.com
+        aud      brightwell-orders
+        sub      d478b4f8-8081-70a9-259f-f35d390bdcaf   (the Cognito sub)
+        username c-1000                                 (copied from the verified token)
+        scope    orders/read
+        act      {"client_id": "brightwell-orders-agent"} (the registered client, not a workload)
+        exp-iat  300 seconds
 ```
 
-## Validation, LOG_ONLY then ENFORCE
+Against the customer's Cognito token that is audience-scoped to one gateway,
+five minutes instead of an hour, and never the customer's own token downstream.
 
-- In `LOG_ONLY`, a direct gateway call with c-1000's token for
-  `customer_id=c-1000` returned c-1000's seven orders, and the same token for
-  `customer_id=c-1001` returned c-1001's orders. The engine logs but does not
-  act, which is the leak `ENFORCE` closes.
-- Switched to `ENFORCE` and repeated. c-1000 for c-1000: allowed. c-1000 for
-  c-1001: denied. With only the `permit`, the message was `[No policy applies
-  to the request (denied by default).]`; after adding the `forbid` guard it is
-  `[Policy evaluation denied due to deny_other_customers_orders].`, the
-  forbid winning explicitly.
-- Symmetric: c-1001's token for c-1001 allowed, for c-1000 denied.
+## The security proofs
 
-## Through the agent
+Against the gateway directly (`probe_gateway.py`), policy engine in `ENFORCE`:
 
-- `list my orders` as c-1000 returned c-1000's seven orders (1033, 1038,
-  1059, 1084, 1218, 1242, 1255).
-- `where is order 1086?` (a c-1001 order) as c-1000 returned `order 1086 is
-  not on your account`, because the agent lists the caller's own orders,
-  which the gateway permits, and filters.
-- `payload.json` (the post 04 CSV) as c-1000 returned the same `describe()`
-  table and `rows: 8`, so the sandbox still works behind the new inbound auth.
+- Minted token for c-1000, `customer_id=c-1000`: `allowed: 7 orders for c-1000`.
+- Minted token for c-1000, `customer_id=c-1001`: `denied by the gateway: Tool
+  Execution Denied: Tool call not allowed due to policy enforcement [Policy
+  evaluation denied due to deny_other_customers_orders]`. The forbid wins on the
+  minted token's `username`.
+- The customer's RAW Cognito token at the gateway: `HTTP 403`. The gateway no
+  longer trusts that issuer, so relaying the customer's token cannot work; the
+  agent must go through AgentCore Identity's exchange.
+- The minted token with its last character altered: `HTTP 403`. Signature
+  verified against the exchange JWKS.
 
-## Negative paths
+Against the exchange service's `/token`:
 
-- No `Authorization` header at the runtime: `HTTP 401`.
-- The gateway deny above is the key result. The tool never runs for a
-  mismatched customer id.
+- Wrong client secret: `401 {"error": "invalid_client"}`. No client auth: the
+  same. Uniform, no oracle.
+- `grant_type=password`: `400 unsupported_grant_type`.
+- An `alg=none` subject token: `400 invalid_grant, "subject token rejected"`.
+- `scope=orders/admin`: `400 invalid_scope`. `audience=payments`:
+  `400 invalid_target`. Request parameters cannot widen the token.
 
-## IAM findings during the build
+At the runtime: no `Authorization` header, `HTTP 401`.
 
-The gateway role needed, in order of discovery:
+## What the first live apply taught
 
-- `bedrock-agentcore:GetPolicyEngine` on the engine, or `UpdateGateway`
-  fails to attach it.
-- `bedrock-agentcore:AuthorizeAction`, which does not support resource-level
-  scoping and had to be granted on `*` (a specific gateway ARN, even a
-  matching wildcard, was denied).
-- `bedrock-agentcore:PartiallyAuthorizeActions`, likewise on `*`.
-- The read set (`GetPolicyEngine`, `GetPolicyEngineSummary`, `ListPolicies`,
-  `GetPolicy`) stays scoped to the engine ARN.
+Findings only a real apply could produce, all encoded in the config now.
 
-Each addition raced IAM eventual consistency, so the first apply after adding
-a permission failed with an access-denied and succeeded on a retry, as the
-project's own guidance predicts.
+- **The gateway fetches the discovery document at create time** and parses it
+  as OpenID Connect, which requires `authorization_endpoint`. Without it:
+  `Failed to fetch discovery document from … (Service: AgentCredentialProvider,
+  Status Code: 400)`. The exchange service now advertises one, backed by a
+  route that answers `unsupported_response_type`, this issuer performs token
+  exchange only. The OBO credential provider had accepted the same document;
+  the inbound authorizer is the strict one.
+- **The Cedar policies race their dependencies.** The engine validates the
+  action against the gateway target's tool schema, so the permit created
+  before the target failed with `unrecognized action
+  AgentCore::Action::"orders___list_orders"`. And a forbid validated before any
+  permit exists is refused as `Overly Restrictive: Policy Engine will deny
+  every request` (default deny plus a forbid denies everything). The permit
+  depends on the target; the forbid on both. The original deploy had not hit
+  this because the forbid was added in a later apply.
+- **`GetResourceOauth2Token` reads the provider's managed client secret in the
+  caller's context.** The runtime's first call failed with `Access denied when
+  retrieving secret 'arn:aws:secretsmanager:…:secret:bedrock-agentcore-identity!default/oauth2/demos_agentcore_05_obo-…'
+  … not authorized to perform: secretsmanager:GetSecretValue`. The runtime role
+  now has that one action on that one secret.
+- **An explicit workload identity works for the token call.** The runtime
+  auto-creates its own with an undocumented suffix, which a resource cannot
+  reference from its own env. `GetWorkloadAccessTokenForJWT` with the explicit
+  `demos_agentcore_05_agent` succeeded, which is what let the chain reach the
+  provider at all.
+- **The Cloud Control provider came up first time**, and its ARN settled the
+  form the IAM docs are inconsistent about: service `bedrock-agentcore`,
+  `oauth2credentialprovider` unhyphenated. The runtime policy still wildcards
+  `token-vault/default/*`, which could now be tightened to that exact ARN.
+- **The first cold start exceeded 120 seconds**: `HTTP 424 Runtime
+  initialization time exceeded`. The container was healthy on the next call;
+  nothing to fix, a note for the runbook.
 
-## Cedar findings
+## External review (gpt-5.6-sol via the OpenAI API), 2026-09-10 to 11
 
-- A tool-specific action (`orders___list_orders`) requires the resource to
-  name a specific `AgentCore::Gateway`, not a wildcard, or `CreatePolicy`
-  refuses it.
-- The principal's `username` tag is populated from the Cognito access token's
-  `username` claim, and `context.input.customer_id` is the tool argument, so
-  the equality check works as written. Confirmed by the allow and deny above.
-- A second policy, a `forbid` with the same condition negated, was added so
-  the invariant survives any future additive `permit` (forbid wins). With it,
-  a mismatched call is denied explicitly by `deny_other_customers_orders`
-  rather than by default.
+Two rounds before the code went near AWS, because the exchange service is a
+token issuer.
 
-## Round-four hardening (gpt-5.6), 2026-09-08
+- **Design review**, on the spec. Verdict: not safe to build as specified, because
+  with `actorTokenContent = NONE` the service authenticates a client secret and
+  cannot truthfully mint an `act` claim naming the agent workload. Fixed: `act`
+  names the registered client and is described as such. Also required and
+  adopted: signing bound to the immutable KMS key ARN; strict JWT validation
+  through a mature library with the algorithm pinned and `jku`/`x5u`/embedded
+  keys/`crit` rejected; validate-before-replace, fail-safe JWKS caching;
+  output lifetime `min(5 min, subject remaining)`; request parameters never
+  choose audience, scope, key or claims; the RFC 8693 `issued_token_type`;
+  honest framing that KMS prevents key export, not signing by a compromised
+  process, so compromise of the service or its role is total issuer
+  compromise. Its correction that the flow enum is `ON_BEHALF_OF` was itself
+  wrong; the boto3 reference and the live call confirm
+  `ON_BEHALF_OF_TOKEN_EXCHANGE`.
+- **Code review**, on the actual handler. Headline: no forgery path, a caller
+  cannot mint another customer's token without a Cognito-signed access token.
+  Blocker fixed: the JWK must be bound to the immutable key ARN and the `Sign`
+  response's `KeyId` verified. Should-fixes adopted: configuration validated at
+  startup so a typo fails closed rather than becoming compromise; P-256 JWK
+  coordinates fixed to 32 octets; strict NumericDate types and `iat <= exp`;
+  form parsing with blank values kept and duplicates rejected; unsupported
+  actor parameters rejected; structural checks before the secret is read;
+  short-TTL secret cache; a `WWW-Authenticate` challenge. Not adopted for a
+  demo, stated instead: baking a current-plus-retiring JWKS at deploy time for
+  key rotation. The post must not claim KMS prevents forgery, that only
+  AgentCore can call `/token`, that `jti` prevents replay, that `act`
+  identifies the workload, that the token is scope-limited unless Cedar
+  enforces scope, or that this is categorically safer than relaying the token.
 
-- The runtime and gateway role trust policies had `aws:SourceArn` as the
-  account-wide `…:*`. Narrowed to `…:runtime/*` and `…:gateway/*`
-  respectively, and verified live that the agent still lists orders and the
-  gateway still denies a cross-customer call, so the tighter confused-deputy
-  scope holds.
-- An ID token is refused at the JWT authorizer, not at Cedar: a live call
-  with the customer's ID token returned `401 Claim 'client_id' value
-  mismatch`, because a Cognito ID token has no `client_id` claim and the
-  authorizer validates `allowed_clients`. The handler's `token_use` check is
-  a second line behind that.
+The post is reviewed separately before publishing; see the bottom of this file.
 
-## External review (gpt-5.6-sol via OpenAI API), 2026-09-08
+## History: the token-relay design, 2026-09-08
 
-Five rounds, focused on the security of the design as much as the prose,
-because the post's subject is doing agent identity safely.
+The first published cut of this post relayed the customer's Cognito token to
+the gateway and enforced the customer with the same Cedar policy. It was
+deployed (image `f32c415`), verified live in `LOG_ONLY` then `ENFORCE` (c-1000
+for c-1000 allowed, c-1000 for c-1001 denied, symmetric, no-token 401, ID token
+refused at the JWT authorizer), and reviewed over five gpt-5.6 rounds plus two
+follow-ups (a section on what it does not solve; AgentCore Identity added to
+the main diagram). Its findings that still stand were carried into this design:
+the Cedar boundary covers only the orders tool while memory and the sandbox
+stay agent-scoped; `LOG_ONLY` is fail-open; the `forbid` guard keeps the
+invariant against future additive permits; the IAM evaluate actions
+(`AuthorizeAction`, `PartiallyAuthorizeActions`) do not support resource-level
+scoping; the runtime and gateway trust policies are narrowed to `runtime/*`
+and `gateway/*`.
 
-- Round one, fourteen findings, three blockers. The Cedar boundary covers
-  only the orders gateway tool, so claims of enforcing all customer data were
-  scoped down and memory and the sandbox called out as still agent-scoped;
-  the "no credential / compromised agent" language was narrowed to what the
-  gateway guarantees; `LOG_ONLY` was reframed as fail-open. A `forbid` guard
-  was added so the invariant survives future additive permits.
-- Round two, five findings. Enforcement claims scoped in the TL;DR and
-  conclusion; the two Cedar policies reflected everywhere; precise vault,
-  IAM-scoping, RFC 8693 versus 7523 and web-identity wording.
-- Round three, one blocker and five more. The conclusion's compromised-agent
-  claim made consistent with the caveat; the username-versus-`sub` lifecycle
-  assumption stated; the web-identity alternative given its trust and Scan
-  constraints; the README installs the MCP client for the probe.
-- Round four, three findings. The ID-token refusal re-attributed to the JWT
-  authorizer with the live 401 as evidence; the role trust policies narrowed
-  to `runtime/*` and `gateway/*` and re-verified live; the password-argv note
-  qualified.
-- Round five, clean. Verdict: ready to publish, no remaining blocker or
-  should-fix issue in the security design, AWS claims, implementation or
-  walkthrough.
-
-No redeploy was needed for the prose rounds. The two live changes, the
-`forbid` policy and the tightened trust policies, were applied and verified
-against the running stack, image `f32c415`.
-
-## Section 6 added and reviewed (gpt-5.6), 2026-09-08
-
-A reader asked whether passing a short-lived Cognito bearer token to an
-autonomous agent is safe (attribution, prompt injection, bearer replay). A
-section 6, "What it does not solve, and where it fits", was added: Cedar
-answers the wrong-customer vector, the bearer token is mitigated but not
-neutralised, attribution is weaker than an on-behalf-of exchange, and a
-comparison table plus the Well-Architected mapping. Reviewed over three
-rounds. Corrections made: OBO's actor attribution is provider-dependent, not
-guaranteed (RFC 8693 defines `act` but does not require it, RFC 7523 does
-not define it); the Lambda sees the approved `customer_id` and the gateway
-role, not the customer principal; expiry alone bounds replay while TLS and
-non-persistence lower disclosure; guardrails/tracing/evals help but are not a
-hard boundary on returned data; AGENTSEC02 enforcement is at the gateway and
-policy engine, scoped to the orders tool. Verdict: ready to publish.
-
-## Main diagram, AgentCore Identity added and reviewed (gpt-5.6), 2026-09-10
-
-The subject of the post, AgentCore Identity, was missing from the main
-diagram. It was added as what it is in this design, the inbound auth. Inbound
-Auth is one half of AgentCore Identity, the other being Outbound Auth (the
-credential provider and token vault this rewrite removed), and AWS documents
-JWT authentication for the runtime and gateway as being done "with AgentCore
-Identity". It is a `CUSTOM_JWT` authorizer configured on each endpoint, not a
-shared service the two call out to, so it is drawn as a checkpoint inside each
-of the runtime and gateway clusters, on the way in, with the customer's token
-passing through it before the agent runs and before the gateway processes the
-tool call. Each authorizer's dashed line to the pool shows it validating
-against the pool's OIDC discovery and JWKS.
-
-Reviewed over three rounds.
-
-- Round one caught a first attempt that drew AgentCore Identity as a single
-  shared node the runtime and gateway called out to, with the agent calling a
-  validator after it already had the request. That invented a call path and
-  got the ordering backwards, since the runtime validates the token before the
-  agent sees it. Redrawn as a per-endpoint checkpoint at each cluster's
-  ingress, correctly ordered.
-- Round two confirmed the topology and ordering but objected to naming the
-  endpoint-local authorizers "AgentCore Identity". Checked against AWS's own
-  documentation ("Authenticate and authorize with Inbound Auth and Outbound
-  Auth"), which frames inbound JWT authentication for the runtime and gateway
-  as being done with AgentCore Identity, and says AgentCore Identity validates
-  the `client_id` claim. The Cedar label was also tightened from
-  `customer_id == caller` to `customer_id == caller's username` to match the
-  policy, which compares `principal.getTag("username")` to
-  `context.input.customer_id`.
-- Round three, given that documentation, withdrew the naming objection as too
-  strict and confirmed the ordering, the two independent authorizers, the
-  Cedar label and the OIDC/JWKS trust lines. Verdict: accurate and ready to
-  publish.
-
-The stack was already destroyed, so this was an asset and prose change only,
-no redeploy.
+It was taken down because a post titled around AgentCore Identity provisioned
+no AgentCore Identity resource. Its inbound auth was real but was configuration
+on other resources, and the outbound side had been removed. The consent-based
+3LO alternative was rejected as unnatural for a first-party shop. On-behalf-of
+was the pattern, and Cognito cannot be its exchange target, hence the exchange
+service above, framed honestly as the teaching stand-in for a managed IdP.
