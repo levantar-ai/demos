@@ -9,11 +9,11 @@ hands it to AgentCore Identity, which presents it to the exchange issuer as
 the subject of an on-behalf-of exchange (identity.py), and the agent then
 presents the minted token to the gateway, where Policy in AgentCore
 evaluates a Cedar policy on every tool call and refuses a list_orders whose
-customer_id differs from that token's username. Which customer may be asked
-for is decided at the gateway rather than trusted to this code; which rows
-come back is the orders Lambda's job. There is still no model in this
-agent, the routing below is code. Post 06 is where a model is handed these
-tools, acting as the customer this post identifies.
+customer_id differs from that token's customer_id claim. Which customer may
+be asked for is decided at the gateway rather than trusted to this code;
+which rows come back is the orders Lambda's job. There is still no model in
+this agent, the routing below is code. Post 06 is where a model is handed
+these tools, acting as the customer this post identifies.
 """
 
 import base64

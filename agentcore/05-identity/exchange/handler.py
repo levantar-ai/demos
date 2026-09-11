@@ -1,27 +1,23 @@
-"""A minimal RFC 8693 token-exchange service, the on-behalf-of target for
-AgentCore Identity. Cognito's token endpoint does not offer the exchange grant,
-so this stands in for what a managed IdP with a supported on-behalf-of
-integration would do. It is the same front door as AWS's
-sample-cognito-oauth2-token-exchange (API + Lambda, client-secret auth, subject
-token verified against the pool), signing with KMS rather than a second pool
-and adding the audience that sample's production guidance asks for. It is a
-TEACHING component: it is a token issuer, which is crown-jewel infrastructure.
-Compromise of this code or its signing role is total issuer compromise. KMS
-keeps the private key from being exported; it does NOT stop this process, once
-trusted, signing a token for any customer. In production you would use a
-managed IdP, not this.
+"""The RFC 8693 front door, the on-behalf-of target for AgentCore Identity.
 
-Four routes on one Lambda behind an HTTP API (TLS only):
+Cognito's token endpoint does not offer the token-exchange grant, so this is the
+arrangement of AWS's sample-cognito-oauth2-token-exchange: a small endpoint
+implements the grant and a second Cognito user pool, the exchange pool, mints
+the token through its custom authentication flow. This Lambda signs nothing
+and holds no key. It authenticates the calling client, checks the request
+shape, verifies the customer's token (defence in depth, the pool's triggers
+verify it again), then runs CUSTOM_AUTH in the exchange pool as the agent's
+service user with the customer's token as the challenge answer. What Cognito
+issues, with the claims triggers.py adds, is what the gateway trusts.
+
+Three routes on one Lambda behind an HTTP API (TLS only):
   POST /token                         RFC 8693 exchange, client_secret_basic
   GET  /authorize                     always unsupported_response_type
-  GET  /.well-known/openid-configuration
-  GET  /.well-known/jwks.json
+  GET  /.well-known/openid-configuration   read by the OBO provider only
 
-AgentCore Identity sends the customer's Cognito access token as subject_token
-with the registered client's basic auth. We verify that Cognito token strictly,
-then mint a short-lived ES256 token (signed by KMS) audience-restricted to the
-order gateway and carrying the verified username. The gateway trusts this
-issuer; Cedar compares that username with the customer_id each call asks for.
+It is still a TEACHING component. The exchange pool, its triggers and this
+front door are the demo's own issuer; in production the exchange belongs to
+a managed IdP with a supported on-behalf-of integration.
 """
 
 import base64
@@ -32,80 +28,96 @@ import json
 import os
 import time
 import urllib.parse
-import urllib.request
 
 import boto3
-import jwt
-from cryptography.hazmat.primitives.asymmetric.ec import (
-    SECP256R1,
-    EllipticCurvePublicKey,
-)
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-from cryptography.hazmat.primitives.serialization import (
-    Encoding,
-    PublicFormat,
-    load_der_public_key,
-)
+import subject
 
 # --- Configuration, all static, never derived from a request -----------------
-COGNITO_ISSUER = os.environ["COGNITO_ISSUER"].rstrip("/")
-COGNITO_JWKS_URL = os.environ["COGNITO_JWKS_URL"]
-ALLOWED_CLIENT_IDS = frozenset(c for c in os.environ["ALLOWED_CLIENT_IDS"].split(",") if c)
+# Three client identities, kept distinct:
+#   CLIENT_ID / CLIENT_SECRET_ARN   the front door's own OAuth client, which
+#                                   AgentCore Identity's provider authenticates
+#                                   with (client_secret_basic)
+#   the orders app client           the exchange pool's confidential app client,
+#                                   one per downstream; its id is the minted
+#                                   token's client_id and aud; its secret goes
+#                                   into SECRET_HASH on the admin calls
+#   the service user                the exchange pool user the flow runs as
+# The pool, client and user ids are read from one SSM parameter shared with
+# the triggers; the app client's secret from its own Secrets Manager secret.
 ISSUER_URL = os.environ["ISSUER_URL"].rstrip("/")
-ORDERS_AUDIENCE = os.environ["ORDERS_AUDIENCE"]
+EXCHANGE_JWKS_URL = os.environ["EXCHANGE_JWKS_URL"]
+EXCHANGE_CONFIG_PARAMETER = os.environ["EXCHANGE_CONFIG_PARAMETER"]
+ORDERS_CLIENT_SECRET_ARN = os.environ["ORDERS_CLIENT_SECRET_ARN"]
 ORDERS_SCOPE = os.environ["ORDERS_SCOPE"]
-KMS_KEY_ARN = os.environ["KMS_KEY_ID"]  # must be the immutable key ARN, not an alias
 CLIENT_SECRET_ARN = os.environ["CLIENT_SECRET_ARN"]
 CLIENT_ID = os.environ["EXCHANGE_CLIENT_ID"]
-MAX_TTL = int(os.environ.get("MAX_TTL_SECONDS", "300"))
-MIN_REMAINING = int(os.environ.get("MIN_REMAINING_SECONDS", "30"))
-MAX_SUBJECT_AGE = int(os.environ.get("MAX_SUBJECT_AGE_SECONDS", "3600"))
-LEEWAY = 60
-MAX_JWKS_BYTES = 1_000_000
 MAX_BODY_BYTES = 16384
+MAX_LIFETIME = 330  # the client is configured for 300 s; a little tolerance, no more
 
 TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange"
 JWT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
 ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token"
 ACCEPTED_SUBJECT_TYPES = {JWT_TOKEN_TYPE, ACCESS_TOKEN_TYPE}
-
-
-def _valid_https(url: str) -> bool:
-    p = urllib.parse.urlsplit(url)
-    return (p.scheme == "https" and bool(p.hostname)
-            and not p.username and not p.password and not p.query and not p.fragment)
+# The request contract is closed: the RFC 8693 parameters, plus client_id,
+# which some clients repeat in the body. Anything else is refused, so a
+# claim-shaped parameter cannot be mistaken for input by a later change.
+KNOWN_FIELDS = frozenset({
+    "grant_type", "subject_token", "subject_token_type", "requested_token_type",
+    "scope", "resource", "audience", "actor_token", "actor_token_type", "client_id",
+})
 
 
 def _check_config():
-    """A configuration typo must fail startup, not become total compromise."""
     problems = []
-    if not _valid_https(COGNITO_ISSUER):
-        problems.append("COGNITO_ISSUER must be a clean https URL")
-    if not _valid_https(ISSUER_URL):
+    if not subject._valid_https(ISSUER_URL):
         problems.append("ISSUER_URL must be a clean https URL")
-    if COGNITO_JWKS_URL != COGNITO_ISSUER + "/.well-known/jwks.json":
-        problems.append("COGNITO_JWKS_URL must be the issuer's well-known jwks path")
-    if not ALLOWED_CLIENT_IDS:
-        problems.append("ALLOWED_CLIENT_IDS is empty")
-    if not KMS_KEY_ARN.startswith("arn:aws:kms:"):
-        problems.append("KMS_KEY_ID must be the immutable key ARN")
-    if MAX_TTL <= 0 or MIN_REMAINING < 0 or MIN_REMAINING >= MAX_TTL:
-        problems.append("bad TTL configuration")
+    if not subject._valid_https(EXCHANGE_JWKS_URL):
+        problems.append("EXCHANGE_JWKS_URL must be a clean https URL")
+    if not EXCHANGE_CONFIG_PARAMETER or not ORDERS_CLIENT_SECRET_ARN.startswith("arn:aws:secretsmanager:"):
+        problems.append("exchange pool configuration must be set")
+    if CLIENT_SECRET_ARN == ORDERS_CLIENT_SECRET_ARN:
+        problems.append("the front door's secret and the app client's secret must differ")
     if problems:
         raise RuntimeError("invalid exchange-service configuration: " + "; ".join(problems))
 
 
 _check_config()
 
-_kms = boto3.client("kms")
+_cognito = boto3.client("cognito-idp")
 _secrets = boto3.client("secretsmanager")
+_ssm = boto3.client("ssm")
+_CACHE_TTL = 300
+_cache = {}
+
+
+def _cached(name, load):
+    now = time.monotonic()
+    hit = _cache.get(name)
+    if hit is None or now - hit[1] > _CACHE_TTL:
+        hit = (load(), now)
+        _cache[name] = hit
+    return hit[0]
+
+
+def _secret_field(arn, field) -> str:
+    obj = json.loads(_secrets.get_secret_value(SecretId=arn)["SecretString"])
+    value = obj.get(field)
+    if not isinstance(value, str) or not value:
+        raise RuntimeError(f"{field} misconfigured")
+    return value
+
+
+def pool_config() -> dict:
+    def load():
+        cfg = json.loads(_ssm.get_parameter(Name=EXCHANGE_CONFIG_PARAMETER)["Parameter"]["Value"])
+        for key in ("pool_id", "client_id", "service_user"):
+            if not isinstance(cfg.get(key), str) or not cfg[key]:
+                raise RuntimeError("exchange configuration incomplete")
+        return cfg
+    return _cached("pool", load)
 
 
 # --- Small helpers ------------------------------------------------------------
-def _b64url(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
 def _resp(status, body, headers=None):
     base = {"Cache-Control": "no-store", "Pragma": "no-cache", "Content-Type": "application/json"}
     if headers:
@@ -120,180 +132,19 @@ def _oauth_error(status, code, description="", headers=None):
     return _resp(status, body, headers)
 
 
-# --- Cognito JWKS: pinned URL, no redirects, validate-before-replace ---------
-# A cached document is fresh for _JWKS_TTL and is served on refresh failure
-# for at most _JWKS_MAX_STALE after it was fetched. Past that, subject tokens
-# are refused until a refresh succeeds, so a retired Cognito key is never
-# trusted indefinitely just because the JWKS endpoint became unreachable.
-_jwks_cache = {"keys": None, "at": 0.0, "last_refresh": 0.0}
-_JWKS_TTL = 3600
-_JWKS_MAX_STALE = 6 * 3600
-_JWKS_MIN_REFRESH_GAP = 30
-
-
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *a, **k):  # a JWKS URL that redirects is not trusted
-        return None
-
-
-def _fetch_jwks():
-    req = urllib.request.Request(COGNITO_JWKS_URL, headers={"Accept": "application/json"})
-    opener = urllib.request.build_opener(_NoRedirect())
-    with opener.open(req, timeout=3) as r:
-        raw = r.read(MAX_JWKS_BYTES + 1)
-    if len(raw) > MAX_JWKS_BYTES:
-        raise ValueError("JWKS document too large")
-    doc = json.loads(raw)
-    keys = doc.get("keys")
-    if not isinstance(keys, list) or not (1 <= len(keys) <= 20):
-        raise ValueError("invalid JWKS document")
-    seen, valid = set(), []
-    for k in keys:
-        kid = k.get("kid")
-        if (not isinstance(kid, str) or not (1 <= len(kid) <= 128) or kid in seen
-                or k.get("kty") != "RSA" or not isinstance(k.get("n"), str)
-                or not isinstance(k.get("e"), str)):
-            raise ValueError("invalid JWK entry")
-        if k.get("use", "sig") != "sig" or (k.get("alg") and k["alg"] != "RS256"):
-            raise ValueError("unexpected JWK use/alg")
-        if any(p in k for p in ("d", "p", "q", "dp", "dq", "qi")):
-            raise ValueError("private material in JWKS")
-        seen.add(kid)
-        valid.append(k)
-    return valid  # only replace the cache once the whole document validates
-
-
-def _jwk_for_kid(kid):
-    now = time.monotonic()
-    keys = _jwks_cache["keys"]
-    if keys is not None and now - _jwks_cache["at"] < _JWKS_TTL:
-        hit = _find_kid(keys, kid)
-        if hit is not None:
-            return hit
-    if now - _jwks_cache["last_refresh"] >= _JWKS_MIN_REFRESH_GAP:
-        _jwks_cache["last_refresh"] = now
-        try:
-            fresh = _fetch_jwks()
-            _jwks_cache["keys"] = fresh
-            _jwks_cache["at"] = now
-            keys = fresh
-        except Exception:  # noqa: BLE001, S110 — fail safe: keep validated last-known-good
-            pass
-    if keys is None or now - _jwks_cache["at"] > _JWKS_MAX_STALE:
-        return None  # nothing trustworthy to validate against; refuse
-    return _find_kid(keys, kid)
-
-
-def _find_kid(keys, kid):
-    matches = [k for k in keys if k.get("kid") == kid]
-    return matches[0] if len(matches) == 1 else None
-
-
-# --- Subject-token validation (the Cognito access token) ----------------------
-def _require_int(claims, name, required=True):
-    v = claims.get(name)
-    if v is None:
-        if required:
-            raise ValueError(f"missing {name}")
-        return None
-    if type(v) is not int:  # PyJWT can coerce numeric strings; be strict
-        raise ValueError(f"{name} not an integer")
-    return v
-
-
-def validate_subject_token(token: str) -> dict:
-    if not token or len(token) > 8192 or token.count(".") != 2:
-        raise ValueError("malformed token")
-    header = jwt.get_unverified_header(token)
-    if header.get("alg") != "RS256":
-        raise ValueError("unexpected alg")
-    for banned in ("jku", "x5u", "jwk", "x5c", "crit", "b64"):
-        if banned in header:
-            raise ValueError("disallowed header")
-    kid = header.get("kid")
-    if not isinstance(kid, str) or not (1 <= len(kid) <= 128):
-        raise ValueError("bad kid")
-    jwk = _jwk_for_kid(kid)
-    if jwk is None:
-        raise ValueError("unknown key")
-    key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk))
-    claims = jwt.decode(
-        token, key=key, algorithms=["RS256"], issuer=COGNITO_ISSUER, leeway=LEEWAY,
-        options={"require": ["exp", "iat", "iss", "sub"], "verify_aud": False},
-    )
-    now = int(time.time())
-    exp = _require_int(claims, "exp")
-    iat = _require_int(claims, "iat")
-    _require_int(claims, "nbf", required=False)
-    if iat > now + LEEWAY or iat > exp or exp - iat > MAX_SUBJECT_AGE:
-        raise ValueError("implausible token times")
-    if claims.get("token_use") != "access":
-        raise ValueError("not an access token")
-    if claims.get("client_id") not in ALLOWED_CLIENT_IDS:
-        raise ValueError("client_id not allowed")
-    sub, username = claims.get("sub"), claims.get("username")
-    if not isinstance(sub, str) or not sub:
-        raise ValueError("missing sub")
-    if not isinstance(username, str) or not username:
-        raise ValueError("missing username")
-    return claims
-
-
-# --- KMS ES256 signer, bound to the immutable key ARN -------------------------
-_signing = {"kid": None, "jwk": None}
-
-
-def _load_public_key():
-    if _signing["kid"] is not None:
-        return
-    pub = load_der_public_key(_kms.get_public_key(KeyId=KMS_KEY_ARN)["PublicKey"])
-    if not isinstance(pub, EllipticCurvePublicKey) or not isinstance(pub.curve, SECP256R1):
-        raise RuntimeError("signing key is not P-256")  # noqa: TRY004 — a deploy/config error
-    spki = pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-    kid = _b64url(hashlib.sha256(spki).digest())
-    nums = pub.public_numbers()
-    _signing["kid"] = kid
-    _signing["jwk"] = {
-        "kty": "EC", "crv": "P-256", "use": "sig", "alg": "ES256", "kid": kid,
-        "x": _b64url(nums.x.to_bytes(32, "big")),  # P-256 coords are exactly 32 octets
-        "y": _b64url(nums.y.to_bytes(32, "big")),
-    }
-
-
-def _der_to_jose(der_sig: bytes) -> bytes:
-    r, s = decode_dss_signature(der_sig)
-    return r.to_bytes(32, "big") + s.to_bytes(32, "big")
-
-
-def sign_jwt(claims: dict) -> str:
-    _load_public_key()
-    header = {"alg": "ES256", "typ": "JWT", "kid": _signing["kid"]}
-    signing_input = (_b64url(json.dumps(header, separators=(",", ":")).encode())
-                     + "." + _b64url(json.dumps(claims, separators=(",", ":")).encode()))
-    digest = hashlib.sha256(signing_input.encode("ascii")).digest()
-    out = _kms.sign(KeyId=KMS_KEY_ARN, Message=digest, MessageType="DIGEST",
-                    SigningAlgorithm="ECDSA_SHA_256")
-    if out.get("KeyId") not in (KMS_KEY_ARN,):  # signed by the key we published, nothing else
-        raise RuntimeError("unexpected signing key id")
-    return signing_input + "." + _b64url(_der_to_jose(out["Signature"]))
-
-
 # --- Client authentication (client_secret_basic), constant time, short TTL ---
-_secret_cache = {"value": None, "at": 0.0}
-_SECRET_TTL = 300
-
-
 def _client_secret() -> str:
-    now = time.monotonic()
-    if _secret_cache["value"] is None or now - _secret_cache["at"] > _SECRET_TTL:
-        raw = _secrets.get_secret_value(SecretId=CLIENT_SECRET_ARN)["SecretString"]
-        obj = json.loads(raw)
-        secret = obj.get("client_secret")
-        if not isinstance(secret, str) or not secret:
-            raise RuntimeError("client secret misconfigured")
-        _secret_cache["value"] = secret
-        _secret_cache["at"] = now
-    return _secret_cache["value"]
+    return _cached("front_door_secret", lambda: _secret_field(CLIENT_SECRET_ARN, "client_secret"))
+
+
+def _orders_client_secret() -> str:
+    return _cached("orders_client_secret", lambda: _secret_field(ORDERS_CLIENT_SECRET_ARN, "client_secret"))
+
+
+def _secret_hash(username: str, client_id: str) -> str:
+    """Cognito's SECRET_HASH for a confidential app client: HMAC-SHA256(secret, username + client_id)."""
+    mac = hmac.new(_orders_client_secret().encode(), (username + client_id).encode(), hashlib.sha256)
+    return base64.b64encode(mac.digest()).decode()
 
 
 def _check_client_auth(headers: dict) -> bool:
@@ -347,6 +198,53 @@ def _single(form, name):
     return vals[0]
 
 
+def exchange_in_pool(subject_token: str) -> dict:
+    """Run the exchange pool's custom flow. Returns Cognito's AuthenticationResult or raises."""
+    cfg = pool_config()
+    pool, client, user = cfg["pool_id"], cfg["client_id"], cfg["service_user"]
+    secret_hash = _secret_hash(user, client)  # the app client is confidential
+    started = _cognito.admin_initiate_auth(
+        UserPoolId=pool, ClientId=client, AuthFlow="CUSTOM_AUTH",
+        AuthParameters={"USERNAME": user, "SECRET_HASH": secret_hash},
+    )
+    if started.get("ChallengeName") != "CUSTOM_CHALLENGE" or not started.get("Session"):
+        raise RuntimeError("exchange pool did not issue the challenge")
+    answered = _cognito.admin_respond_to_auth_challenge(
+        UserPoolId=pool, ClientId=client, ChallengeName="CUSTOM_CHALLENGE",
+        Session=started["Session"],
+        ChallengeResponses={"USERNAME": user, "ANSWER": subject_token, "SECRET_HASH": secret_hash},
+        # The verify trigger requires ANSWER to equal this copy, and the
+        # pre-token trigger re-verifies it; Cognito passes it through unvalidated.
+        # DEMO COMPROMISE, as in the AWS sample: Cognito's API reference says not
+        # to send sensitive information in ClientMetadata (it is not stored,
+        # validated or encrypted by Cognito), and a bearer token is sensitive.
+        # A real exchange passes a single-use handle here and has the verify
+        # trigger write the verified claims to a short-lived encrypted record
+        # that the pre-token trigger consumes once.
+        ClientMetadata={"subject_token": subject_token, "grant": TOKEN_EXCHANGE_GRANT},
+    )
+    result = answered.get("AuthenticationResult") or {}
+    token = result.get("AccessToken")
+    if not isinstance(token, str) or not token:
+        raise RuntimeError("exchange pool issued no access token")
+    # The lifetime is the app client's configuration, which this code cannot
+    # cap. Refuse to hand out a token that is longer than configured, so a
+    # drifted client setting fails loudly rather than issuing hour-long tokens.
+    expires_in = result.get("ExpiresIn")
+    if not isinstance(expires_in, int) or not 0 < expires_in <= MAX_LIFETIME:
+        raise RuntimeError("exchange pool issued an unexpected lifetime")
+    if _unverified_lifetime(token) > MAX_LIFETIME:
+        raise RuntimeError("exchange pool issued an unexpected lifetime")
+    return result
+
+
+def _unverified_lifetime(token: str) -> int:
+    """exp - iat from the payload, without verifying: Cognito signed it, the gateway verifies it."""
+    payload = token.split(".")[1]
+    claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+    return int(claims["exp"]) - int(claims["iat"])
+
+
 def handle_token(event) -> dict:
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
     # Cheap structural checks first, before touching the secret store.
@@ -372,12 +270,17 @@ def handle_token(event) -> dict:
         resource = _single(form, "resource")
         audience = _single(form, "audience")
         actor_token = _single(form, "actor_token")
+        body_client_id = _single(form, "client_id")
     except ValueError:
         return _oauth_error(400, "invalid_request", "malformed parameters")
 
     if grant_type != TOKEN_EXCHANGE_GRANT:
         return _oauth_error(400, "unsupported_grant_type")
-    if actor_token is not None:  # we assert no actor; reject unsupported delegation controls
+    if not set(form) <= KNOWN_FIELDS:
+        return _oauth_error(400, "invalid_request", "unknown parameter")
+    if body_client_id is not None and body_client_id != CLIENT_ID:
+        return _oauth_error(400, "invalid_request", "client_id mismatch")
+    if actor_token is not None or "actor_token_type" in form:  # no actor: reject delegation controls
         return _oauth_error(400, "invalid_request", "actor_token not supported")
     if not subject_token:
         return _oauth_error(400, "invalid_request", "subject_token required")
@@ -387,68 +290,62 @@ def handle_token(event) -> dict:
         return _oauth_error(400, "invalid_request", "unsupported requested_token_type")
     if scope is not None and scope != ORDERS_SCOPE:  # exactly the one scope, or omit
         return _oauth_error(400, "invalid_scope")
-    if resource is not None and resource != ORDERS_AUDIENCE:
+    orders_client_id = pool_config()["client_id"]  # the audience is the app client
+    if resource is not None and resource != orders_client_id:
         return _oauth_error(400, "invalid_target")
-    if audience is not None and audience != ORDERS_AUDIENCE:
+    if audience is not None and audience != orders_client_id:
         return _oauth_error(400, "invalid_target")
+    print("token request fields:", sorted(form))  # names only, never values
+
+    # Fail fast on a bad subject before spending a Cognito flow on it. The
+    # pool's triggers verify independently; this check cannot mint anything.
+    try:
+        subject.validate(subject_token)
+    except Exception as exc:  # noqa: BLE001 — any validation failure is a uniform rejection
+        print("subject token rejected:", type(exc).__name__)  # the class, never the token
+        return _oauth_error(400, "invalid_grant", "subject token rejected")
 
     try:
-        subject = validate_subject_token(subject_token)
-    except Exception:  # noqa: BLE001 — any validation failure is a uniform rejection
+        result = exchange_in_pool(subject_token)
+    except Exception as exc:  # noqa: BLE001 — a refused flow is an invalid grant; say nothing more
+        # The error class and Cognito's error code are operational, not secret.
+        code = getattr(exc, "response", {}).get("Error", {}).get("Code", "") if hasattr(exc, "response") else ""
+        print("exchange flow refused:", type(exc).__name__, code)
         return _oauth_error(400, "invalid_grant", "subject token rejected")
 
-    now = int(time.time())
-    exp = min(now + MAX_TTL, int(subject["exp"]))
-    if exp - now < MIN_REMAINING:
-        return _oauth_error(400, "invalid_grant", "subject token rejected")
-
-    claims = {
-        "iss": ISSUER_URL, "aud": ORDERS_AUDIENCE,
-        "sub": subject["sub"], "username": subject["username"],
-        "scope": ORDERS_SCOPE,
-        "act": {"client_id": CLIENT_ID},  # the registered client, NOT a workload identity
-        "iat": now, "exp": exp, "jti": _b64url(os.urandom(16)),
-    }
     return _resp(200, {
-        "access_token": sign_jwt(claims),
+        "access_token": result["AccessToken"],  # the ID and refresh tokens are dropped
         "issued_token_type": ACCESS_TOKEN_TYPE,
         "token_type": "Bearer",
-        "expires_in": exp - now,
+        "expires_in": int(result.get("ExpiresIn") or 0),
         "scope": ORDERS_SCOPE,
     })
 
 
-# --- discovery + jwks ---------------------------------------------------------
+# --- discovery, for the OBO credential provider ---------------------------------
 def handle_authorize(_event) -> dict:
-    # OIDC Discovery requires an authorization_endpoint to be advertised. This
-    # issuer only performs token exchange, so the endpoint exists to say so.
     return _oauth_error(400, "unsupported_response_type",
                         "this issuer performs token exchange only")
 
 
 def handle_discovery(_event) -> dict:
-    # The gateway's CUSTOM_JWT authorizer parses this as an OpenID Connect
-    # provider document and refuses one without the OIDC-required fields, so
-    # an exchange-only issuer still advertises an authorization endpoint (which
-    # answers unsupported_response_type), a response type and an ID-token
-    # algorithm it does not implement. A compatibility shim, not conformance.
+    # Read by AgentCore Identity's credential provider to find token_endpoint.
+    # The gateway does not read this; it validates the minted token against
+    # the exchange pool's own discovery document. The OIDC-required fields
+    # are advertised so the document parses as a provider document; the
+    # authorization endpoint answers unsupported_response_type.
     return _resp(200, {
         "issuer": ISSUER_URL,
         "authorization_endpoint": f"{ISSUER_URL}/authorize",
         "token_endpoint": f"{ISSUER_URL}/token",
-        "jwks_uri": f"{ISSUER_URL}/.well-known/jwks.json",
+        "jwks_uri": EXCHANGE_JWKS_URL,
         "grant_types_supported": [TOKEN_EXCHANGE_GRANT],
         "token_endpoint_auth_methods_supported": ["client_secret_basic"],
         "scopes_supported": [ORDERS_SCOPE],
-        "id_token_signing_alg_values_supported": ["ES256"],
+        "id_token_signing_alg_values_supported": ["RS256"],
         "response_types_supported": ["token"],
         "subject_types_supported": ["public"],
     })
-
-
-def handle_jwks(_event) -> dict:
-    _load_public_key()
-    return _resp(200, {"keys": [_signing["jwk"]]})
 
 
 # --- router -------------------------------------------------------------------
@@ -456,7 +353,6 @@ _ROUTES = {
     ("POST", "/token"): handle_token,
     ("GET", "/authorize"): handle_authorize,
     ("GET", "/.well-known/openid-configuration"): handle_discovery,
-    ("GET", "/.well-known/jwks.json"): handle_jwks,
 }
 
 

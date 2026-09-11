@@ -15,14 +15,15 @@ d = Diagram(1900, 900)
 
 # Participants and their lifeline x-centres. The runtime authorizer, which
 # validates the customer's token, is kept separate from the agent. AgentCore
-# Identity and the exchange service are the new pair in the middle.
+# Identity and the token exchange (a front door in front of a second Cognito
+# pool, the AWS sample's shape) are the new pair in the middle.
 people = [
     (110, "customer", None),
     (370, "AgentCore Runtime", "the JWT authorizer"),
     (620, "agent", "the container"),
     (880, "AgentCore Identity", "workload identity, OBO"),
-    (1150, "exchange service", "RFC 8693, KMS-signed"),
-    (1440, "AgentCore Gateway", "trusts the exchange, Cedar"),
+    (1150, "token exchange", "front door + exchange pool"),
+    (1440, "AgentCore Gateway", "trusts the exchange pool, Cedar"),
     (1730, "orders", "the tool"),
 ]
 top, bottom = 40, 840
@@ -38,8 +39,8 @@ def msg(x1, x2, y, label, colour=INK_3, dashed=False):
     d.arrow((x1, y), (x2, y), label, dashed=dashed, colour=colour)
 
 
-def note(cx, y, w, text):
-    d.box(cx - w / 2, y, w, 38, text)
+def note(cx, y, w, text, sub=None):
+    d.box(cx - w / 2, y, w, 44 if sub else 38, text, subtitle=sub)
 
 
 # Inbound, unchanged: the customer's token validated at the runtime.
@@ -52,14 +53,14 @@ msg(RT, A, 214, "forward request and token")
 # the subject. The customer's own token never goes to the gateway.
 msg(A, ID, 268, "GetWorkloadAccessTokenForJWT,\nthen GetResourceOauth2Token (on behalf of)")
 msg(ID, EX, 336, "RFC 8693 exchange,\nsubject_token = the customer's JWT")
-note(EX, 366, 330, "verifies the JWT, mints ES256, up to 5 min")
-msg(EX, ID, 430, "the minted token, aud = brightwell-orders", dashed=True)
+note(EX, 362, 330, "front door verifies the JWT", "the pool's triggers verify again, Cognito mints, 5 min")
+msg(EX, ID, 430, "the minted token, aud = orders client", dashed=True)
 msg(ID, A, 476, "the minted token", dashed=True)
 
-# The minted token goes to the gateway, which trusts the exchange issuer.
+# The minted token goes to the gateway, which trusts the exchange pool.
 msg(A, G, 530, "list_orders(customer_id),\nthe minted token")
 note(G, 560, 300, "gateway validates the token, then Cedar")
-d.text(G, 610, "minted username == customer_id ?", 12, 600, TEAL, anchor="ma")
+d.text(G, 610, "token customer_id == customer_id argument ?", 12, 600, TEAL, anchor="ma")
 
 # The two outcomes are mutually exclusive, so they sit in one alt frame and
 # only the permit branch reaches the tool.
@@ -70,7 +71,7 @@ msg(G, A, 754, "another id: forbid wins,\nno permit applies", colour=FLAME, dash
 d.caption(
     110, 868,
     "The customer's token is validated at the runtime, exchanged on their behalf through "
-    "AgentCore Identity for a token of up to five minutes the exchange mints for the gateway, and Cedar decides on that.",
+    "AgentCore Identity for a five-minute token the exchange pool mints for the gateway, and Cedar decides on that.",
 )
 d.save("sequence.png")
 print("wrote sequence.png")

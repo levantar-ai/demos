@@ -2,11 +2,11 @@
 
 Carried forward from post 02. The token presented here is the one AgentCore
 Identity obtained on the customer's behalf (see identity.py), minted by the
-exchange service and audience-restricted to this gateway. It is never the customer's own
+exchange pool for the audience this gateway is configured to accept. It is never the customer's own
 Cognito token, which the gateway no longer accepts. The gateway validates the
 token against the exchange issuer, and Policy in AgentCore then evaluates a
 Cedar policy on every call and refuses a list_orders whose customer_id
-differs from the token's username, which is why this module does no
+differs from the token's customer_id claim, which is why this module does no
 authorization of its own. The orders Lambda still returns only that
 customer's rows; Cedar sees the call, not the result.
 """
@@ -56,8 +56,8 @@ def list_orders(customer_id, gateway_token):
 
     The gateway is called with the token minted for this customer, and the
     policy engine permits list_orders only when customer_id matches the
-    username in that token, so a mismatched id is denied at the gateway
-    before the tool runs.
+    customer_id claim in that token, so a mismatched id is denied at the
+    gateway before the tool runs.
     """
     return asyncio.run(
         _call_tool("list_orders", {"customer_id": customer_id}, gateway_token)

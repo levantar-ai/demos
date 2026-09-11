@@ -71,13 +71,15 @@ resource "aws_iam_role_policy" "gateway" {
   })
 }
 
-# CUSTOM_JWT against the exchange service's issuer. The agent does not relay
-# the customer's raw Cognito token here; it presents the on-behalf-of token
-# that AgentCore Identity brokered from it and the exchange service minted.
-# That token carries an audience (unlike a Cognito access token), so the
-# gateway validates it by discovery against that issuer and by allowed_audience.
-# The token carries the customer's username, so the caller the gateway
-# establishes is still the customer, not the agent.
+# CUSTOM_JWT against the exchange pool (exchange.tf), the second Cognito pool
+# that mints the on-behalf-of token. The agent does not relay the customer's
+# raw Cognito token here; it presents the token AgentCore Identity brokered
+# from it, which the exchange pool issued. That token carries an aud claim,
+# the pool's orders app client, which the pre-token trigger adds, so the
+# gateway validates it by the pool's own discovery document and JWKS and by
+# allowed_audience. The customer travels in the token's customer_id claim,
+# which the Cedar policy compares with the call's argument; the token's own
+# sub is the exchange pool's service user.
 # authorizer_type is immutable; changing it later means replacing the gateway.
 #
 # The policy engine is what enforces per-customer access. It evaluates a
@@ -91,8 +93,8 @@ resource "aws_bedrockagentcore_gateway" "orders" {
 
   authorizer_configuration {
     custom_jwt_authorizer {
-      discovery_url    = "${local.exchange_issuer}/.well-known/openid-configuration"
-      allowed_audience = [local.orders_audience]
+      discovery_url    = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.exchange.id}/.well-known/openid-configuration"
+      allowed_audience = [aws_cognito_user_pool_client.orders.id]
     }
   }
 
@@ -101,15 +103,11 @@ resource "aws_bedrockagentcore_gateway" "orders" {
     mode = var.policy_mode
   }
 
-  # The authorizer's discovery URL is the exchange service. Only the API
-  # resource is referenced above, so make the routes, Lambda permission and
-  # stage explicit dependencies: the discovery document must be serving before
-  # the gateway is created, in case AgentCore fetches it at create time.
-  depends_on = [
-    aws_apigatewayv2_stage.exchange,
-    aws_apigatewayv2_route.exchange,
-    aws_lambda_permission.exchange,
-  ]
+  # The authorizer's discovery document is the exchange pool's own, which
+  # exists as soon as the pool does; the front door's document is read only
+  # by the OBO credential provider (identity.tf). The pre-token trigger has
+  # to be attached before a token can carry the aud this authorizer checks,
+  # and that is the pool's lambda_config, referenced above.
 }
 
 resource "aws_bedrockagentcore_gateway_target" "orders" {

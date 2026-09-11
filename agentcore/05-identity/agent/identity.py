@@ -3,13 +3,15 @@
 Post 05's subject. The agent does not relay the customer's raw Cognito token to
 the gateway, and the gateway accepts no static agent credential. It asks
 AgentCore Identity, on behalf of the customer, to exchange the customer's
-inbound JWT for a short-lived token audience-restricted to the order gateway.
+inbound JWT for a short-lived token whose audience is the exchange pool's orders
+app client, the audience the order gateway is configured to accept.
 That is the on-behalf-of flow: the agent's explicitly declared workload
 identity plus the customer's token, exchanged at the credential provider,
 which brokers RFC 8693 against the exchange service. Cognito's token endpoint
-does not offer that grant, so the provider points at a self-hosted exchange
-service (see exchange/). The gateway trusts that service; Cedar still checks
-the customer.
+does not offer that grant, so the provider points at a small front door (see
+exchange/) in front of a second Cognito pool that mints the token through its
+custom authentication flow. The gateway trusts that pool; Cedar still checks
+the customer, from the token's customer_id claim.
 """
 
 import os
@@ -31,8 +33,9 @@ def orders_token(inbound_jwt: str) -> str:
 
     Two AgentCore Identity calls: first exchange the customer's inbound JWT for
     a workload access token that represents the agent acting for that customer,
-    then use it to request the on-behalf-of resource token. The exchanged token
-    carries the customer's username, which the gateway's Cedar policy compares
+    then use it to request the on-behalf-of resource token. The exchange pool's
+    pre-token trigger copies the customer token's verified username into the
+    minted token's customer_id claim, which the gateway's Cedar policy compares
     with the customer_id every list_orders call asks for.
     """
     client = _client()

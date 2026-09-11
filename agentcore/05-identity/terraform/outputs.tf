@@ -46,8 +46,18 @@ output "ecr_repository_url" {
 }
 
 output "exchange_issuer" {
-  description = "Issuer URL of the self-hosted token-exchange service (the OBO target)"
+  description = "URL of the token-exchange front door (the OBO target's token endpoint lives here)"
   value       = local.exchange_issuer
+}
+
+output "exchange_pool_id" {
+  description = "The exchange pool, the Cognito user pool that mints the on-behalf-of token"
+  value       = aws_cognito_user_pool.exchange.id
+}
+
+output "orders_client_id" {
+  description = "The exchange pool's orders app client: the minted token's client_id and aud"
+  value       = aws_cognito_user_pool_client.orders.id
 }
 
 output "obo_provider_name" {
