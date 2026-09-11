@@ -9,8 +9,9 @@ locals {
 }
 
 # The self-hosted RFC 8693 token-exchange service, the on-behalf-of target for
-# AgentCore Identity. Cognito cannot be an exchange target, so this stands in
-# for what a managed IdP with a supported on-behalf-of integration would do.
+# AgentCore Identity. Cognito's token endpoint does not offer the exchange
+# grant, so this stands in for what a managed IdP with a supported on-behalf-of
+# integration would do (see the handler docstring for the AWS sample it mirrors).
 # It is a token ISSUER, so it is treated as crown-jewel infrastructure: the
 # signing key is KMS asymmetric and the Lambda role can sign with it and read
 # its public key, and cannot administer it. Compromise of this code or its

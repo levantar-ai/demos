@@ -102,7 +102,7 @@ with Diagram(
     exchange >> Edge(label="sign, ES256", style="dashed") >> kms
 
     # The minted token, not the customer's, goes to the gateway.
-    agent >> Edge(label="list_orders\n(the minted token,\nup to 5 min, aud = orders)") >> gw_auth
+    agent >> Edge(label="list_orders\n(the minted token,\nup to 5 min, aud = brightwell-orders)") >> gw_auth
     gw_auth >> Edge(label="validated") >> gateway
     gateway >> Edge(label="evaluate", style="dashed") >> policy
     gateway >> Edge(label="matching customer_id:\npermit the call") >> orders

@@ -1,8 +1,9 @@
 # Policy in AgentCore. The engine evaluates Cedar policies at the gateway on
 # every tool call, before the target Lambda runs, outside the agent's code.
-# The caller is the customer the gateway authenticated, so a call the agent
-# makes for anyone other than that customer is denied here regardless of what
-# the agent or a model decided to ask for.
+# The principal is whoever the presented token names, so a call whose
+# customer_id differs from that token's username is denied here regardless of
+# what the agent or a model decided to ask for. The engine cannot tell which
+# invocation supplied the token; that is the post's stated limit.
 
 resource "aws_bedrockagentcore_policy_engine" "orders" {
   name        = "demos_agentcore_05_orders"
@@ -17,8 +18,8 @@ resource "aws_bedrockagentcore_policy_engine" "orders" {
 # Cedar. The principal is the customer, from the token's sub, and the
 # verified username claim is a principal tag. The tool's customer_id argument
 # is context.input.customer_id. This permits list_orders only when the
-# argument matches the caller's own username, and Cedar is default-deny, so a
-# mismatched customer_id has no permit and is refused.
+# argument matches the username in the presented token, and Cedar is
+# default-deny, so a mismatched customer_id has no permit and is refused.
 resource "aws_bedrockagentcore_policy" "own_orders" {
   name             = "own_orders_only"
   policy_engine_id = aws_bedrockagentcore_policy_engine.orders.policy_engine_id
@@ -47,7 +48,7 @@ resource "aws_bedrockagentcore_policy" "own_orders" {
 # Cedar permits are additive, so a broad permit added in a later post could
 # otherwise authorise a cross-customer call. This forbid, which wins over any
 # permit, keeps the invariant: the action is refused whenever the customer_id
-# argument is not the caller's own username.
+# argument is not the username in the presented token.
 resource "aws_bedrockagentcore_policy" "deny_other_orders" {
   name             = "deny_other_customers_orders"
   policy_engine_id = aws_bedrockagentcore_policy_engine.orders.policy_engine_id

@@ -53,7 +53,7 @@ msg(RT, A, 214, "forward request and token")
 msg(A, ID, 268, "GetWorkloadAccessTokenForJWT,\nthen GetResourceOauth2Token (on behalf of)")
 msg(ID, EX, 336, "RFC 8693 exchange,\nsubject_token = the customer's JWT")
 note(EX, 366, 330, "verifies the JWT, mints ES256, up to 5 min")
-msg(EX, ID, 430, "the minted token, aud = orders", dashed=True)
+msg(EX, ID, 430, "the minted token, aud = brightwell-orders", dashed=True)
 msg(ID, A, 476, "the minted token", dashed=True)
 
 # The minted token goes to the gateway, which trusts the exchange issuer.
@@ -70,7 +70,7 @@ msg(G, A, 754, "another id: forbid wins,\nno permit applies", colour=FLAME, dash
 d.caption(
     110, 868,
     "The customer's token is validated at the runtime, exchanged on their behalf through "
-    "AgentCore Identity for a five-minute token the exchange mints for the gateway, and Cedar decides on that.",
+    "AgentCore Identity for a token of up to five minutes the exchange mints for the gateway, and Cedar decides on that.",
 )
 d.save("sequence.png")
 print("wrote sequence.png")

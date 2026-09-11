@@ -6,9 +6,10 @@ AgentCore Identity, on behalf of the customer, to exchange the customer's
 inbound JWT for a short-lived token audience-restricted to the order gateway.
 That is the on-behalf-of flow: the agent's explicitly declared workload
 identity plus the customer's token, exchanged at the credential provider,
-which brokers RFC 8693 against the exchange service. Cognito cannot be
-that exchange target, so the provider points at a self-hosted exchange service
-(see exchange/). The gateway trusts that service; Cedar still checks the customer.
+which brokers RFC 8693 against the exchange service. Cognito's token endpoint
+does not offer that grant, so the provider points at a self-hosted exchange
+service (see exchange/). The gateway trusts that service; Cedar still checks
+the customer.
 """
 
 import os

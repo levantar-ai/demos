@@ -182,7 +182,7 @@ resource "aws_cloudcontrolapi_resource" "obo_provider" {
 > `bedrock-agentcore-identity!default/oauth2/<provider>-…`. Without it the
 > first call fails with an access-denied on that secret.
 
-## 3 - The exchange service, the target Cognito cannot be
+## 3 - The exchange service, the grant Cognito does not offer
 
 On-behalf-of exchange is RFC 8693, and it needs an authorisation server that
 implements that grant. Cognito does not. Its token endpoint accepts exactly
@@ -192,14 +192,43 @@ three grant types.
 
 https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html
 
+An AWS sample, `sample-cognito-oauth2-token-exchange`, shows the same
+exchange-endpoint pattern and is worth reading alongside this post. It
+builds the RFC 8693 endpoint itself, a Lambda behind API Gateway that
+authenticates the calling service with a client secret and verifies the
+user's token against the pool that issued it, and then delegates the minting
+to a second Cognito user pool through its custom authentication flow, with
+the original user's identity added as claims by a pre-token-generation
+trigger.
+
+> This sample demonstrates how to implement RFC 8693 OAuth 2.0 Token
+> Exchange using Amazon Cognito with a true delegation pattern. The solution
+> enables services to act on behalf of users while maintaining distinct
+> service identities and implementing the principle of least privilege.
+
+https://github.com/aws-samples/sample-cognito-oauth2-token-exchange
+
 So the demo keeps Cognito for the customer's login and stands up a small
-exchange service as the target, one Lambda behind an HTTP API. It stands in
-for the managed on-behalf-of provider you would use in production. AgentCore
-Identity supports Microsoft Entra ID through its own provider-specific
-on-behalf-of integration, and an RFC 8693 IdP through the custom OAuth2
-provider once verified against that contract. The service is here to show
+exchange service as the target, one Lambda behind an HTTP API, the same
+front door as the sample. Two things differ. This service is itself the
+issuer, signing the minted token with a KMS key rather than delegating to a
+second pool, because the subject here is the AgentCore Identity side and a
+second pool would double the Cognito surface to explain. And it puts an
+audience in the token, which the sample's exchanged token does not carry
+and its production guidance tells you to add. The per-user authorisation it asks for at the resource is
+section 4, Cedar at the gateway.
+
+> Restrict the token audience/resource (RFC 8693 `audience`/`resource`) so
+> exchanged tokens cannot be replayed against other downstreams, and enforce
+> fine-grained, per-user authorization at the resource (for example with
+> Amazon Verified Permissions).
+
+https://github.com/aws-samples/sample-cognito-oauth2-token-exchange#security-considerations
+
+Section 6 is about why that audience matters. The service is here to show
 the AgentCore Identity integration, not because running your own issuer is
-the recommendation.
+the recommendation; in production the exchange belongs to a managed IdP with
+a supported on-behalf-of integration.
 
 The service receives the customer's Cognito token as the `subject_token`,
 authenticated by the provider's client secret, and validates it strictly
@@ -357,49 +386,87 @@ token with one character altered gets the same 403, and at the exchange
 service a wrong client secret, a widened scope, a different audience or an
 unsigned subject token are each refused before anything is minted.
 
-## 6 - What it does not solve, and the alternatives
+## 6 - Why this does not let the agent into another service
 
-Be precise about what this buys. The gateway sees a short-lived,
-audience-restricted token minted for this customer rather than the
-customer's own credential. Cedar then prevents a model-chosen or accidental
-`customer_id` from mismatching the token that was presented. What it does
-not do is prove the agent used the current invocation's token. Cedar binds
-`customer_id` to the `username` in whichever valid minted token arrives, so
-a compromised agent serving many customers could reuse another customer's
-token it had seen earlier and be permitted for that customer. It cannot
-invent a customer it holds no valid token for. Stronger isolation means
-performing the exchange in a trusted per-request component outside the
-agent's code, or isolating workloads per tenant. It is still a bearer token,
-so a stolen minted token is usable until it expires, and a stolen Cognito
-token can still call the runtime and cause fresh exchanges until it expires.
-The `scope` claim is carried, not enforced, because the Cedar policy checks
-the customer and not the scope; the audience is what the gateway enforces.
-And Cedar constrains the call, not the rows. It refuses a `list_orders` whose
-requested customer differs from the token, but it cannot see what the Lambda
-returns, so the order service must still select only that customer's rows.
-Here it does, and a test proves it, but that is code again, and where the
-data layer can enforce the tenant key it should.
+The runtime's network is public, so the agent can send a request anywhere.
+The question a security review asks is what the agent holds that another
+service would accept, and within this stack the answer is that the minted
+token authorises calls to the order gateway alone, subject to Cedar. It is
+worth walking the reasons, because each is a different control and none of
+them is the agent's code.
 
-There are other shapes, and they fit other backends. For a customer's own
-data at a third-party SaaS, the user-delegated flow with a consent screen is
-the natural one, and AgentCore Identity's credential providers handle it,
-but a consent screen is not a normal thing to put in front of a customer
-asking a first-party shop about its own orders, which is why this post did
-not use it. For a first-party AWS store such as DynamoDB, federating the
-customer to IAM with `AssumeRoleWithWebIdentity` can put the row enforcement
-in IAM. That takes a token made for federation, not this post's access
-token, which has no `aud`. With the user pool registered as an IAM OIDC
-provider, the customer's ID token is the one to present, the role's trust
-policy checks its app-client audience, and the role's permissions pin the
-partition key to the federated identity (`dynamodb:LeadingKeys`). The
-federation alone enforces nothing. For a workforce agent, IAM Identity Center's trusted identity
-propagation carries an employee's identity through the AWS applications and
-services that support it. And for
-production, the exchange in this post is done by an IdP that supports the
-grant. AgentCore Identity documents Microsoft Entra ID and a custom OAuth2
-configuration for this; other IdPs are candidates once their RFC 8693
-implementation is verified against that custom-provider contract. That is
-also what removes the issuer you would otherwise be running yourself.
+The token names its audience, and only the order gateway accepts it. The
+exchange mints `aud = brightwell-orders`, and the gateway's JWT authorizer
+is configured with that exact audience against the exchange issuer's
+discovery document.
+
+```hcl
+authorizer_configuration {
+  custom_jwt_authorizer {
+    discovery_url    = "${local.exchange_issuer}/.well-known/openid-configuration"
+    allowed_audience = [local.orders_audience]
+  }
+}
+```
+
+A second gateway in front of a payments service would carry its own
+audience, and this token is refused there before any policy runs. That is
+the audience restriction the AWS sample's guidance asks for. It limits
+where the minted token can be replayed once it leaves the agent. The Cognito
+access token has no `aud`, so a resource trusting the same pool and app
+client has no audience check with which to tell a token meant for it from
+one meant for something else. It does not shrink what a compromised agent
+here could attempt, because the agent also holds the Cognito token.
+
+The agent cannot ask for a different audience. The exchange fixes the
+audience and the scope in its configuration and refuses a request that names
+any other, `invalid_target` and `invalid_scope`, which the tests cover and
+the live probes confirmed. Nothing the agent puts in the request widens what
+comes back.
+
+Through AgentCore Identity, the runtime role can use only this one
+provider. Its `GetResourceOauth2Token` is allowed on the exact ARN of the
+`demos_agentcore_05_obo` credential provider and the one workload identity,
+nothing else in the token vault. If the account held a second provider for a
+payments issuer, this agent's role could not obtain a token from it. That
+boundary is IAM, and it holds whatever the agent's code does.
+
+There is no route to the order service that bypasses the gateway. The
+runtime role has no `lambda:InvokeFunction`; only the gateway's role may
+invoke the orders Lambda. The agent's only path to an order is through the
+authorizer and then Cedar.
+
+The gateway and the order tool do not accept the customer's Cognito token
+as their bearer credential. The gateway no longer trusts the pool, so
+relaying it is refused outright, as the probe in section 5 shows. The
+runtime validates that token for invocation, and the exchange accepts it as
+the subject token when the client also authenticates; no protected
+downstream resource in this stack accepts it directly. The agent does hold
+it, because the runtime forwards it, so anything outside this stack that
+trusts the pool and app client would accept it. The design's answer is that
+no downstream resource should, only the exchange issuer.
+
+And the minted token lives for five minutes at most. A token that leaks is
+usable for that long, and only at the order gateway.
+
+Be equally precise about what this does not buy. Cedar prevents a
+model-chosen or accidental `customer_id` from mismatching the token that was
+presented. It does not prove the agent used the current invocation's token.
+Cedar binds `customer_id` to the `username` in whichever valid minted token
+arrives, so a compromised agent serving many customers could reuse another
+customer's token it had seen earlier and be permitted for that customer. It
+cannot invent a customer it holds no valid token for. Stronger isolation
+means performing the exchange in a trusted per-request component outside
+the agent's code, or isolating workloads per tenant. It is still a bearer
+token, so a stolen minted token is usable until it expires, and a stolen
+Cognito token can still call the runtime and cause fresh exchanges until it
+expires. The `scope` claim is carried, not enforced, because the Cedar
+policy checks the customer and not the scope; the audience is what the
+gateway enforces. And Cedar constrains the call, not the rows. It refuses a
+`list_orders` whose requested customer differs from the token, but it cannot
+see what the Lambda returns, so the order service must still select only
+that customer's rows. Here it does, and a test proves it, but that is code
+again, and where the data layer can enforce the tenant key it should.
 
 For the orders tool the design implements the Well-Architected lens on tool
 authorisation, the gateway and its policy engine authorising every invocation
@@ -439,6 +506,7 @@ References:
 - https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html
 - https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html
 - https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html
+- https://github.com/aws-samples/sample-cognito-oauth2-token-exchange
 - https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html
 - https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec03.html
 - https://datatracker.ietf.org/doc/html/rfc8693
