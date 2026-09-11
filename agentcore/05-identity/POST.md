@@ -31,9 +31,24 @@ was entitled to a particular order.
 
 Closing that gap is the whole of this post, and it matters because
 filtering in the agent's own code is not an authorisation boundary. The
-tempting fix, giving the agent a
-broad credential and filtering results in its own code, is the one AWS's
-Well-Architected Agentic AI Lens tells you not to reach for.
+tempting fix, giving the agent a broad credential and filtering results in
+its own code, is the one AWS's Well-Architected Agentic AI Lens tells you
+not to reach for.
+
+Be warned that this is a step up from the four posts before it. Each
+previous post centred on one AgentCore capability and needed a small change
+to the agent's code. This one adds a workload identity, a credential
+provider, a token-exchange front door, a second Cognito pool with four
+Lambda triggers, two more Secrets Manager secrets alongside the one
+AgentCore Identity manages for the provider, an SSM parameter and a change
+to what the gateway trusts. The parts are individually small, and most of
+them are what doing the exchange through Cognito's custom authentication
+costs; a managed provider with a supported on-behalf-of integration would
+need none of the pool, the triggers or the front door. What does not go
+away is the care. Every one of these components has a way to be wrong that
+looks like working, and the sections below say what each one is for, what
+it refuses, and what it still does not guarantee. Read the post as a map of
+that, not as a weekend build.
 
 > The traditional approach of granting the agent broad credentials and
 > relying on application-level filtering (such as adding WHERE clauses to
