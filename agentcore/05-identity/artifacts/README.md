@@ -27,7 +27,8 @@ behalf of the customer, instead of relaying the customer's Cognito token.
   `https://kc5n0arhqc.execute-api.us-east-1.amazonaws.com` fronting one Lambda
   (`/token`, `/authorize`, `/.well-known/openid-configuration`,
   `/.well-known/jwks.json`), signing ES256 with a KMS `ECC_NIST_P256` key the
-  Lambda role can only `Sign` with. Client secret in Secrets Manager.
+  Lambda role can `Sign` and `GetPublicKey` with but not administer. Client
+  secret in Secrets Manager.
 - The gateway `demos-agentcore-05-identity-gw-…`, its `CUSTOM_JWT`
   authorizer now pointed at the exchange service's discovery URL with
   `allowed_audience = ["brightwell-orders"]`. It no longer trusts Cognito's
@@ -98,7 +99,9 @@ Against the gateway directly (`probe_gateway.py`), policy engine in `ENFORCE`:
 Against the exchange service's `/token`:
 
 - Wrong client secret: `401 {"error": "invalid_client"}`. No client auth: the
-  same. Uniform, no oracle.
+  same. Missing and incorrect client authentication return the same response;
+  the endpoint is still an online check of the secret, mitigated by its
+  entropy and the stage throttle, not removed.
 - `grant_type=password`: `400 unsupported_grant_type`.
 - An `alg=none` subject token: `400 invalid_grant, "subject token rejected"`.
 - `scope=orders/admin`: `400 invalid_scope`. `audience=payments`:
@@ -137,8 +140,10 @@ Findings only a real apply could produce, all encoded in the config now.
   provider at all.
 - **The Cloud Control provider came up first time**, and its ARN settled the
   form the IAM docs are inconsistent about: service `bedrock-agentcore`,
-  `oauth2credentialprovider` unhyphenated. The runtime policy still wildcards
-  `token-vault/default/*`, which could now be tightened to that exact ARN.
+  `oauth2credentialprovider` unhyphenated. The runtime policy was then
+  tightened to the exact provider and workload-identity ARNs, and the managed
+  secret to its exact ARN read from the Cloud Control resource's `properties`
+  (`ClientSecretArn.SecretArn`), and the chain re-verified on 2026-09-11.
 - **The first cold start exceeded 120 seconds**: `HTTP 424 Runtime
   initialization time exceeded`. The container was healthy on the next call;
   nothing to fix, a note for the runbook.
@@ -177,7 +182,82 @@ token issuer.
   identifies the workload, that the token is scope-limited unless Cedar
   enforces scope, or that this is categorically safer than relaying the token.
 
-The post is reviewed separately before publishing; see the bottom of this file.
+### Post review rounds, 2026-09-11
+
+The post, runbook, agent and Terraform were reviewed together after the live
+run, with the same reviewer.
+
+- **Round 1**, 18 findings, all applied but one (the aws-vault profile in the
+  runbook is the repo's convention).
+- **Round 2**, verdict not ready. Two blockers, both accepted: the TL;DR and
+  conclusion had drifted back to an end-to-end binding claim that section 6
+  itself denies, so both now state the bounded property (Cedar refuses a
+  mismatched customer against the presented token; it cannot bind that token
+  to the current invocation; a compromised shared agent could replay another
+  customer's still-valid token; the next-post claim holds only while the model
+  chooses the argument and not the token). And Cedar constrains the call, not
+  the rows, so the order Lambda's own filtering is now stated as a
+  responsibility and tested (`agent/test_tenancy.py`, alongside the memory
+  namespace tests the reviewer asked for). Should-fixes applied: the runtime
+  role reads the provider's managed secret by exact ARN rather than a prefix
+  wildcard; the JWKS cache now has a six-hour maximum stale age after which
+  subject tokens are refused until a refresh succeeds, with tests; "never
+  presents the credential downstream" narrowed to "only to AgentCore Identity
+  and the exchange issuer, never to the gateway or tool"; "scoped" replaced by
+  "audience-restricted" wherever only the audience is enforced; "holds no
+  static credential" replaced by "the gateway accepts no static agent
+  credential" because the runtime can read the provider's client secret; the
+  runbook warning names the bearer token as well as the client secret; the
+  code comment on consent made provider-specific; trusted identity propagation
+  limited to the services that support it; four stale Terraform comments from
+  the relay design rewritten. Not adopted: a `getpass` helper for the runbook
+  probes, an isolated demo account with synthetic data is the stated
+  condition instead.
+- **Round 3**, with the order tool and memory code in the material, no
+  blockers, ten should-fix and minor items, all applied: the same row-level
+  overclaim in three code docstrings; the diagrams' "caller's username" and
+  "caller's own orders" labels, which restated the binding the prose had
+  dropped, now "token username" and "matching customer_id: permit the call",
+  and "up to 5 min" for the lifetime; "nothing in the request can change the
+  claims" narrowed to "no other request parameter", since the subject token is
+  itself in the request; the `AssumeRoleWithWebIdentity` alternative now says
+  federation enforces nothing without a trust policy and a partition-key
+  condition; the discovery document named as a compatibility shim advertising
+  capabilities the issuer does not implement; a broken comment in cognito.tf;
+  the runtime's auto-created workload identity output renamed so it is not
+  mistaken for the one the chain uses; the KMS permissions stated correctly
+  in this record.
+- **Round 4**, one blocker and four should-fix or minor, all applied: the
+  TL;DR had said the credential goes "only" to AgentCore Identity and the
+  issuer, omitting that the runtime forwards it to the agent container first,
+  so it now traces the path from the runtime; the federation alternative now
+  says it needs a token made for federation (a Cognito ID token, not this
+  post's access token, which has no `aud`) and a role that pins the partition
+  key; "identity is where agent security is won or lost" replaced with the
+  concrete point; the exchange role's KMS policy split into a `Sign` statement
+  conditioned on `ECDSA_SHA_256` and a plain `GetPublicKey` statement, rather
+  than one statement relying on `ForAllValues` passing when the key is absent,
+  applied live and the JWKS, mint and probes re-run; two "scoped" comments
+  made "audience-restricted".
+- **Round 5**, five should-fix or minor, all applied: the TL;DR now traces
+  every hop (runtime to agent, agent to AgentCore Identity, AgentCore Identity
+  to the issuer; the gateway sees the minted token, the tool the permitted
+  arguments); Entra named as AgentCore Identity's provider-specific
+  on-behalf-of integration rather than an RFC 8693 issuer, and Auth0 dropped;
+  the federation alternative reduced to the one path described accurately
+  (user pool as IAM OIDC provider, ID token, app-client audience,
+  `dynamodb:LeadingKeys`); an explicit anti-impersonation test submitting
+  `username`, `sub`, `aud` and `exp` form parameters against a valid subject
+  token; the identity.py comment naming the explicit workload identity.
+- **Round 6**, one should-fix: the handler docstring and exchange.tf header
+  still named Entra and Auth0 as what the service stands in for. Replaced
+  with "a managed IdP with a supported on-behalf-of integration".
+- **Round 7**, round 6 confirmed resolved; two further items applied: the
+  gateway role's two evaluation actions on `*` are account-wide, and scoping
+  the engine's read actions does not narrow what they can evaluate, said so
+  in the runbook and the Terraform comment; "no oracle" for the `/token`
+  client-auth failures replaced with the accurate statement.
+- **Round 8**, "No material findings remain. Verdict: ready to publish."
 
 ## History: the token-relay design, 2026-09-08
 

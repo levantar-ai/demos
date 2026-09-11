@@ -105,33 +105,34 @@ resource "aws_iam_role_policy" "runtime" {
       },
       {
         # The on-behalf-of chain: exchange the customer's JWT for a workload
-        # access token, then request the resource token from the credential
-        # provider. token-vault/default/* is wildcarded for the first apply
-        # because the provider ARN's exact form (service prefix, hyphenation)
-        # is inconsistent between the API and the IAM docs; tightened after a
-        # live run from CloudTrail. See artifacts/README.md.
+        # access token for this agent's workload identity, then request the
+        # resource token from this one credential provider. Scoped to the
+        # exact resources (their ARN forms were confirmed by the live run,
+        # see artifacts/README.md), with the parent directory and vault the
+        # actions are authorised against. No other workload identity or
+        # provider in the account is reachable from this role.
         Sid    = "OnBehalfOfExchange"
         Effect = "Allow"
         Action = [
-          "bedrock-agentcore:GetWorkloadAccessToken",
           "bedrock-agentcore:GetWorkloadAccessTokenForJWT",
           "bedrock-agentcore:GetResourceOauth2Token"
         ]
         Resource = [
           "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default",
-          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workload-identity-directory/default/workload-identity/*",
+          aws_bedrockagentcore_workload_identity.agent.workload_identity_arn,
           "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:token-vault/default",
-          "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:token-vault/default/*"
+          local.obo_provider_arn
         ]
       },
       {
         # GetResourceOauth2Token reads the credential provider's client secret
-        # in the caller's context. AgentCore Identity manages that secret under
-        # a fixed name for the provider, so the runtime role reads only it.
+        # in the caller's context. The exact ARN of the secret AgentCore
+        # Identity manages for the provider comes from the provider itself, so
+        # the runtime role can read that one secret and no other.
         Sid      = "ReadOboProviderSecret"
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:bedrock-agentcore-identity!default/oauth2/${local.obo_provider_name}-*"
+        Resource = local.obo_provider_secret_arn
       },
     ]
   })

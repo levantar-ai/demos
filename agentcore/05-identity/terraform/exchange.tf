@@ -10,11 +10,12 @@ locals {
 
 # The self-hosted RFC 8693 token-exchange service, the on-behalf-of target for
 # AgentCore Identity. Cognito cannot be an exchange target, so this stands in
-# for what a managed IdP (Entra, Auth0) would do. It is a token ISSUER, so it
-# is treated as crown-jewel infrastructure: the signing key is KMS asymmetric
-# and the Lambda role can only Sign with it, nothing else. Compromise of this
-# code or its role is total issuer compromise; KMS stops key export, not
-# arbitrary signing. In production you would use a managed IdP instead.
+# for what a managed IdP with a supported on-behalf-of integration would do.
+# It is a token ISSUER, so it is treated as crown-jewel infrastructure: the
+# signing key is KMS asymmetric and the Lambda role can sign with it and read
+# its public key, and cannot administer it. Compromise of this code or its
+# role is total issuer compromise; KMS stops key export, not arbitrary
+# signing. In production you would use a managed IdP instead.
 
 # --- Signing key: asymmetric, KMS-held, sign-only for the Lambda -------------
 resource "aws_kms_key" "exchange" {
@@ -100,15 +101,22 @@ resource "aws_iam_role_policy" "exchange" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Sign only, and only with ECDSA_SHA_256, on the one key. No key
-        # administration, no grant creation, no other algorithm.
-        Sid      = "SignOnly"
+        # Sign with ECDSA_SHA_256 only, on the one key. No key administration,
+        # no grant creation, no other algorithm.
+        Sid      = "Sign"
         Effect   = "Allow"
-        Action   = ["kms:Sign", "kms:GetPublicKey"]
+        Action   = ["kms:Sign"]
         Resource = aws_kms_key.exchange.arn
         Condition = {
-          "ForAllValues:StringEquals" = { "kms:SigningAlgorithm" = ["ECDSA_SHA_256"] }
+          StringEquals = { "kms:SigningAlgorithm" = "ECDSA_SHA_256" }
         }
+      },
+      {
+        # The public half, for the JWKS document and the kid.
+        Sid      = "PublicKey"
+        Effect   = "Allow"
+        Action   = ["kms:GetPublicKey"]
+        Resource = aws_kms_key.exchange.arn
       },
       {
         Sid      = "ReadClientSecret"

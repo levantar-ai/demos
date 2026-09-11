@@ -1,21 +1,23 @@
 """A minimal RFC 8693 token-exchange service, the on-behalf-of target for
 AgentCore Identity. Cognito can't be an exchange target, so this stands in for
-what a managed IdP (Entra, Auth0) would do. It is a TEACHING component: it is a
-token issuer, which is crown-jewel infrastructure. Compromise of this code or
-its signing role is total issuer compromise. KMS keeps the private key from
-being exported; it does NOT stop this process, once trusted, signing a token
-for any customer. In production you would use a managed IdP, not this.
+what a managed IdP with a supported on-behalf-of integration would do. It is a
+TEACHING component: it is a token issuer, which is crown-jewel infrastructure.
+Compromise of this code or its signing role is total issuer compromise. KMS
+keeps the private key from being exported; it does NOT stop this process, once
+trusted, signing a token for any customer. In production you would use a
+managed IdP, not this.
 
-Three routes on one Lambda behind an HTTP API (TLS only):
+Four routes on one Lambda behind an HTTP API (TLS only):
   POST /token                         RFC 8693 exchange, client_secret_basic
+  GET  /authorize                     always unsupported_response_type
   GET  /.well-known/openid-configuration
   GET  /.well-known/jwks.json
 
 AgentCore Identity sends the customer's Cognito access token as subject_token
 with the registered client's basic auth. We verify that Cognito token strictly,
-then mint a short-lived ES256 token (signed by KMS) scoped to the order gateway
-carrying the verified username. The gateway trusts this issuer; Cedar still
-enforces username == customer_id.
+then mint a short-lived ES256 token (signed by KMS) audience-restricted to the
+order gateway and carrying the verified username. The gateway trusts this
+issuer; Cedar compares that username with the customer_id each call asks for.
 """
 
 import base64
@@ -115,8 +117,13 @@ def _oauth_error(status, code, description="", headers=None):
 
 
 # --- Cognito JWKS: pinned URL, no redirects, validate-before-replace ---------
+# A cached document is fresh for _JWKS_TTL and is served on refresh failure
+# for at most _JWKS_MAX_STALE after it was fetched. Past that, subject tokens
+# are refused until a refresh succeeds, so a retired Cognito key is never
+# trusted indefinitely just because the JWKS endpoint became unreachable.
 _jwks_cache = {"keys": None, "at": 0.0, "last_refresh": 0.0}
 _JWKS_TTL = 3600
+_JWKS_MAX_STALE = 6 * 3600
 _JWKS_MIN_REFRESH_GAP = 30
 
 
@@ -168,7 +175,9 @@ def _jwk_for_kid(kid):
             keys = fresh
         except Exception:  # noqa: BLE001, S110 — fail safe: keep validated last-known-good
             pass
-    return _find_kid(keys or [], kid)
+    if keys is None or now - _jwks_cache["at"] > _JWKS_MAX_STALE:
+        return None  # nothing trustworthy to validate against; refuse
+    return _find_kid(keys, kid)
 
 
 def _find_kid(keys, kid):
@@ -414,6 +423,11 @@ def handle_authorize(_event) -> dict:
 
 
 def handle_discovery(_event) -> dict:
+    # The gateway's CUSTOM_JWT authorizer parses this as an OpenID Connect
+    # provider document and refuses one without the OIDC-required fields, so
+    # an exchange-only issuer still advertises an authorization endpoint (which
+    # answers unsupported_response_type), a response type and an ID-token
+    # algorithm it does not implement. A compatibility shim, not conformance.
     return _resp(200, {
         "issuer": ISSUER_URL,
         "authorization_endpoint": f"{ISSUER_URL}/authorize",

@@ -1,11 +1,14 @@
 """Calling Brightwell's order tools through AgentCore Gateway.
 
-Carried forward from post 02, with the change that is post 05's subject. The
-agent no longer mints its own gateway token. It relays the customer's own
-token, the one the runtime verified and forwarded, so the caller the gateway
-establishes is the customer. Policy in AgentCore then evaluates a Cedar
-policy on every call and refuses anything outside that customer's orders,
-which is why this module does no authorization of its own.
+Carried forward from post 02. The token presented here is the one AgentCore
+Identity obtained on the customer's behalf (see identity.py), minted by the
+exchange service and audience-restricted to this gateway. It is never the customer's own
+Cognito token, which the gateway no longer accepts. The gateway validates the
+token against the exchange issuer, and Policy in AgentCore then evaluates a
+Cedar policy on every call and refuses a list_orders whose customer_id
+differs from the token's username, which is why this module does no
+authorization of its own. The orders Lambda still returns only that
+customer's rows; Cedar sees the call, not the result.
 """
 
 import asyncio
@@ -33,8 +36,8 @@ def _result_text(result):
     raise RuntimeError(f"tool returned no text content: {result.content}")
 
 
-async def _call_tool(tool, arguments, customer_token):
-    headers = {"Authorization": f"Bearer {customer_token}"}
+async def _call_tool(tool, arguments, gateway_token):
+    headers = {"Authorization": f"Bearer {gateway_token}"}
     async with (
         streamablehttp_client(os.environ["GATEWAY_URL"], headers=headers) as (
             read,
@@ -48,13 +51,14 @@ async def _call_tool(tool, arguments, customer_token):
         return _result_text(result)
 
 
-def list_orders(customer_id, customer_token):
+def list_orders(customer_id, gateway_token):
     """The customer's orders as the tool returns them, JSON text.
 
-    The gateway is called with the customer's own token, and the policy engine
-    permits list_orders only when customer_id matches that caller, so a
-    mismatched id is denied at the gateway before the tool runs.
+    The gateway is called with the token minted for this customer, and the
+    policy engine permits list_orders only when customer_id matches the
+    username in that token, so a mismatched id is denied at the gateway
+    before the tool runs.
     """
     return asyncio.run(
-        _call_tool("list_orders", {"customer_id": customer_id}, customer_token)
+        _call_tool("list_orders", {"customer_id": customer_id}, gateway_token)
     )

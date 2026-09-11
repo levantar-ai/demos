@@ -1,5 +1,7 @@
 # The gateway: fronts the tool Lambda as an MCP server, authenticating
-# callers with JWTs issued by the Cognito pool in cognito.tf.
+# callers with the resource JWT the exchange issuer (exchange.tf) mints. It
+# does not accept the customer's Cognito token; that is validated by the
+# runtime only.
 
 resource "aws_iam_role" "gateway" {
   name = "${local.name_prefix}-gateway"
@@ -55,8 +57,9 @@ resource "aws_iam_role_policy" "gateway" {
       },
       {
         # The two evaluation actions do not support resource-level scoping,
-        # so they are granted on "*". Which engine the gateway may read is
-        # still scoped by the statement above.
+        # so they are granted on "*", which is account-wide. The read actions
+        # above are scoped to this engine, but that does not constrain what
+        # a principal holding this role could ask these two to evaluate.
         Effect = "Allow"
         Action = [
           "bedrock-agentcore:AuthorizeAction",
@@ -70,8 +73,8 @@ resource "aws_iam_role_policy" "gateway" {
 
 # CUSTOM_JWT against the exchange service's issuer. The agent does not relay
 # the customer's raw Cognito token here; it presents the on-behalf-of token
-# that AgentCore Identity minted from it. That token is issued by the exchange
-# service and carries an audience (unlike a Cognito access token), so the
+# that AgentCore Identity brokered from it and the exchange service minted.
+# That token carries an audience (unlike a Cognito access token), so the
 # gateway validates it by discovery against that issuer and by allowed_audience.
 # The token carries the customer's username, so the caller the gateway
 # establishes is still the customer, not the agent.

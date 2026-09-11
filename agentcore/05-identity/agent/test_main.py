@@ -33,7 +33,8 @@ class StubHandler(Handler):
     )
     stop = staticmethod(lambda interpreter, session_id: stopped.append(session_id))
     # The on-behalf-of exchange is stubbed: it stands for AgentCore Identity
-    # minting a gateway-scoped token from the customer's inbound JWT. The live
+    # brokering a token audience-restricted to the gateway from the customer's
+    # inbound JWT. The live
     # exchange and Cedar enforcement are verified against the deployed stack.
     exchange = staticmethod(lambda inbound: f"obo:{inbound}")
     orders = staticmethod(
@@ -210,7 +211,7 @@ def test_claims_are_decoded_without_verification():
     assert main.customer_from({}) is None
 
 
-def test_the_raw_bearer_token_is_extracted_for_relay():
+def test_the_raw_bearer_token_is_extracted_for_the_exchange():
     token = bearer_for("c-1000")
     assert main.bearer_from({"Authorization": f"Bearer {token}"}) == token
     assert main.bearer_from({"Authorization": "Basic abc"}) is None
@@ -234,10 +235,10 @@ def test_the_agent_relays_the_on_behalf_of_token_not_the_raw_bearer(server_url):
 def test_gateway_list_orders_forwards_the_id_and_token(monkeypatch):
     captured = {}
 
-    async def fake_call(tool, arguments, customer_token):
+    async def fake_call(tool, arguments, gateway_token):
         captured["tool"] = tool
         captured["arguments"] = arguments
-        captured["token"] = customer_token
+        captured["token"] = gateway_token
         return json.dumps({"customer_id": "c-1000", "orders": []})
 
     monkeypatch.setattr(gateway, "_call_tool", fake_call)

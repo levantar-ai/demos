@@ -25,9 +25,14 @@ output "customers_client_id" {
   value       = aws_cognito_user_pool_client.customers.id
 }
 
-output "workload_identity_arn" {
-  description = "Workload identity AgentCore created for the runtime"
+output "runtime_auto_workload_identity_arn" {
+  description = "Workload identity AgentCore auto-created for the runtime (not the one the OBO chain uses)"
   value       = one(aws_bedrockagentcore_agent_runtime.agent.workload_identity_details).workload_identity_arn
+}
+
+output "agent_workload_identity_arn" {
+  description = "The explicit workload identity the agent presents in the on-behalf-of chain"
+  value       = aws_bedrockagentcore_workload_identity.agent.workload_identity_arn
 }
 
 output "code_interpreter_id" {

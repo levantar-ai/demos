@@ -4,12 +4,16 @@ Runtime HTTP contract as post 01 (POST /invocations, GET /ping). The runtime
 now validates a customer's bearer token before a request reaches this
 handler and forwards the Authorization header, so the caller's identity
 comes from claims the runtime has verified rather than from the request
-body. The agent relays that same verified token to the gateway, where
-Policy in AgentCore evaluates a Cedar policy on every tool call and refuses
-anything outside the caller's own orders, so the boundary is enforced at
-the gateway rather than trusted to this code. There is still no model in
-this agent, the routing below is code. Post 06 is where a model is handed
-these tools, acting as the customer this post identifies.
+body. The agent does not present that token to the gateway or the tool. It
+hands it to AgentCore Identity, which presents it to the exchange issuer as
+the subject of an on-behalf-of exchange (identity.py), and the agent then
+presents the minted token to the gateway, where Policy in AgentCore
+evaluates a Cedar policy on every tool call and refuses a list_orders whose
+customer_id differs from that token's username. Which customer may be asked
+for is decided at the gateway rather than trusted to this code; which rows
+come back is the orders Lambda's job. There is still no model in this
+agent, the routing below is code. Post 06 is where a model is handed these
+tools, acting as the customer this post identifies.
 """
 
 import base64
@@ -73,15 +77,15 @@ def customer_from(headers):
 
 
 def bearer_from(headers):
-    """The raw bearer token the runtime forwarded, to relay to the gateway."""
+    """The raw bearer token the runtime forwarded, the subject of the exchange."""
     auth = headers.get("Authorization", "")
     return auth[len("Bearer "):] if auth.startswith("Bearer ") else None
 
 
-def find_order(order_id, customer, customer_token):
+def find_order(order_id, customer, gateway_token):
     """One of the customer's own orders, so an id from someone else's
     account is not found rather than looked up."""
-    listed = json.loads(list_orders(customer, customer_token))
+    listed = json.loads(list_orders(customer, gateway_token))
     for order in listed.get("orders", []):
         if str(order.get("order_id")) == str(order_id):
             return order

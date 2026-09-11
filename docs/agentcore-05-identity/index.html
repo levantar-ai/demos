@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Knowing who your agent is acting for, with AgentCore Identity — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every invocation of the orders gateway tool with Policy in AgentCore, so a Cedar policy at the gateway refuses any call outside the caller's own orders, before the tool runs and out">
+<meta name="description" content="This post shows AgentCore Identity brokering an on-behalf-of exchange, from the token a customer signed in with to a token for the order service that a separate RFC 8693 issuer mints. The runtime validates the customer's credential and forwards it to the agent, the agent passes it to AgentCore Ident">
 <link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-05-identity/">
 <meta name="author" content="Andy Rea">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -12,18 +12,18 @@
 <meta property="og:site_name" content="Levantar">
 <meta property="og:locale" content="en_GB">
 <meta property="og:title" content="Knowing who your agent is acting for, with AgentCore Identity">
-<meta property="og:description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every invocation of the orders gateway tool with Policy in AgentCore, so a Cedar policy at the gateway refuses any call outside the caller's own orders, before the tool runs and out">
+<meta property="og:description" content="This post shows AgentCore Identity brokering an on-behalf-of exchange, from the token a customer signed in with to a token for the order service that a separate RFC 8693 issuer mints. The runtime validates the customer's credential and forwards it to the agent, the agent passes it to AgentCore Ident">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Knowing who your agent is acting for, with AgentCore Identity">
 <meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-05-identity/">
-<meta property="article:published_time" content="2026-09-08">
+<meta property="article:published_time" content="2026-09-11">
 <meta property="article:author" content="Andy Rea">
 <meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Knowing who your agent is acting for, with AgentCore Identity">
-<meta name="twitter:description" content="How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every invocation of the orders gateway tool with Policy in AgentCore, so a Cedar policy at the gateway refuses any call outside the caller's own orders, before the tool runs and out">
+<meta name="twitter:description" content="This post shows AgentCore Identity brokering an on-behalf-of exchange, from the token a customer signed in with to a token for the order service that a separate RFC 8693 issuer mints. The runtime validates the customer's credential and forwards it to the agent, the agent passes it to AgentCore Ident">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
 <meta name="twitter:image:alt" content="Knowing who your agent is acting for, with AgentCore Identity">
 <link rel="icon" type="image/png" href="../favicon.png">
@@ -32,10 +32,10 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Knowing who your agent is acting for, with AgentCore Identity",
-  "description": "How to establish who a customer is on the way into an agent with AgentCore Identity, and then enforce that identity on every invocation of the orders gateway tool with Policy in AgentCore, so a Cedar policy at the gateway refuses any call outside the caller's own orders, before the tool runs and out",
+  "description": "This post shows AgentCore Identity brokering an on-behalf-of exchange, from the token a customer signed in with to a token for the order service that a separate RFC 8693 issuer mints. The runtime validates the customer's credential and forwards it to the agent, the agent passes it to AgentCore Ident",
   "image": "https://levantar-ai.github.io/demos/agentcore-05-identity/social.png",
-  "datePublished": "2026-09-08",
-  "dateModified": "2026-09-08",
+  "datePublished": "2026-09-11",
+  "dateModified": "2026-09-11",
   "wordCount": 3000,
   "inLanguage": "en-GB",
   "mainEntityOfPage": {
@@ -173,7 +173,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
-          <div class="facts"><time datetime="2026-09-08">8 September 2026</time><span class="sep">·</span>15 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-09-11">11 September 2026</time><span class="sep">·</span>15 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
       <nav class="series-nav prev">
@@ -183,15 +183,22 @@
         </a>
       </nav>
 <h2>TL;DR;</h2>
-<p>How to establish who a customer is on the way into an agent with AgentCore
-Identity, and then enforce that identity on every invocation of the orders gateway tool
-with Policy in AgentCore, so a Cedar policy at the gateway refuses any call
-outside the caller's own orders, before the tool runs and outside the
-agent's code.</p>
+<p>This post shows AgentCore Identity brokering an on-behalf-of exchange, from
+the token a customer signed in with to a token for the order service that a
+separate RFC 8693 issuer mints. The runtime validates the customer's
+credential and forwards it to the agent, the agent passes it to AgentCore
+Identity, and AgentCore Identity presents it to the issuer. The gateway sees
+only the minted token, the tool only the arguments Cedar permitted, and a
+Cedar policy at the gateway refuses any call whose customer differs from the
+token presented. Cognito does not implement that exchange grant, so a small
+self-hosted issuer stands in for the managed IdP you would use in production.</p>
 <blockquote>
 <p>SOURCE CODE - All code for this post is available at:
 <a href="https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity">https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity</a></p>
 </blockquote>
+<p><strong>The token-exchange service in this post is a teaching component, not
+production-grade. It exists to show the AgentCore Identity integration. In
+production the exchange is done by a managed IdP that supports the grant.</strong></p>
 <h2>Longer version</h2>
 <p>This series is building one thing, the order support agent for Brightwell,
 a small online retailer of outdoor kit that ships with DPD and Royal Mail.
@@ -199,10 +206,11 @@ Posts 01 to 04 gave it a runtime, a tool that looks orders up, memory and a
 sandbox. None of them knew who was asking, and post 02 said so at the time,
 that the gateway established a legitimate client was calling, not that it
 was entitled to a particular order.</p>
-<p>Closing that gap safely is the whole of this post, and it matters because
-identity is where agent security is won or lost. The tempting fix, giving
-the agent a broad credential and filtering results in its own code, is the
-one AWS's Well-Architected Agentic AI Lens tells you not to reach for.</p>
+<p>Closing that gap is the whole of this post, and it matters because
+filtering in the agent's own code is not an authorisation boundary. The
+tempting fix, giving the agent a
+broad credential and filtering results in its own code, is the one AWS's
+Well-Architected Agentic AI Lens tells you not to reach for.</p>
 <blockquote>
 <p>The traditional approach of granting the agent broad credentials and
 relying on application-level filtering (such as adding WHERE clauses to
@@ -210,27 +218,27 @@ queries) creates a single point of failure. A more resilient design moves
 authorization enforcement out of the agent's application code and into the
 infrastructure layer wherever possible.</p>
 </blockquote>
-<p>That is <a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec03.html">AGENTSEC03</a>.
-The reason it matters more for an agent than for ordinary code is the next
-post, where a model, not deterministic code, chooses the arguments to a
-tool. If the only thing keeping a caller to their own orders is the agent
-passing the right id, a model that can be talked into passing a different
-one has just read someone else's account.</p>
-<p>So this post does two things. AgentCore Identity establishes the customer
-on the way in, and Policy in AgentCore enforces that customer on the tool
-behind the gateway. The enforcement point is deliberately not the agent.
-The orders tool is the one behind the gateway, so it is the one this post
-puts under Cedar; the memory and sandbox carried forward from posts 03 and
-04 are called directly and are still scoped in the agent code, which is the
-next thing you would move behind the same pattern.</p>
-<p><img alt="The runtime and the gateway each validate the customer's Cognito token with their own AgentCore Identity inbound CUSTOM_JWT authorizer, configured against the pool's OIDC discovery and JWKS, before Cedar enforces the caller on the orders tool" src="architecture.png" /></p>
+<p><a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec03.html">https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec03.html</a></p>
+<p>AgentCore Identity has two halves. Inbound Auth validates the token a caller
+presents to a runtime or a gateway. Outbound Auth gives the agent tokens for
+the things it calls, through a workload identity, credential providers and a
+token vault. Relaying the customer's Cognito token to the gateway uses only
+the inbound half, and is a sound pattern for a first-party tool, but it
+provisions no AgentCore Identity resource at all. This design uses both
+halves. The agent asks AgentCore Identity for a token for the order service, on
+behalf of the customer, and AgentCore Identity brokers an exchange of the
+customer's inbound token for one that a separate issuer mints. That is the
+on-behalf-of flow. It suits a background agent because, where the provider
+has already established the delegation, no further interactive consent is
+asked for on each downstream call. This demo's issuer applies a fixed
+first-party policy and has no consent screen at all.</p>
+<p><img alt="The agent's order-service token, brokered by AgentCore Identity on the customer's behalf and minted by the exchange issuer" src="architecture.png" /></p>
 <video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
-<h2>1 - Inbound, the runtime and the gateway check the customer</h2>
+<h2>1 - Inbound, the runtime checks the customer</h2>
 <p>The Cognito pool from post 02 keeps a public client for customers, who sign
-in with a password and get an access token. The runtime validates that
-token before the agent sees the request and forwards it. What is new is that
-the gateway now validates the same customer token rather than a machine
-token the agent obtained through AgentCore Identity:</p>
+in with a password and get an access token. The runtime validates that token
+before the agent sees the request, through AgentCore Identity's inbound auth,
+which is the <code>CUSTOM_JWT</code> authorizer on the runtime.</p>
 <pre><code class="language-hcl">authorizer_configuration {
   custom_jwt_authorizer {
     discovery_url   = local.discovery_url
@@ -238,322 +246,329 @@ token the agent obtained through AgentCore Identity:</p>
   }
 }
 </code></pre>
-<p>The access token this demo's sign-in produces carries <code>client_id</code> and
-<code>username</code> but no <code>aud</code>, so the gateway validates it by <code>allowed_clients</code>
-and no audience is set. The caller the gateway establishes from that token
-is the customer, and their username is Brightwell's customer id. An ID token
-puts the client in <code>aud</code> and carries no <code>client_id</code>, so the JWT authorizer
-refuses it before the agent or Cedar sees it, which a live check confirmed
-with <code>401 Claim 'client_id' value mismatch</code>. The handler's <code>token_use</code> check
-is a second line behind that. That username is the identity the next section
-authorises against.</p>
+<p>AWS describes configuring the runtime this way as implementing authentication
+"using OAuth and JWT bearer tokens with AgentCore Identity", Inbound Auth
+being its name for the half that validates callers.</p>
+<blockquote>
+<p>This section shows you how to implement authentication and authorization
+for your agent runtime using OAuth and JWT bearer tokens with AgentCore
+Identity. You'll learn how to set up Cognito user pools, configure your
+agent runtime for JWT authentication (Inbound Auth), and implement
+OAuth-based access to third-party resources (outbound Auth).</p>
+</blockquote>
+<p><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html</a></p>
+<p>The <code>Authorization</code> header is on the runtime's request header allowlist, so
+the agent receives the validated token. It reads the <code>username</code> claim as the
+customer, refuses anything that is not an access token, and never takes the
+customer from the request body. This part is not where the post's subject
+lives.</p>
 <blockquote>
 <p>NOTE: the runtime's authorizer is built to accept an end user's token, so in
 a real system the customer's own app, or a backend for it, would invoke the
 runtime carrying that token. This demo has the customer call the runtime
-directly, which changes nothing about the token or the checks below and keeps
-the subject on the identity mechanism rather than the application wiring
-around it.</p>
+directly, which changes nothing about the token or the checks and keeps
+the subject on the identity mechanism rather than the application wiring.</p>
 </blockquote>
-<!-- -->
-
+<h2>2 - On behalf of the customer, the agent's token comes from AgentCore Identity</h2>
+<p>Here is the change. The agent does not send the customer's Cognito token to
+the gateway. It asks AgentCore Identity for a token for the order service,
+and AgentCore Identity brokers the exchange on the customer's behalf, with
+the issuer in the next section doing the minting. AWS's description of the
+flow is exactly the property wanted.</p>
 <blockquote>
-<p>NOTE: this is the same pool for customer accounts that Brightwell already
-controls. Only an admin creates users, so a username is a real customer id
-and not something an attacker can register. The policy matches on the
-<code>username</code>, while the Cedar principal is the immutable <code>sub</code>, so it also
-assumes Brightwell never reassigns a customer id to a different person; bind
-the data and the rule to <code>sub</code> if that assumption does not hold.
-<code>authorizer_type</code> is immutable, so a gateway that starts on the wrong
-client has to be replaced.</p>
+<p>Amazon Bedrock AgentCore Identity supports On-Behalf-Of (OBO) token
+exchange, enabling agents and other workloads—such as MCP servers—to
+exchange an inbound user access token for a new, scoped access token that
+targets a downstream resource server. As the exchange converts a token
+issued for one audience directly into a token for a different downstream
+audience, your agents can access protected resources on behalf of
+authenticated users without triggering additional consent flows.</p>
 </blockquote>
-<h2>2 - The policy engine and the Cedar rules</h2>
-<p>Policy in AgentCore is a policy engine attached to the gateway. It holds
-Cedar policies and evaluates them on every tool call. AWS states the model
-plainly:</p>
+<p><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/on-behalf-of-token-exchange.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/on-behalf-of-token-exchange.html</a></p>
+<p>Two calls do it. The first turns the customer's inbound token into a workload
+access token, which represents the agent acting for that customer. The second
+uses it to request the resource token, and AgentCore Identity brokers the
+exchange with the credential provider.</p>
+<pre><code class="language-python">workload_token = client.get_workload_access_token_for_jwt(
+    workloadName=os.environ[&quot;WORKLOAD_NAME&quot;],
+    userToken=inbound_jwt,
+)[&quot;workloadAccessToken&quot;]
+
+result = client.get_resource_oauth2_token(
+    workloadIdentityToken=workload_token,
+    resourceCredentialProviderName=os.environ[&quot;OBO_PROVIDER_NAME&quot;],
+    scopes=[os.environ[&quot;ORDERS_SCOPE&quot;]],
+    oauth2Flow=&quot;ON_BEHALF_OF_TOKEN_EXCHANGE&quot;,
+)
+</code></pre>
+<p>Three AgentCore Identity resources sit behind that. A workload identity for
+the agent, declared explicitly so its name is known when the runtime is
+created. A credential provider configured for on-behalf-of exchange, which
+authenticates the exchange with a client credential. And the token vault,
+which the provider lives under. The client credential itself ends up in
+three places, a Secrets Manager secret AgentCore Identity manages for the
+provider, a second Secrets Manager secret the exchange Lambda validates
+against, and the Terraform state that generated it, which is a reason to
+keep that state encrypted and tightly controlled.</p>
+<pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_workload_identity&quot; &quot;agent&quot; {
+  name = &quot;demos_agentcore_05_agent&quot;
+}
+
+resource &quot;aws_cloudcontrolapi_resource&quot; &quot;obo_provider&quot; {
+  type_name = &quot;AWS::BedrockAgentCore::OAuth2CredentialProvider&quot;
+  desired_state = jsonencode({
+    Name                     = &quot;demos_agentcore_05_obo&quot;
+    CredentialProviderVendor = &quot;CustomOauth2&quot;
+    Oauth2ProviderConfigInput = {
+      CustomOauth2ProviderConfig = {
+        OauthDiscovery             = { DiscoveryUrl = &quot;${local.exchange_issuer}/.well-known/openid-configuration&quot; }
+        ClientId                   = local.exchange_client_id
+        ClientSecret               = random_password.exchange_client_secret.result
+        ClientAuthenticationMethod = &quot;CLIENT_SECRET_BASIC&quot;
+        OnBehalfOfTokenExchangeConfig = {
+          GrantType                    = &quot;TOKEN_EXCHANGE&quot;
+          TokenExchangeGrantTypeConfig = { ActorTokenContent = &quot;NONE&quot; }
+        }
+      }
+    }
+  })
+}
+</code></pre>
+<blockquote>
+<p>NOTE: the provider is created through Cloud Control rather than
+<code>aws_bedrockagentcore_oauth2_credential_provider</code>, because that resource in
+the AWS provider, as of 6.64, does not model
+<code>on_behalf_of_token_exchange_config</code>. The CloudFormation type does.</p>
+<p>NOTE: <code>GetResourceOauth2Token</code> reads the provider's client secret in the
+caller's context, so the runtime role needs <code>secretsmanager:GetSecretValue</code>
+on the secret AgentCore Identity manages for the provider, named
+<code>bedrock-agentcore-identity!default/oauth2/&lt;provider&gt;-…</code>. Without it the
+first call fails with an access-denied on that secret.</p>
+</blockquote>
+<h2>3 - The exchange service, the target Cognito cannot be</h2>
+<p>On-behalf-of exchange is RFC 8693, and it needs an authorisation server that
+implements that grant. Cognito does not. Its token endpoint accepts exactly
+three grant types.</p>
+<blockquote>
+<p>Must be <code>authorization_code</code> or <code>refresh_token</code> or <code>client_credentials</code>.</p>
+</blockquote>
+<p><a href="https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html">https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html</a></p>
+<p>So the demo keeps Cognito for the customer's login and stands up a small
+exchange service as the target, one Lambda behind an HTTP API. It stands in
+for the managed on-behalf-of provider you would use in production. AgentCore
+Identity supports Microsoft Entra ID through its own provider-specific
+on-behalf-of integration, and an RFC 8693 IdP through the custom OAuth2
+provider once verified against that contract. The service is here to show
+the AgentCore Identity integration, not because running your own issuer is
+the recommendation.</p>
+<p>The service receives the customer's Cognito token as the <code>subject_token</code>,
+authenticated by the provider's client secret, and validates it strictly
+against the pool's keys, the issuer, the expiry, the <code>token_use</code> and the
+client id. Then it mints a new token signed with a KMS asymmetric key, ES256,
+carrying the verified <code>username</code>, an audience of the order gateway, the
+<code>orders/read</code> scope, and an expiry of five minutes or the remaining life of
+the customer's token, whichever is shorter. The audience and scope are
+fixed by configuration and the identity claims come only from the validated
+subject token; no other request parameter can choose or widen them.</p>
+<p>The security of that service is the security of the whole design, so be
+precise about it. KMS keeps the private key from ever leaving KMS, and the
+Lambda's role can call <code>Sign</code> and <code>GetPublicKey</code> on that one key with no key
+administration permissions. What KMS does not do
+is stop this code, once it is trusted, signing a token for any customer. If
+the exchange service or its role is compromised, every customer identity is
+compromised, which is the reason to use a managed IdP rather than run one.
+The <code>act</code> claim in the minted token names the registered client, not the
+agent workload, because with <code>ActorTokenContent = NONE</code> the exchange
+authenticates a client secret and knows nothing more about who is calling.
+And it has no key rollover. It publishes one verification key, whereas a
+production issuer publishes the old and the new for an overlap covering the
+token lifetime and the verifiers' caching, which is one more thing the
+managed IdP does for you.</p>
+<h2>4 - The gateway trusts the exchange, and Cedar still decides</h2>
+<p>The gateway's authorizer is pointed at the exchange service rather than at
+Cognito. The access token this demo's Cognito client issues has no <code>aud</code>,
+whereas the minted token carries <code>aud = brightwell-orders</code>, so the gateway
+validates by <code>allowed_audience</code>.</p>
+<pre><code class="language-hcl">authorizer_configuration {
+  custom_jwt_authorizer {
+    discovery_url    = &quot;${local.exchange_issuer}/.well-known/openid-configuration&quot;
+    allowed_audience = [local.orders_audience]
+  }
+}
+</code></pre>
+<p>That has a consequence worth stating plainly. The gateway is configured for
+the exchange issuer and that audience, so this stack's Cognito token is not
+accepted at the gateway at all, and relaying it is not a weaker option the
+agent might fall back to, it does not work. Be equally plain about the
+converse. The gateway accepts any correctly signed token from that issuer
+with that audience and cannot tell whether AgentCore Identity brokered it.
+The normal agent path obtains it through AgentCore Identity, but <code>/token</code> is
+also callable directly by anyone holding the provider's client secret and a
+valid Cognito token, and the runtime role can read that secret, because
+<code>GetResourceOauth2Token</code> reads it in the caller's context. A direct caller
+still needs a customer's valid token to be issued that customer's identity,
+so this does not let one customer become another, but the <code>act</code> claim proves
+only which client credential was used.</p>
+<blockquote>
+<p>NOTE: the gateway fetches the discovery document when it is created and
+parses it as OpenID Connect, which requires <code>authorization_endpoint</code> and
+the other OIDC provider fields. An exchange-only issuer still has to
+advertise them, or the gateway fails to create with <code>Failed to fetch
+discovery document</code>, so this issuer's document is a compatibility shim
+that names capabilities it does not implement. One more reason it is a
+teaching component and not a production issuer.</p>
+</blockquote>
+<p>Per-customer enforcement is the Policy in AgentCore engine from the first
+version, unchanged, evaluating a Cedar policy on every tool call.</p>
 <blockquote>
 <p>For every tool invocation, the policy engine evaluates all applicable
 policies against the request to determine whether to allow or deny access.
 The engine enforces default-deny and forbid-wins semantics automatically.</p>
+<p>When a AgentCore Gateway uses OAuth authorization, the principal is
+created from the JWT token's <code>sub</code> claim. OAuth principals support tags
+that contain JWT claims such as username, scope, role, etc.</p>
 </blockquote>
-<p>That is from the
-<a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html">Policy core concepts</a>,
-which also says where the principal and its attributes come from:</p>
-<blockquote>
-<p>When a AgentCore Gateway uses OAuth authorization, the principal is created
-from the JWT token's <code>sub</code> claim. OAuth principals support tags that
-contain JWT claims such as username, scope, role, etc.</p>
-</blockquote>
-<p>So the caller's <code>sub</code> is the Cedar principal, the verified <code>username</code> claim
-is a principal tag, and the tool's arguments arrive as <code>context.input</code>. A
-<code>permit</code> expresses the allow, a customer may list only their own orders:</p>
-<pre><code class="language-hcl">resource &quot;aws_bedrockagentcore_policy&quot; &quot;own_orders&quot; {
-  name             = &quot;own_orders_only&quot;
-  policy_engine_id = aws_bedrockagentcore_policy_engine.orders.policy_engine_id
-
-  definition {
-    cedar {
-      statement = &lt;&lt;-CEDAR
-        permit(
-          principal is AgentCore::OAuthUser,
-          action == AgentCore::Action::&quot;orders___list_orders&quot;,
-          resource == AgentCore::Gateway::&quot;${aws_bedrockagentcore_gateway.orders.gateway_arn}&quot;
-        ) when {
-          principal.hasTag(&quot;username&quot;) &amp;&amp;
-          principal.getTag(&quot;username&quot;) == context.input.customer_id
-        };
-      CEDAR
-    }
-  }
-}
-</code></pre>
-<p>The <code>permit</code> only fires when the <code>customer_id</code> argument equals the caller's
-own username. Because Cedar denies by default, a call for any other customer
-matches no <code>permit</code> and is refused. The check is on the token's claim, which
-the gateway verified, so it is not something the agent or a model can talk
-its way around by choosing a different argument.</p>
-<p>Cedar permits are additive, so a broad permit added in a later post could
-otherwise re-open this. A <code>forbid</code>, which wins over any permit, keeps the
-invariant for this action on this gateway, it denies a mismatched customer
-id even if a later permit would match:</p>
-<pre><code class="language-hcl">forbid(
+<p><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html</a></p>
+<p>The minted token's <code>username</code> becomes a principal tag, and the rule is the
+one line it always was.</p>
+<pre><code class="language-hcl">permit(
   principal is AgentCore::OAuthUser,
   action == AgentCore::Action::&quot;orders___list_orders&quot;,
   resource == AgentCore::Gateway::&quot;${aws_bedrockagentcore_gateway.orders.gateway_arn}&quot;
-) unless {
+) when {
   principal.hasTag(&quot;username&quot;) &amp;&amp;
   principal.getTag(&quot;username&quot;) == context.input.customer_id
 };
 </code></pre>
+<p>A matching <code>forbid</code> guards it, so a broad permit added in a later post cannot
+widen it, forbid winning over any permit.</p>
 <blockquote>
-<p>NOTE: a tool-specific action must name a specific gateway resource, not a
-wildcard, or <code>CreatePolicy</code> refuses the statement. The gateway's role also
-needs the policy-engine read actions, scoped to the one engine, and the two
-evaluate actions, <code>AuthorizeAction</code> and <code>PartiallyAuthorizeActions</code>, which
-do not support resource-level scoping and so are granted on <code>*</code>. The
-gateway still evaluates only the engine its configuration points at.</p>
+<p>NOTE: the engine validates a policy's action against the gateway target's
+tool schema, so the permit must be created after the target, and a forbid
+validated before any permit exists is refused as overly restrictive, so it
+must be created after the permit. Both are <code>depends_on</code> in the config.</p>
 </blockquote>
-<h2>3 - The agent carries the customer's token, not its own credential</h2>
-<p>Since post 02 the agent asked AgentCore Identity for a machine token to call
-the gateway, through <code>GetResourceOauth2Token</code> against an OAuth2 credential
-provider. That path and its provider are gone. The agent relays the
-customer's own token, the one the runtime handed it, so it has no gateway
-credential of its own:</p>
-<pre><code class="language-python">def list_orders(customer_id, customer_token):
-    return asyncio.run(
-        _call_tool(&quot;list_orders&quot;, {&quot;customer_id&quot;: customer_id}, customer_token)
-    )
+<h2>5 - Running it</h2>
+<p>The whole path. The runtime validates the customer's Cognito token, the
+exchange issuer validates it again during the exchange, and the gateway
+validates the minted token before Cedar evaluates the call.</p>
+<p><img alt="The customer's token validated at the runtime, exchanged on their behalf, and checked by Cedar at the gateway" src="sequence.png" /></p>
+<p>A customer signs in and calls the agent, and the happy path looks like every
+earlier post, because the exchange happens inside it.</p>
+<pre><code class="language-bash">$ curl &quot;$INVOKE_URL&quot; -H &quot;Authorization: Bearer $TOKEN&quot; \
+    -H &quot;Content-Type: application/json&quot; \
+    -H &quot;X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION&quot; \
+    -d '{&quot;prompt&quot;: &quot;list my orders&quot;}'
+{&quot;result&quot;: {&quot;customer_id&quot;: &quot;c-1000&quot;, &quot;orders&quot;: [{&quot;order_id&quot;: 1033, ...}, ...]}}
 </code></pre>
-<p>This is the shape AWS's Well-Architected lens asks for, the user's identity
-travelling as claims rather than the agent standing in for the user:</p>
-<blockquote>
-<p>When an agent acts on behalf of a user, the user context propagates as
-signed token claims through the call chain without the agent ever assuming
-the user's credentials.</p>
-</blockquote>
-<p>Be precise about what this buys. There is no token exchange here, the agent
-relays the customer's own access token unchanged. That token is still a
-credential, short-lived because a Cognito access token expires within the
-hour, and the agent handles it, so treat it as sensitive and never log or
-store it. What the gateway guarantees is that the <code>customer_id</code> argument
-matches the identity in that token, so a model or agent that chooses a
-mismatched id is denied. It is
-not a defence against an agent that has somehow obtained another customer's
-token, that is a different threat handled by not leaking tokens in the first
-place. Within its scope, the check holds even when the agent's own logic is
-wrong, which is the point of moving it out of the agent.</p>
-<h2>4 - Running it</h2>
-<p>The whole path, one token minted at sign-in and checked twice, at the runtime
-and again at the gateway where Cedar decides:</p>
-<p><img alt="The token's path and the two checks" src="sequence.png" /></p>
-<p>A customer signs in and calls the agent, and the happy path is unremarkable,
-<code>list my orders</code> returns their orders. The interesting call is the one that
-should not work. Asking the gateway directly, with a customer's own token,
-for another customer's orders:</p>
-<pre><code class="language-bash">GATEWAY_URL=... TOKEN=&lt;c-1000's token&gt; python3 probe_gateway.py c-1000
-# allowed: 7 orders for c-1000
-
-GATEWAY_URL=... TOKEN=&lt;c-1000's token&gt; python3 probe_gateway.py c-1001
-# denied by the gateway: Tool Execution Denied: Tool call not allowed due to
-# policy enforcement [Policy evaluation denied due to deny_other_customers_orders].
+<p>The token that reached the gateway is worth looking at. Exchanging c-1000's
+Cognito token at the service directly, to inspect the result, gives this.</p>
+<pre><code>header  {&quot;alg&quot;: &quot;ES256&quot;, &quot;typ&quot;: &quot;JWT&quot;, &quot;kid&quot;: &quot;emymRDGf8v466M6hq75KAmkU99TbImBeNM7I1oeCrSg&quot;}
+claims  iss      https://kc5n0arhqc.execute-api.us-east-1.amazonaws.com
+        aud      brightwell-orders
+        username c-1000
+        scope    orders/read
+        act      {&quot;client_id&quot;: &quot;brightwell-orders-agent&quot;}
+        exp-iat  300 seconds
 </code></pre>
-<p>The same token that reads c-1000's orders cannot read c-1001's, because no
-<code>permit</code> matches a <code>customer_id</code> that is not the caller's and the <code>forbid</code>
-guard denies it outright, which is what the message names. The agent's own logic did not have to be
-correct for that call to be refused. This is what AWS means when it explains
-why Policy in AgentCore sits at the gateway:</p>
-<blockquote>
-<p>Centralizing authorization outside both gives you a single checkpoint the
-LLM can't circumvent; one that's auditable and can be verified independently
-of the application code.</p>
-</blockquote>
-<!-- -->
+<p>Compared with relaying the Cognito token, this one is audience-restricted to
+the order gateway, expires after at most five minutes, and the customer's
+credential itself never reaches the gateway or the tool.</p>
+<p>The interesting calls are the ones that should not work, made against the
+gateway directly with that minted token.</p>
+<pre><code class="language-bash">$ TOKEN=&quot;$MINTED&quot; python3 probe_gateway.py c-1000
+allowed: 7 orders for c-1000
 
-<blockquote>
-<p>NOTE: the engine takes a <code>LOG_ONLY</code> mode that records what it would decide
-but lets the call run, so a denied call still returns the data. That is
-fail-open, useful only against synthetic data in an isolated account to
-confirm the principal, its tags and the decision look right before you turn
-on <code>ENFORCE</code>. It is not a safe preliminary against real customer data.
-This demo's Terraform carries a <code>policy_mode</code> variable, defaulting to
-<code>ENFORCE</code>.</p>
-</blockquote>
-<h2>5 - When it is not a gateway tool</h2>
-<p>Policy at the gateway is the answer when the tool is behind the gateway,
-which is where this series has put its tools since post 02. Two other
-shapes come up, and both keep authorisation out of the agent.</p>
-<p>For a first-party AWS store such as DynamoDB, you do not need a policy engine
-at all. Register the Cognito pool as an IAM OIDC provider, take the
-customer's ID token rather than the access token this demo uses, exchange it
-for temporary credentials with STS <code>AssumeRoleWithWebIdentity</code>, and scope
-those credentials to the customer. IAM does not filter arbitrary rows, so
-the table has to be keyed on a stable identity from the token, the immutable
-<code>sub</code>, with the role policy conditioning <code>dynamodb:LeadingKeys</code> on it. That
-binding is in the signed token, so the agent cannot widen it. The role's
-trust policy has to pin the issuer and the app client through the ID token's
-<code>aud</code>, and its permissions have to leave out <code>Scan</code> and anything else
-<code>LeadingKeys</code> cannot constrain. This is the shape, and it re-keys the data on
-<code>sub</code> and changes the inbound token, so it is a different contract from this
-post, not a drop-in.</p>
-<p><img alt="Web-identity alternative" src="alt-aws.png" /></p>
-<p>For a third-party SaaS that IAM cannot reach, AgentCore Identity carries the
-delegation itself, through on-behalf-of token exchange. The agent exchanges
-the customer's inbound token for a user-scoped token the SaaS accepts, and
-the SaaS enforces its own sharing rules. It needs a provider that supports
-OAuth token exchange, RFC 8693 or the JWT-bearer profile RFC 7523, such as
-Salesforce or Microsoft Entra, which Cognito is not. So it is the answer for
-a third-party resource, not for a first-party Cognito tool.</p>
-<p><img alt="On-behalf-of alternative" src="alt-saas.png" /></p>
-<h2>6 - What it does not solve, and where it fits</h2>
-<p>Handing an autonomous agent a bearer token is not free of risk, and it is
-worth saying plainly which risks this pattern answers, which it narrows, and
-which it leaves to you.</p>
-<p>A model asking for the wrong customer is the one the gateway answers outright.
-A prompt injection, or a model that simply gets it wrong, that makes the agent
-request another customer's id is denied by Cedar before the tool runs. That is
-the whole reason the check lives at the gateway and not in the agent.</p>
-<p>The token is a bearer credential, so anyone who obtains it can replay it
-until it expires, and there is no proof of possession. The demo sends it only
-over HTTPS and does not deliberately persist it, which lowers the chance of
-disclosure, and a Cognito access token expires within the hour, which is the
-only thing that actually bounds how long a stolen one is useful. None of that
-makes a leaked token harmless, so it stays sensitive and the agent's code is
-part of the trust boundary while it handles one.</p>
-<p>Attribution is where this pattern can be weaker than the on-behalf-of
-alternative. The gateway authenticates the customer, and the Lambda receives
-only the policy-approved <code>customer_id</code> and an invocation from the gateway
-role, so nothing on the tool side separates the agent from the customer. An
-on-behalf-of exchange can give a downstream both the user and an actor
-identity, but only when the authorisation server puts an actor or client
-claim in the token and the downstream records it. RFC 8693 defines the <code>act</code>
-claim and does not require it, and RFC 7523 does not define it at all, so
-verify the token a provider actually issues. Where that trail matters, the
-exchange is the place to look.</p>
-<p>And Cedar constrains which customer, not what the agent does with the data
-once it comes back. Narrow tools reduce that exposure, and the guardrails,
-tracing and evals that later posts add help prevent or detect misuse, but a
-hard boundary on returned data also needs output and network-egress controls
-suited to the data, the more so with the runtime on a public network.</p>
-<p>The three shapes side by side.</p>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th></th>
-<th><strong>Cedar at the gateway (this post)</strong></th>
-<th>On-behalf-of exchange</th>
-<th>Web-identity to IAM</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Enforced at</td>
-<td>the gateway, on the customer's token</td>
-<td>the SaaS, on an exchanged token</td>
-<td>IAM, on scoped credentials</td>
-</tr>
-<tr>
-<td>Carries the agent's identity</td>
-<td>no</td>
-<td>provider-dependent, verify</td>
-<td>no</td>
-</tr>
-<tr>
-<td>Backend it fits</td>
-<td>a tool behind the gateway</td>
-<td>a third-party SaaS</td>
-<td>a first-party AWS store</td>
-</tr>
-<tr>
-<td>Issuer it needs</td>
-<td>a compatible JWT issuer, Cognito here</td>
-<td>one that supports RFC 8693 or 7523</td>
-<td>Cognito as an OIDC provider</td>
-</tr>
-<tr>
-<td>Extra moving parts</td>
-<td>a policy engine and a Cedar rule</td>
-<td>a credential provider and the exchange</td>
-<td>an OIDC role and its policy</td>
-</tr>
-</tbody>
-</table></div>
-<p>This pattern fits a first-party tool behind the gateway, a Cognito login, and
-the customer's own data as the boundary, which is where this series has been
-since post 02. For the orders tool it implements the Well-Architected lens on tool
-authorisation,
-<a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html">AGENTSEC02</a>,
-the gateway and its policy engine authorise every invocation against a
-declarative policy before the Lambda runs, and it follows AGENTSEC03 by
-propagating the customer's identity to that enforcement point rather than
-giving the agent broad access. Where it stops
-short of that item's highest bar is that the agent handles the customer's
-token rather than a minted per-hop one. An on-behalf-of exchange narrows
-that, replacing the relayed token downstream with a provider-issued,
-audience-scoped one, though the agent still handles a bearer token, and
-keeping the customer's token away from the agent entirely means exchanging it
-before it ever reaches the agent.</p>
-<p>On-behalf-of is the natural way to harden this further, and this post does
-not build it for a concrete reason. Cognito does not implement RFC 8693 token exchange, so there
-is no exchange grant to ask it for, and as section 5 noted it cannot be the
-exchange target. The exchange needs another authorisation
-server, and a later post stands up a self-hosted one, though a managed
-provider that supports the exchange profile would do as well. That server
-validates the customer and the agent, then deliberately mints a shorter-lived
-token scoped to the gateway and, where it chooses to, an actor claim naming
-the agent. None of that comes from the exchange for free, the audience, the
-lifetime and the actor claim are the server's to mint and the gateway's to
-check. AgentCore Identity requests that token through its on-behalf-of flow
-and hands it to the agent. So a later post adds the audit trail and the
-audience-scoped token this design does without, on top of the gateway and the
-Cedar policy here. Relaying the token with Cedar enforcing the customer is
-the right foundation to build it on, and a sound design in its own right for
-a first-party tool where the customer's own data is the boundary.</p>
+$ TOKEN=&quot;$MINTED&quot; python3 probe_gateway.py c-1001
+denied by the gateway: Tool Execution Denied: Tool call not allowed due to
+policy enforcement [Policy evaluation denied due to deny_other_customers_orders]
+
+$ TOKEN=&quot;$COGNITO&quot; python3 probe_gateway.py c-1000
+error (not a policy decision) for c-1000: Client error '403 Forbidden'
+</code></pre>
+<p>The second is Cedar refusing another customer's orders on the minted token's
+<code>username</code>, before the tool runs. The third is the customer's raw Cognito
+token being refused outright, the gateway no longer trusts that issuer. A
+token with one character altered gets the same 403, and at the exchange
+service a wrong client secret, a widened scope, a different audience or an
+unsigned subject token are each refused before anything is minted.</p>
+<h2>6 - What it does not solve, and the alternatives</h2>
+<p>Be precise about what this buys. The gateway sees a short-lived,
+audience-restricted token minted for this customer rather than the
+customer's own credential. Cedar then prevents a model-chosen or accidental
+<code>customer_id</code> from mismatching the token that was presented. What it does
+not do is prove the agent used the current invocation's token. Cedar binds
+<code>customer_id</code> to the <code>username</code> in whichever valid minted token arrives, so
+a compromised agent serving many customers could reuse another customer's
+token it had seen earlier and be permitted for that customer. It cannot
+invent a customer it holds no valid token for. Stronger isolation means
+performing the exchange in a trusted per-request component outside the
+agent's code, or isolating workloads per tenant. It is still a bearer token,
+so a stolen minted token is usable until it expires, and a stolen Cognito
+token can still call the runtime and cause fresh exchanges until it expires.
+The <code>scope</code> claim is carried, not enforced, because the Cedar policy checks
+the customer and not the scope; the audience is what the gateway enforces.
+And Cedar constrains the call, not the rows. It refuses a <code>list_orders</code> whose
+requested customer differs from the token, but it cannot see what the Lambda
+returns, so the order service must still select only that customer's rows.
+Here it does, and a test proves it, but that is code again, and where the
+data layer can enforce the tenant key it should.</p>
+<p>There are other shapes, and they fit other backends. For a customer's own
+data at a third-party SaaS, the user-delegated flow with a consent screen is
+the natural one, and AgentCore Identity's credential providers handle it,
+but a consent screen is not a normal thing to put in front of a customer
+asking a first-party shop about its own orders, which is why this post did
+not use it. For a first-party AWS store such as DynamoDB, federating the
+customer to IAM with <code>AssumeRoleWithWebIdentity</code> can put the row enforcement
+in IAM. That takes a token made for federation, not this post's access
+token, which has no <code>aud</code>. With the user pool registered as an IAM OIDC
+provider, the customer's ID token is the one to present, the role's trust
+policy checks its app-client audience, and the role's permissions pin the
+partition key to the federated identity (<code>dynamodb:LeadingKeys</code>). The
+federation alone enforces nothing. For a workforce agent, IAM Identity Center's trusted identity
+propagation carries an employee's identity through the AWS applications and
+services that support it. And for
+production, the exchange in this post is done by an IdP that supports the
+grant. AgentCore Identity documents Microsoft Entra ID and a custom OAuth2
+configuration for this; other IdPs are candidates once their RFC 8693
+implementation is verified against that custom-provider contract. That is
+also what removes the issuer you would otherwise be running yourself.</p>
+<p>For the orders tool the design implements the Well-Architected lens on tool
+authorisation, the gateway and its policy engine authorising every invocation
+against a declarative policy before the Lambda runs, and it propagates the
+customer's identity to that enforcement point as claims in a token minted for
+the purpose rather than giving the agent broad access.</p>
+<p><a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html">https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html</a></p>
 <h2>Conclusion</h2>
-<p>The agent now acts for a known customer, and for the orders tool it is the
-infrastructure that keeps it there. AgentCore Identity establishes the
-customer at the runtime and the gateway, Policy in AgentCore evaluates a
-Cedar policy on every call to that tool, and a request for anyone else's
-orders is denied by default before the tool runs. The agent has no gateway
-credential of its own, and for that tool the choice of <code>customer_id</code> is no
-longer the only thing standing between a caller and someone else's account.
-The relay is still trusted to present the current caller's token, and the
-memory and sandbox paths are still scoped in the agent, so moving those
-behind the same gateway and policy is how you would finish the job.</p>
-<p>That is the precondition for the next post, where a model is handed the tools
-this series has built and lets it choose the arguments, including the
-customer id, and the reason its orders access stays safe is that the gateway,
-not the model, decides whose orders come back. A later post strengthens the
-delegation further with the on-behalf-of exchange, where an authorisation
-server mints a token scoped to the gateway that can name both the customer
-and the agent, so the agent presents that rather than relaying the customer's
-own.</p>
+<p>The agent now acts for a known customer with a token brokered by AgentCore
+Identity and minted for the purpose. Inbound auth establishes who the
+customer is, the on-behalf-of exchange gives the agent a token for the order
+service that is audience-restricted, short-lived and not the customer's own
+credential, carrying an <code>orders/read</code> scope claim this demo does not
+enforce, and Policy in AgentCore refuses a call for anyone but the customer
+named in that token before the tool runs. The gateway accepts no static
+agent credential, and the customer's token is refused there even if relayed
+by mistake. What is not bound is the token to the invocation; a compromised
+agent serving many customers could present another customer's still-valid
+token and be permitted for them. The memory and sandbox paths are still
+isolated in the agent's own code, so moving those behind the same gateway
+and policy is how you would finish the job, and in production the exchange
+belongs to a managed IdP rather than a Lambda you run.</p>
+<p>That is the precondition for the next post, where a model is handed the
+tools this series has built and chooses the arguments, including the
+customer id. Provided the model chooses the argument and not the token, which
+trusted code supplies, a wrong choice is refused at the gateway rather than
+read from someone else's account.</p>
 <p>References:</p>
 <ul>
 <li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity">https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity</a></li>
-<li><a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02-bp01.html">https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02-bp01.html</a></li>
-<li><a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec03.html">https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec03.html</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/on-behalf-of-token-exchange.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/on-behalf-of-token-exchange.html</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html</a></li>
 <li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html</a></li>
-<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-understanding-cedar.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-understanding-cedar.html</a></li>
+<li><a href="https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html">https://docs.aws.amazon.com/cognito/latest/developerguide/token-endpoint.html</a></li>
+<li><a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html">https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec02.html</a></li>
+<li><a href="https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec03.html">https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec03.html</a></li>
+<li><a href="https://datatracker.ietf.org/doc/html/rfc8693">https://datatracker.ietf.org/doc/html/rfc8693</a></li>
 </ul>
 
     </article>

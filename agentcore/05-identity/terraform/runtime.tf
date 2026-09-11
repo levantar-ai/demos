@@ -4,7 +4,8 @@
 # against the pool's discovery document before the request reaches the
 # agent, and IAM SigV4 invocation is off. The Authorization header is
 # forwarded to the container so the agent can read the verified claims and
-# relay the same token to the gateway.
+# use the token as the subject of the on-behalf-of exchange (identity.py).
+# It is not sent to the gateway; the gateway trusts the exchange issuer.
 
 resource "aws_bedrockagentcore_agent_runtime" "agent" {
   agent_runtime_name = local.runtime_name

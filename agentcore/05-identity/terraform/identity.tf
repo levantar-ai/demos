@@ -42,15 +42,21 @@ resource "aws_cloudcontrolapi_resource" "obo_provider" {
 
 locals {
   obo_provider_name = "demos_agentcore_05_obo"
+
+  # The provider reports its own ARN and the ARN of the client secret AgentCore
+  # Identity manages for it, so the runtime role can be scoped to exactly those.
+  obo_provider_props      = jsondecode(aws_cloudcontrolapi_resource.obo_provider.properties)
+  obo_provider_arn        = local.obo_provider_props.CredentialProviderArn
+  obo_provider_secret_arn = local.obo_provider_props.ClientSecretArn.SecretArn
 }
 
 # An explicit workload identity for the agent, so its name is known at plan
 # time (a runtime's auto-created one has an undocumented suffix, and a resource
 # cannot reference its own output in its own env). The agent passes this name
 # to get_workload_access_token_for_jwt; the runtime role is authorised for it.
-# NOTE: whether the runtime may use an explicitly-created workload identity for
-# the token call, rather than its own auto-created one, is the top item to
-# confirm on the first live apply.
+# The live run confirmed the runtime may present this explicit workload
+# identity to GetWorkloadAccessTokenForJWT rather than its own auto-created
+# one (artifacts/README.md).
 resource "aws_bedrockagentcore_workload_identity" "agent" {
   name = "demos_agentcore_05_agent"
 }

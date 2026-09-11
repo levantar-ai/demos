@@ -165,7 +165,12 @@
     "pipefail",
     "manylinux",
     "wildcarded",
-    "cloudcontrolapi"
+    "cloudcontrolapi",
+    "jsonencode",
+    "authorising",
+    "urlencode",
+    "overclaim",
+    "docstrings"
   ],
   "ignorePaths": [
     "node_modules/**",

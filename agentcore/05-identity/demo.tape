@@ -1,17 +1,19 @@
-# VHS tape for the post 05 demo video: the customer's identity enforced at
-# the gateway by Policy in AgentCore.
+# VHS tape for the post 05 demo video: the agent's order-service token, brokered
+# by AgentCore Identity on the customer's behalf, minted by the exchange, enforced by Cedar.
 #
-# The slow terraform reads are done BEFORE the capture, not inside it, or the
-# hidden setup can still be on screen when Show fires (see the post 05 video
-# fix). Export these first, then record:
+# The slow terraform and secret reads are done BEFORE the capture, not inside
+# it, or the hidden setup can still be on screen when Show fires. Export these
+# first, then record:
 #
 #   cd agentcore/05-identity
 #   export REGION=$(aws-vault exec lev:andy.rea -- terraform -chdir=terraform output -raw aws_region)
 #   export INVOKE_URL=$(aws-vault exec lev:andy.rea -- terraform -chdir=terraform output -raw invoke_url)
 #   export CLIENT_ID=$(aws-vault exec lev:andy.rea -- terraform -chdir=terraform output -raw customers_client_id)
+#   export ISSUER=$(aws-vault exec lev:andy.rea -- terraform -chdir=terraform output -raw exchange_issuer)
 #   export GATEWAY_URL=<the gateway mcp url from terraform state>
+#   export SECRET=<the exchange client secret from Secrets Manager>
 #   export PASSWORD=$(cat /path/to/c-1000.pw)
-#   export SESSION=cedar-demo-video-session-00000000000000001
+#   export SESSION=obo-demo-video-session-000000000000000001
 #   vhs demo.tape
 #
 # The stack must be deployed in ENFORCE mode with customers c-1000 and c-1001
@@ -30,12 +32,14 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 3s
+Type `mint() { curl -s -u "brightwell-orders-agent:$SECRET" "$ISSUER/token" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" --data-urlencode "subject_token=$1" --data-urlencode "subject_token_type=urn:ietf:params:oauth:token-type:jwt" | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])'; }`
+Enter
 Type `export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] '; clear; printf '\033[3J'`
 Enter
 Sleep 2s
 Show
 
-Type "# the runtime checks the customer's token, the agent relays it to the gateway, and a Cedar policy at the gateway enforces the customer on every call"
+Type "# the runtime checks the customer's token. the agent then gets its own token for the order service through AgentCore Identity, exchanged on the customer's behalf"
 Enter
 Sleep 1.5s
 
@@ -48,7 +52,7 @@ Enter
 Wait
 Sleep 1s
 
-Type "# through the agent, list my orders"
+Type "# through the agent, list my orders. the on-behalf-of exchange happens inside"
 Enter
 Sleep 1s
 
@@ -57,20 +61,43 @@ Enter
 Wait
 Sleep 3s
 
-Type "# the enforcement is at the gateway, not the agent. ask the gateway directly, with my own token, for my own orders"
+Type "# AgentCore Identity brokered that exchange and the exchange service minted the token. mint one directly to look at it"
 Enter
 Sleep 1s
 
-Type "python3 probe_gateway.py c-1000"
+Type `export MINTED=$(mint "$TOKEN")`
+Enter
+Wait
+Sleep 1s
+
+Type `python3 show_token.py "$MINTED"`
+Enter
+Wait
+Sleep 3.5s
+
+Type "# for the order gateway only, five minutes, and it carries my username. ask the gateway directly for my own orders with it"
+Enter
+Sleep 1s
+
+Type `TOKEN="$MINTED" python3 probe_gateway.py c-1000`
 Enter
 Wait
 Sleep 2.5s
 
-Type "# now ask it, with the same token, for another customer's orders"
+Type "# with the same minted token, another customer's orders"
 Enter
 Sleep 1s
 
-Type "python3 probe_gateway.py c-1001"
+Type `TOKEN="$MINTED" python3 probe_gateway.py c-1001`
+Enter
+Wait
+Sleep 3s
+
+Type "# and my own Cognito token is not accepted at the gateway at all. the gateway trusts the exchange issuer, not Cognito"
+Enter
+Sleep 1s
+
+Type `TOKEN="$TOKEN" python3 probe_gateway.py c-1000`
 Enter
 Wait
 Sleep 5s
