@@ -176,7 +176,9 @@
     "customisation",
     "pretoken",
     "unvalidated",
-    "HMAC"
+    "HMAC",
+    "linecap",
+    "linejoin"
   ],
   "ignorePaths": [
     "node_modules/**",

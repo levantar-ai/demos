@@ -156,6 +156,24 @@
     .post-meta { gap: 12px; margin-bottom: 28px; }
     .post-meta .avatar { width: 46px; height: 46px; flex-basis: 46px; }
   }
+  /* Image lightbox, the same behaviour as levantar.ai: a magnifier chip on each
+     content image, the image as a modal on click, a close control. */
+  .zoomable { display: block; position: relative; width: 100%; margin: 10px 0; padding: 0; border: 0; background: none; cursor: zoom-in; font: inherit; text-align: inherit; }
+  .zoomable img { margin: 0; }
+  .zoomable:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .zoomable-hint { position: absolute; right: 18px; bottom: 18px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(11, 17, 32, 0.78); color: #e7edf7; opacity: 0.85; transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
+  .zoomable-hint svg { width: 18px; height: 18px; }
+  .zoomable:hover .zoomable-hint, .zoomable:focus-visible .zoomable-hint { opacity: 1; transform: scale(1.06); }
+  .lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 56px 24px 24px; background: rgba(5, 9, 18, 0.94); opacity: 0; transition: opacity 180ms ease; }
+  .lightbox[hidden] { display: none; }
+  .lightbox.is-open { opacity: 1; }
+  .lightbox img { display: block; max-width: min(96vw, 1800px); max-height: calc(100vh - 80px); width: auto; height: auto; margin: 0; padding: 10px; border: 0; border-radius: 14px; background: #fff; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+  .lightbox-close { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(231, 237, 247, 0.35); border-radius: 999px; background: rgba(11, 17, 32, 0.6); color: #e7edf7; cursor: pointer; padding: 0; }
+  .lightbox-close svg { width: 19px; height: 19px; }
+  .lightbox-close:hover, .lightbox-close:focus-visible { background: var(--accent); border-color: var(--accent); color: #0b1120; outline: none; }
+  .lightbox-caption { position: absolute; left: 24px; right: 72px; bottom: 20px; margin: 0; color: rgba(231, 237, 247, 0.8); font-size: 14px; line-height: 1.4; }
+  body.lightbox-open { overflow: hidden; }
+  @media (prefers-reduced-motion: reduce) { .lightbox, .zoomable-hint { transition: none; } }
 </style>
 </head>
 <body>
@@ -443,5 +461,62 @@ pool set up here.</p>
       </nav>
     </article>
   </div>
+  <script>
+  (function () {
+    'use strict';
+    var zoomable_images = document.querySelectorAll('article p > img');
+    if (!zoomable_images.length) return;
+    var MAGNIFIER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg>';
+    var CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var box = document.createElement('div');
+    box.className = 'lightbox';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.hidden = true;
+    box.innerHTML = '<button type="button" class="lightbox-close" aria-label="Close">' + CLOSE + '</button><img alt=""><p class="lightbox-caption"></p>';
+    document.body.appendChild(box);
+    var boxImg = box.querySelector('img');
+    var boxCaption = box.querySelector('.lightbox-caption');
+    var closeButton = box.querySelector('.lightbox-close');
+    var opener = null;
+    var close = function () {
+      if (box.hidden) return;
+      box.classList.remove('is-open');
+      box.hidden = true;
+      document.body.classList.remove('lightbox-open');
+      boxImg.removeAttribute('src');
+      if (opener) opener.focus();
+      opener = null;
+    };
+    var open = function (img, trigger) {
+      opener = trigger;
+      boxImg.src = img.currentSrc || img.src;
+      boxImg.alt = img.alt || '';
+      boxCaption.textContent = img.alt || '';
+      box.setAttribute('aria-label', img.alt || 'Image');
+      box.hidden = false;
+      document.body.classList.add('lightbox-open');
+      void box.offsetWidth;
+      box.classList.add('is-open');
+      closeButton.focus();
+    };
+    closeButton.addEventListener('click', close);
+    box.addEventListener('click', function (event) { if (event.target === box) close(); });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') close(); });
+    Array.prototype.forEach.call(zoomable_images, function (img) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'zoomable';
+      button.setAttribute('aria-label', 'Enlarge image' + (img.alt ? ': ' + img.alt : ''));
+      img.parentNode.insertBefore(button, img);
+      button.appendChild(img);
+      var hint = document.createElement('span');
+      hint.className = 'zoomable-hint';
+      hint.innerHTML = MAGNIFIER;
+      button.appendChild(hint);
+      button.addEventListener('click', function () { open(img, button); });
+    });
+  })();
+  </script>
 </body>
 </html>
