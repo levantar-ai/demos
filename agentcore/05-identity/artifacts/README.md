@@ -394,6 +394,9 @@ exchange-pool rewrite was then reviewed afresh, rounds 12 onward.
   documented. Round 20: all resolved, "ready to publish", with three
   wording nits applied (fragments in section 3 and 5, and the same
   gateway-only shorthand in a diagram comment and a test comment).
+- **Round 23**, on the complexity warning moved into the bold notice at
+  the top at Andy's request, merged with the teaching-component warning:
+  "ready to publish".
 - **Rounds 21 and 22**, on the TL;DR, which Andy pointed out named
   AgentCore Identity once and then talked about Cognito. It now leads with
   both halves of AgentCore Identity. Round 21 corrected "triggers verify
