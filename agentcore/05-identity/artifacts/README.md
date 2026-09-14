@@ -175,6 +175,11 @@ rule on the `policy_mode` validation message, an unused data source in
 `aws-setup`, and a bandit configuration (tests excluded, the URN constants
 not treated as passwords, the container's bind-all listener marked). The
 full chain and every probe were re-run on the hardened stack and matched.
+Two things the pass taught: the SSM parameter as a `SecureString` needs
+`WithDecryption=True` on the read, which the first apply missed (the front
+door returned `server_error` until it was added), and the runtime's roll to
+a new image version answers `424` for a couple of minutes while the new
+container starts, on top of the cold start already noted below.
 
 ## What the live applies taught
 

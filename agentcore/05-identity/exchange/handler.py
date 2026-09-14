@@ -109,7 +109,7 @@ def _secret_field(arn, field) -> str:
 
 def pool_config() -> dict:
     def load():
-        cfg = json.loads(_ssm.get_parameter(Name=EXCHANGE_CONFIG_PARAMETER)["Parameter"]["Value"])
+        cfg = json.loads(_ssm.get_parameter(Name=EXCHANGE_CONFIG_PARAMETER, WithDecryption=True)["Parameter"]["Value"])
         for key in ("pool_id", "client_id", "service_user"):
             if not isinstance(cfg.get(key), str) or not cfg[key]:
                 raise RuntimeError("exchange configuration incomplete")
