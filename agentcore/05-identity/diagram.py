@@ -33,7 +33,8 @@ edge_attr = {"fontsize": _fs(12), "fontcolor": "#4a5158"}
 
 # The agent does not relay the customer's Cognito token to the gateway. It asks
 # AgentCore Identity, on the customer's behalf, to exchange that token for one
-# audience-restricted to the order gateway: the on-behalf-of flow. Cognito's
+# whose audience is the orders app client, which the order gateway is
+# configured to accept: the on-behalf-of flow. Cognito's
 # token endpoint does not offer the RFC 8693 grant, so, as in AWS's
 # sample-cognito-oauth2-token-exchange, a small front door implements the
 # grant and a second Cognito pool mints the token through its custom

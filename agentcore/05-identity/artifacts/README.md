@@ -382,6 +382,18 @@ exchange-pool rewrite was then reviewed afresh, rounds 12 onward.
   sample's compromise, quoted, named as the part not to copy, with the
   handle-and-record shape a real exchange needs described. Round 16: "No
   material findings remain. Verdict: ready to publish."
+- **Rounds 19 and 20**, a final review of the post and the whole solution
+  together after the MegaLinter hardening, at Andy's request. Round 19: the
+  video narration still said "for the order gateway only" (re-recorded);
+  the relaying sentence and "every claim becomes a tag" narrowed; the
+  runtime role's `kms:Decrypt` on the demo key removed, since ECR decrypts
+  through its own grants (a fresh pull of a new image tag succeeded without
+  it); the key policy's CloudWatch Logs statement limited to this demo's log
+  groups; the VPC and rotation skip reasons rewritten to state the accepted
+  risk rather than claim a VPC would isolate nothing or that rotation is
+  documented. Round 20: all resolved, "ready to publish", with three
+  wording nits applied (fragments in section 3 and 5, and the same
+  gateway-only shorthand in a diagram comment and a test comment).
 - **Rounds 17 and 18**, on one paragraph Andy asked for, saying plainly
   that this post is a step up in complexity from the four before it and
   why. Round 17 corrected its count of secrets, its description of the

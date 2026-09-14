@@ -256,9 +256,10 @@ infrastructure layer wherever possible.</p>
 presents to a runtime or a gateway. Outbound Auth gives the agent tokens for
 the things it calls, through a workload identity, credential providers and a
 token vault. Relaying the customer's Cognito token to the gateway uses only
-the inbound half, and is a sound pattern for a first-party tool, but it
-provisions no AgentCore Identity resource at all. This design uses both
-halves. The agent asks AgentCore Identity for a token for the order service, on
+the inbound half. Relaying an inbound token can be appropriate when that
+token was issued for the downstream resource, but this customer token has
+no downstream audience at all, and relaying it provisions no AgentCore
+Identity resource. This design uses both halves. The agent asks AgentCore Identity for a token for the order service, on
 behalf of the customer, and AgentCore Identity brokers an exchange of the
 customer's inbound token for one that a second Cognito pool mints. That is
 the on-behalf-of flow. It suits a background agent because, where the provider
@@ -420,12 +421,12 @@ password and refresh flows; this demo has one app client with
 <code>ALLOW_CUSTOM_AUTH</code> as its sole explicit flow, and its pre-token trigger
 separately refuses refresh-token generation.
 And it fronts a REST API with a separate authorizer; this demo's front door
-checks the client secret itself. The sample is the shape; the hardening is
-this demo's.</p>
+checks the client secret itself. This demo follows the sample's
+architecture and changes those controls.</p>
 <p>Three things are then added on top, each of which the sample leaves to you.
-An audience. The sample's exchanged token has no <code>aud</code>, because Cognito
-access tokens do not include one by default, and its production guidance
-says so.</p>
+The first addition is an audience. The sample's exchanged token has no
+<code>aud</code>, because Cognito access tokens do not include one by default, and its
+production guidance says so.</p>
 <blockquote>
 <p>Restrict the token audience/resource (RFC 8693 <code>audience</code>/<code>resource</code>) so
 exchanged tokens cannot be replayed against other downstreams, and enforce
@@ -442,15 +443,15 @@ app client ID of the current session.</p>
 <p><a href="https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-pre-token-generation.html">https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-pre-token-generation.html</a></p>
 <p>So the exchange pool has one app client per downstream, and the orders
 client's id is the minted token's <code>aud</code>. A second downstream would get a
-second client and tokens that name it. A confidential client. The sample's
-admin client is public, so anyone who learned its id could run the custom
+second client and tokens that name it. The second addition is a
+confidential client. The sample's admin client is public, so anyone who learned its id could run the custom
 flow against Cognito directly and skip the endpoint. Here the client has a
 secret, the front door computes <code>SECRET_HASH</code> from it, and of the workload
 roles in this stack only the front door's may read the Secrets Manager copy;
 the same secret is also in the Terraform state and readable by any principal
 allowed to describe the app client, and those are inside the compromise
-boundary. And five minutes, Cognito's minimum validity, in place of the
-sample's hour.</p>
+boundary. The third addition is a five-minute token lifetime, Cognito's
+minimum validity, in place of the sample's hour.</p>
 <p>The front door's own job is small. It is a narrow token-exchange endpoint
 that implements the request AgentCore Identity sends, with RFC 8693's
 parameters, and neither it nor the discovery document it serves claims
@@ -578,8 +579,8 @@ created from the JWT token's <code>sub</code> claim. OAuth principals support ta
 that contain JWT claims such as username, scope, role, etc.</p>
 </blockquote>
 <p><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html</a></p>
-<p>Every claim in the minted token becomes a principal tag, and the rule is the
-one line it always was, now on <code>customer_id</code>. The principal itself is the
+<p>JWT claims are exposed as principal tags, including the <code>customer_id</code> claim
+used here, and the rule is the one line it always was, now on <code>customer_id</code>. The principal itself is the
 token's <code>sub</code>, the exchange pool's service user; the customer is the tag.</p>
 <pre><code class="language-hcl">permit(
   principal is AgentCore::OAuthUser,
@@ -599,7 +600,7 @@ validated before any permit exists is refused as overly restrictive, so it
 must be created after the permit. Both are <code>depends_on</code> in the config.</p>
 </blockquote>
 <h2>5 - Running it</h2>
-<p>The whole path. The runtime validates the customer's Cognito token, the
+<p>The whole path works as follows. The runtime validates the customer's Cognito token, the
 exchange front door and then the exchange pool's triggers validate it again
 during the exchange, and the gateway validates the minted token before Cedar
 evaluates the call.</p>
