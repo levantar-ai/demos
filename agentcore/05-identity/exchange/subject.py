@@ -66,9 +66,11 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def _fetch_jwks():
-    req = urllib.request.Request(COGNITO_JWKS_URL, headers={"Accept": "application/json"})
+    # The URL is fixed configuration, checked at import to be https with no
+    # userinfo, query or fragment, and redirects are refused above.
+    req = urllib.request.Request(COGNITO_JWKS_URL, headers={"Accept": "application/json"})  # nosec B310
     opener = urllib.request.build_opener(_NoRedirect())
-    with opener.open(req, timeout=3) as r:
+    with opener.open(req, timeout=3) as r:  # nosec B310
         raw = r.read(MAX_JWKS_BYTES + 1)
     if len(raw) > MAX_JWKS_BYTES:
         raise ValueError("JWKS document too large")
@@ -106,7 +108,7 @@ def _jwk_for_kid(kid):
             _jwks_cache["keys"] = fresh
             _jwks_cache["at"] = now
             keys = fresh
-        except Exception:  # noqa: BLE001, S110 — fail safe: keep validated last-known-good
+        except Exception:  # noqa: BLE001, S110 # nosec B110 — fail safe: keep validated last-known-good
             pass
     if keys is None or now - _jwks_cache["at"] > _JWKS_MAX_STALE:
         return None  # nothing trustworthy to validate against; refuse

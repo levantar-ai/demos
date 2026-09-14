@@ -102,8 +102,9 @@ resource "aws_cognito_user" "orders_agent" {
 # is written once the pool and client exist. Only the exchange functions may
 # read it.
 resource "aws_ssm_parameter" "exchange_config" {
-  name = "/${local.name_prefix}/exchange"
-  type = "String"
+  name   = "/${local.name_prefix}/exchange"
+  type   = "SecureString" # nothing secret in it (pool, client and user ids), but under the demo key like the rest
+  key_id = aws_kms_key.demo.arn
   value = jsonencode({
     pool_id      = aws_cognito_user_pool.exchange.id
     client_id    = aws_cognito_user_pool_client.orders.id
@@ -119,8 +120,10 @@ resource "random_password" "exchange_client_secret" {
 
 # What AgentCore Identity's provider authenticates to /token with.
 resource "aws_secretsmanager_secret" "exchange_client" {
+  # checkov:skip=CKV2_AWS_57:Rotation of the demo's client secret is documented as a production step, not implemented in a stack that lives a day
   name                    = "${local.name_prefix}-exchange-client"
   recovery_window_in_days = 0
+  kms_key_id              = aws_kms_key.demo.arn
 }
 
 resource "aws_secretsmanager_secret_version" "exchange_client" {
@@ -131,8 +134,10 @@ resource "aws_secretsmanager_secret_version" "exchange_client" {
 # What the front door computes SECRET_HASH with. Kept apart from the secret
 # above: holding the provider's credential does not let you call Cognito.
 resource "aws_secretsmanager_secret" "orders_client" {
+  # checkov:skip=CKV2_AWS_57:Rotation of the app client secret is documented as a production step, not implemented in a stack that lives a day
   name                    = "${local.name_prefix}-exchange-orders-client"
   recovery_window_in_days = 0
+  kms_key_id              = aws_kms_key.demo.arn
 }
 
 resource "aws_secretsmanager_secret_version" "orders_client" {
@@ -174,9 +179,18 @@ data "archive_file" "exchange" {
 
 # --- Log groups first, so the roles need no CreateLogGroup ----------------------
 resource "aws_cloudwatch_log_group" "exchange" {
+  # checkov:skip=CKV_AWS_338:Seven days is the retention for a teaching stack that is destroyed after the post
   for_each          = toset(local.exchange_functions)
   name              = each.key == "exchange" ? "/aws/lambda/${local.name_prefix}-exchange" : "/aws/lambda/${local.name_prefix}-exchange-${each.key}"
   retention_in_days = 7
+  kms_key_id        = aws_kms_key.demo.arn
+}
+
+resource "aws_cloudwatch_log_group" "exchange_access" {
+  # checkov:skip=CKV_AWS_338:Seven days is the retention for a teaching stack that is destroyed after the post
+  name              = "/aws/apigateway/${local.name_prefix}-exchange"
+  retention_in_days = 7
+  kms_key_id        = aws_kms_key.demo.arn
 }
 
 # --- Roles: the front door's, and one shared by the four triggers -----------------
@@ -240,6 +254,19 @@ resource "aws_iam_role_policy" "exchange" {
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${aws_cloudwatch_log_group.exchange["exchange"].arn}:*"
       },
+      {
+        # The environment variables and the two secrets are under the demo key.
+        Sid      = "DecryptWithTheDemoKey"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = aws_kms_key.demo.arn
+      },
+      {
+        Sid      = "Tracing"
+        Effect   = "Allow"
+        Action   = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"]
+        Resource = "*"
+      },
     ]
   })
 }
@@ -264,6 +291,18 @@ resource "aws_iam_role_policy" "exchange_triggers" {
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = [for k in ["define", "create", "verify", "pretoken"] : "${aws_cloudwatch_log_group.exchange[k].arn}:*"]
+      },
+      {
+        Sid      = "DecryptEnvironment"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = aws_kms_key.demo.arn
+      },
+      {
+        Sid      = "Tracing"
+        Effect   = "Allow"
+        Action   = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"]
+        Resource = "*"
       },
     ]
   })
@@ -292,6 +331,10 @@ locals {
 }
 
 resource "aws_lambda_function" "triggers" {
+  # checkov:skip=CKV_AWS_117:The triggers call Cognito, SSM and the customer pool's JWKS over the public AWS endpoints; a VPC would add a NAT or endpoints for no gain
+  # checkov:skip=CKV_AWS_116:Cognito invokes the triggers synchronously; a dead-letter queue applies to asynchronous invocation only
+  # checkov:skip=CKV_AWS_272:Code signing is not adopted for a teaching stack; the package is built from the repository at apply time
+  #ts:skip=AC_AWS_0486 The triggers call Cognito, SSM and the customer pool's JWKS over the public AWS endpoints; a VPC would add a NAT or endpoints for no gain
   for_each         = local.trigger_handlers
   function_name    = "${local.name_prefix}-exchange-${each.key}"
   role             = aws_iam_role.exchange_triggers.arn
@@ -303,22 +346,39 @@ resource "aws_lambda_function" "triggers" {
   # Cognito waits five seconds for a trigger; the JWKS fetch is the slow part.
   timeout     = 5
   memory_size = 512
+  # A ceiling on how many exchanges run at once. Cognito's own custom-auth
+  # rate is the real limit; this stops a flood of attempts consuming the
+  # account's concurrency.
+  reserved_concurrent_executions = 20
+  kms_key_arn                    = aws_kms_key.demo.arn
   environment {
     variables = local.subject_env
+  }
+  tracing_config {
+    mode = "Active"
   }
   depends_on = [aws_cloudwatch_log_group.exchange]
 }
 
 resource "aws_lambda_function" "exchange" {
-  function_name    = "${local.name_prefix}-exchange"
-  role             = aws_iam_role.exchange.arn
-  runtime          = "python3.12"
-  architectures    = ["x86_64"]
-  handler          = "handler.lambda_handler"
-  filename         = data.archive_file.exchange.output_path
-  source_code_hash = data.archive_file.exchange.output_base64sha256
-  timeout          = 10
-  memory_size      = 512
+  # checkov:skip=CKV_AWS_117:The front door calls Cognito, Secrets Manager and SSM over the public AWS endpoints; a VPC would add a NAT or endpoints for no gain
+  # checkov:skip=CKV_AWS_116:API Gateway invokes the front door synchronously; a dead-letter queue applies to asynchronous invocation only
+  # checkov:skip=CKV_AWS_272:Code signing is not adopted for a teaching stack; the package is built from the repository at apply time
+  #ts:skip=AC_AWS_0486 The front door calls Cognito, Secrets Manager and SSM over the public AWS endpoints; a VPC would add a NAT or endpoints for no gain
+  function_name                  = "${local.name_prefix}-exchange"
+  role                           = aws_iam_role.exchange.arn
+  runtime                        = "python3.12"
+  architectures                  = ["x86_64"]
+  handler                        = "handler.lambda_handler"
+  filename                       = data.archive_file.exchange.output_path
+  source_code_hash               = data.archive_file.exchange.output_base64sha256
+  timeout                        = 10
+  memory_size                    = 512
+  reserved_concurrent_executions = 10
+  kms_key_arn                    = aws_kms_key.demo.arn
+  tracing_config {
+    mode = "Active"
+  }
   environment {
     variables = merge(local.subject_env, {
       ISSUER_URL               = local.exchange_issuer
@@ -356,6 +416,7 @@ resource "aws_apigatewayv2_integration" "exchange" {
 }
 
 resource "aws_apigatewayv2_route" "exchange" {
+  # checkov:skip=CKV_AWS_309:An OAuth token endpoint authenticates the client itself (client_secret_basic, constant time); the discovery and authorize routes are public by the protocol
   for_each  = toset(["POST /token", "GET /authorize", "GET /.well-known/openid-configuration"])
   api_id    = aws_apigatewayv2_api.exchange.id
   route_key = each.value
@@ -369,6 +430,16 @@ resource "aws_apigatewayv2_stage" "exchange" {
   default_route_settings {
     throttling_burst_limit = 20
     throttling_rate_limit  = 20
+  }
+  # Who called the front door and what they got back; never the body, so
+  # never a token.
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.exchange_access.arn
+    format = jsonencode({
+      requestId      = "$context.requestId", ip = "$context.identity.sourceIp", requestTime = "$context.requestTime",
+      method         = "$context.httpMethod", route = "$context.routeKey", status = "$context.status",
+      responseLength = "$context.responseLength", integrationError = "$context.integrationErrorMessage"
+    })
   }
 }
 

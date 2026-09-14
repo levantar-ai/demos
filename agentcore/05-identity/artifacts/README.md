@@ -152,6 +152,30 @@ Against the exchange pool with the front door bypassed:
 
 At the runtime: no `Authorization` header, `HTTP 401`.
 
+## Hardening pass, 2026-09-14
+
+MegaLinter (full flavour, run by hand) over the demo. Two HIGH CVEs in the
+exchange package's pins, `PyJWT 2.10.1` (CVE-2026-32597, PyJWT accepting
+unknown `crit` headers, which `subject.py` refuses independently) and
+`cryptography 44.0.0` (CVE-2026-26007), bumped to `2.14.0` and `50.0.1`;
+Trivy reports the package clean after. Then the checkov, terrascan and Trivy
+misconfiguration findings on the Terraform: adopted a customer-managed KMS
+key for the two secrets, the five Lambda log groups, the Lambda environment
+variables and the ECR repository (which replaced the repository; the image
+was pushed again and the runtime moved to version 2, pulling from the
+encrypted repository, verified by the chain); X-Ray tracing on the six
+Lambdas (51 traces in the first ten minutes); reserved concurrency (front
+door 10, triggers 20, tool 20); an access log on the HTTP API stage (route,
+status, source IP, never a body). Refused with an inline reason: VPC
+placement, dead-letter queues on synchronous invocations, code signing,
+one-year log retention, secret rotation, an authorizer on an OAuth token
+endpoint, an ECR repository policy. Also fixed from the run: an ambiguous
+variable name in `sequence.py`, a lambda assignment in a test, terrascan's
+rule on the `policy_mode` validation message, an unused data source in
+`aws-setup`, and a bandit configuration (tests excluded, the URN constants
+not treated as passwords, the container's bind-all listener marked). The
+full chain and every probe were re-run on the hardened stack and matched.
+
 ## What the live applies taught
 
 - **Terraform's `aws_cognito_user.password` is permanent.** The design

@@ -1,0 +1,15 @@
+# Bandit configuration for the demos repo, read by MegaLinter (CI's Python
+# gate is ruff + pytest). Tests are excluded: asserts are their job, and their
+# fixture strings ("shared-secret", "id") are not credentials. B105 and B106
+# are skipped because the OAuth URN constants (grant and token types) and
+# token_use literals trip the hard-coded-password heuristic; secretlint and
+# gitleaks check for real secrets separately.
+exclude_dirs:
+  - "*/test_*.py"
+  - "*/conftest.py"
+  - "*/.build/*"
+  - "*/node_modules/*"
+  - "*/.venv/*"
+skips:
+  - B105
+  - B106
