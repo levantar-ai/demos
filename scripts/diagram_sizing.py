@@ -29,7 +29,7 @@ import os
 BOOST = int(os.environ.get("DIAGRAM_FONT_BOOST", "0"))
 
 # Roughly the line box a point of font size occupies, in points.
-_LINE_RATIO = 1.4
+_LINE_RATIO = 2.1  # was 1.4; the extra headroom keeps 3-line labels inside their boxes at the boost, where 1.4 left them bleeding onto the cluster border
 
 
 def fs(size):
