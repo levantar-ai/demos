@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Knowing who your agent is acting for, with AgentCore Identity — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="This post shows AgentCore Identity brokering an on-behalf-of exchange, from the token a customer signed in with, through the runtime and the agent, to a token for the order service that a second Cognito user pool mints, so the gateway sees only the minted token and a Cedar policy refuses any call wh">
+<meta name="description" content="This post puts both halves of AgentCore Identity to work for one agent. Its inbound auth on the runtime validates the token a customer signed in with, and its outbound side, a workload identity, an on-behalf-of credential provider and the token vault, brokers that token for a short-lived, audience-r">
 <link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-05-identity/">
 <meta name="author" content="Andy Rea">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -12,7 +12,7 @@
 <meta property="og:site_name" content="Levantar">
 <meta property="og:locale" content="en_GB">
 <meta property="og:title" content="Knowing who your agent is acting for, with AgentCore Identity">
-<meta property="og:description" content="This post shows AgentCore Identity brokering an on-behalf-of exchange, from the token a customer signed in with, through the runtime and the agent, to a token for the order service that a second Cognito user pool mints, so the gateway sees only the minted token and a Cedar policy refuses any call wh">
+<meta property="og:description" content="This post puts both halves of AgentCore Identity to work for one agent. Its inbound auth on the runtime validates the token a customer signed in with, and its outbound side, a workload identity, an on-behalf-of credential provider and the token vault, brokers that token for a short-lived, audience-r">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -23,7 +23,7 @@
 <meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Knowing who your agent is acting for, with AgentCore Identity">
-<meta name="twitter:description" content="This post shows AgentCore Identity brokering an on-behalf-of exchange, from the token a customer signed in with, through the runtime and the agent, to a token for the order service that a second Cognito user pool mints, so the gateway sees only the minted token and a Cedar policy refuses any call wh">
+<meta name="twitter:description" content="This post puts both halves of AgentCore Identity to work for one agent. Its inbound auth on the runtime validates the token a customer signed in with, and its outbound side, a workload identity, an on-behalf-of credential provider and the token vault, brokers that token for a short-lived, audience-r">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-05-identity/social.png">
 <meta name="twitter:image:alt" content="Knowing who your agent is acting for, with AgentCore Identity">
 <link rel="icon" type="image/png" href="../favicon.png">
@@ -32,7 +32,7 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Knowing who your agent is acting for, with AgentCore Identity",
-  "description": "This post shows AgentCore Identity brokering an on-behalf-of exchange, from the token a customer signed in with, through the runtime and the agent, to a token for the order service that a second Cognito user pool mints, so the gateway sees only the minted token and a Cedar policy refuses any call wh",
+  "description": "This post puts both halves of AgentCore Identity to work for one agent. Its inbound auth on the runtime validates the token a customer signed in with, and its outbound side, a workload identity, an on-behalf-of credential provider and the token vault, brokers that token for a short-lived, audience-r",
   "image": "https://levantar-ai.github.io/demos/agentcore-05-identity/social.png",
   "datePublished": "2026-09-11",
   "dateModified": "2026-09-11",
@@ -201,15 +201,18 @@
         </a>
       </nav>
 <h2>TL;DR;</h2>
-<p>This post shows AgentCore Identity brokering an on-behalf-of exchange, from
-the token a customer signed in with, through the runtime and the agent, to a
-token for the order service that a second Cognito user pool mints, so the
-gateway sees only the minted token and a Cedar policy refuses any call whose
-customer differs from it. Cognito's token endpoint does not offer the
-exchange grant, so the exchange follows the architecture of AWS's own
-sample, a small token-exchange front door in front of a Cognito pool whose
-triggers verify and mint. An audience, a confidential client, a five-minute
-token and fail-closed triggers are added on top.</p>
+<p>This post puts both halves of AgentCore Identity to work for one agent.
+Its inbound auth on the runtime validates the token a customer signed in
+with, and its outbound side, a workload identity, an on-behalf-of credential
+provider and the token vault, brokers that token for a short-lived,
+audience-restricted token for the order service, so the gateway sees only
+the minted token and a Cedar policy refuses any call whose customer differs
+from it. Cognito's token endpoint does not offer the exchange grant that
+AgentCore Identity brokers against, so the target is built the way AWS's own
+sample builds it, a small front door in front of a second Cognito pool whose
+triggers verify the customer's token and control what Cognito mints, with an
+audience, a confidential client, a five-minute token and fail-closed
+triggers added on top.</p>
 <blockquote>
 <p>SOURCE CODE - All code for this post is available at:
 <a href="https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity">https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity</a></p>
