@@ -33,8 +33,8 @@ class StubHandler(Handler):
     )
     stop = staticmethod(lambda interpreter, session_id: stopped.append(session_id))
     # The on-behalf-of exchange is stubbed: it stands for AgentCore Identity
-    # brokering a token audience-restricted to the gateway from the customer's
-    # inbound JWT. The live
+    # brokering a token carrying the orders app-client audience the gateway
+    # accepts, from the customer's inbound JWT. The live
     # exchange and Cedar enforcement are verified against the deployed stack.
     exchange = staticmethod(lambda inbound: f"obo:{inbound}")
     orders = staticmethod(

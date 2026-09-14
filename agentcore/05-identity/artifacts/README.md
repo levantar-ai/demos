@@ -175,7 +175,12 @@ rule on the `policy_mode` validation message, an unused data source in
 `aws-setup`, and a bandit configuration (tests excluded, the URN constants
 not treated as passwords, the container's bind-all listener marked). The
 full chain and every probe were re-run on the hardened stack and matched.
-Two things the pass taught: the SSM parameter as a `SecureString` needs
+The final review then narrowed two of the
+additions: the key policy's CloudWatch Logs statement is limited to this
+demo's six log groups rather than every group in the account, and the
+runtime role's `kms:Decrypt` on the key was removed, because ECR decrypts
+an encrypted repository through its own grants and a fresh pull without it
+succeeded. Two things the pass taught: the SSM parameter as a `SecureString` needs
 `WithDecryption=True` on the read, which the first apply missed (the front
 door returned `server_error` until it was added), and the runtime's roll to
 a new image version answers `424` for a couple of minutes while the new
@@ -377,6 +382,18 @@ exchange-pool rewrite was then reviewed afresh, rounds 12 onward.
   sample's compromise, quoted, named as the part not to copy, with the
   handle-and-record shape a real exchange needs described. Round 16: "No
   material findings remain. Verdict: ready to publish."
+- **Rounds 19 and 20**, a final review of the post and the whole solution
+  together after the MegaLinter hardening, at Andy's request. Round 19: the
+  video narration still said "for the order gateway only" (re-recorded);
+  the relaying sentence and "every claim becomes a tag" narrowed; the
+  runtime role's `kms:Decrypt` on the demo key removed, since ECR decrypts
+  through its own grants (a fresh pull of a new image tag succeeded without
+  it); the key policy's CloudWatch Logs statement limited to this demo's log
+  groups; the VPC and rotation skip reasons rewritten to state the accepted
+  risk rather than claim a VPC would isolate nothing or that rotation is
+  documented. Round 20: all resolved, "ready to publish", with three
+  wording nits applied (fragments in section 3 and 5, and the same
+  gateway-only shorthand in a diagram comment and a test comment).
 - **Rounds 17 and 18**, on one paragraph Andy asked for, saying plainly
   that this post is a step up in complexity from the four before it and
   why. Round 17 corrected its count of secrets, its description of the

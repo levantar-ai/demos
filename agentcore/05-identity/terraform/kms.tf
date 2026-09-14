@@ -34,9 +34,15 @@ resource "aws_kms_key" "demo" {
           "kms:Describe*"
         ]
         Resource = "*"
+        # Only this demo's log groups, named here rather than referenced,
+        # because the groups reference the key.
         Condition = {
           ArnLike = {
-            "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:*"
+            "kms:EncryptionContext:aws:logs:arn" = [
+              "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.name_prefix}-exchange",
+              "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.name_prefix}-exchange-*",
+              "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/apigateway/${local.name_prefix}-exchange",
+            ]
           }
         }
       },

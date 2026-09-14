@@ -47,11 +47,11 @@ resource "aws_iam_role_policy" "tool_tracing" {
 }
 
 resource "aws_lambda_function" "tool" {
-  # checkov:skip=CKV_AWS_117:The tool reads a CSV packaged with it and calls nothing; a VPC would isolate nothing
+  # checkov:skip=CKV_AWS_117:Unrestricted egress is accepted for this synthetic demo only; a production function serving real data belongs in a private subnet with egress limited to the endpoints it needs
   # checkov:skip=CKV_AWS_116:The gateway invokes the tool synchronously; a dead-letter queue applies to asynchronous invocation only
   # checkov:skip=CKV_AWS_272:Code signing is not adopted for a teaching stack
   # checkov:skip=CKV_AWS_173:The tool has no environment variables
-  #ts:skip=AC_AWS_0486 The tool reads a CSV packaged with it and calls nothing; a VPC would isolate nothing
+  #ts:skip=AC_AWS_0486 Unrestricted egress is accepted for this synthetic demo only; a production function serving real data belongs in a private subnet with limited egress
   #ts:skip=AC_AWS_0485 tracing_config mode Active is set below; the rule does not read that block
   function_name                  = "${local.name_prefix}-orders"
   role                           = aws_iam_role.tool.arn

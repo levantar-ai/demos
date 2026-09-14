@@ -53,13 +53,9 @@ resource "aws_iam_role_policy" "runtime" {
         Action   = ["ecr:GetAuthorizationToken"]
         Resource = "*"
       },
-      {
-        # The repository is encrypted with the demo key; pulling decrypts.
-        Sid      = "DecryptTheImage"
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt"]
-        Resource = aws_kms_key.demo.arn
-      },
+      # The repository is encrypted with the demo key, but ECR decrypts through
+      # the grants it holds on that key, so the puller needs the ECR actions
+      # above and no KMS permission of its own (confirmed by a fresh pull).
       {
         Sid    = "Logs"
         Effect = "Allow"

@@ -62,9 +62,10 @@ AgentCore Identity has two halves. Inbound Auth validates the token a caller
 presents to a runtime or a gateway. Outbound Auth gives the agent tokens for
 the things it calls, through a workload identity, credential providers and a
 token vault. Relaying the customer's Cognito token to the gateway uses only
-the inbound half, and is a sound pattern for a first-party tool, but it
-provisions no AgentCore Identity resource at all. This design uses both
-halves. The agent asks AgentCore Identity for a token for the order service, on
+the inbound half. Relaying an inbound token can be appropriate when that
+token was issued for the downstream resource, but this customer token has
+no downstream audience at all, and relaying it provisions no AgentCore
+Identity resource. This design uses both halves. The agent asks AgentCore Identity for a token for the order service, on
 behalf of the customer, and AgentCore Identity brokers an exchange of the
 customer's inbound token for one that a second Cognito pool mints. That is
 the on-behalf-of flow. It suits a background agent because, where the provider
@@ -244,13 +245,13 @@ password and refresh flows; this demo has one app client with
 `ALLOW_CUSTOM_AUTH` as its sole explicit flow, and its pre-token trigger
 separately refuses refresh-token generation.
 And it fronts a REST API with a separate authorizer; this demo's front door
-checks the client secret itself. The sample is the shape; the hardening is
-this demo's.
+checks the client secret itself. This demo follows the sample's
+architecture and changes those controls.
 
 Three things are then added on top, each of which the sample leaves to you.
-An audience. The sample's exchanged token has no `aud`, because Cognito
-access tokens do not include one by default, and its production guidance
-says so.
+The first addition is an audience. The sample's exchanged token has no
+`aud`, because Cognito access tokens do not include one by default, and its
+production guidance says so.
 
 > Restrict the token audience/resource (RFC 8693 `audience`/`resource`) so
 > exchanged tokens cannot be replayed against other downstreams, and enforce
@@ -269,15 +270,15 @@ https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-pre-t
 
 So the exchange pool has one app client per downstream, and the orders
 client's id is the minted token's `aud`. A second downstream would get a
-second client and tokens that name it. A confidential client. The sample's
-admin client is public, so anyone who learned its id could run the custom
+second client and tokens that name it. The second addition is a
+confidential client. The sample's admin client is public, so anyone who learned its id could run the custom
 flow against Cognito directly and skip the endpoint. Here the client has a
 secret, the front door computes `SECRET_HASH` from it, and of the workload
 roles in this stack only the front door's may read the Secrets Manager copy;
 the same secret is also in the Terraform state and readable by any principal
 allowed to describe the app client, and those are inside the compromise
-boundary. And five minutes, Cognito's minimum validity, in place of the
-sample's hour.
+boundary. The third addition is a five-minute token lifetime, Cognito's
+minimum validity, in place of the sample's hour.
 
 The front door's own job is small. It is a narrow token-exchange endpoint
 that implements the request AgentCore Identity sends, with RFC 8693's
@@ -422,8 +423,8 @@ version, unchanged, evaluating a Cedar policy on every tool call.
 
 https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html
 
-Every claim in the minted token becomes a principal tag, and the rule is the
-one line it always was, now on `customer_id`. The principal itself is the
+JWT claims are exposed as principal tags, including the `customer_id` claim
+used here, and the rule is the one line it always was, now on `customer_id`. The principal itself is the
 token's `sub`, the exchange pool's service user; the customer is the tag.
 
 ```hcl
@@ -447,7 +448,7 @@ widen it, forbid winning over any permit.
 
 ## 5 - Running it
 
-The whole path. The runtime validates the customer's Cognito token, the
+The whole path works as follows. The runtime validates the customer's Cognito token, the
 exchange front door and then the exchange pool's triggers validate it again
 during the exchange, and the gateway validates the minted token before Cedar
 evaluates the call.
