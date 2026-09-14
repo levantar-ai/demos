@@ -18,10 +18,18 @@ triggers added on top.
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity
 
-**The token exchange in this post is a teaching component, not
-production-grade. It exists to show the AgentCore Identity integration. In
+**Be warned that this post is a step up from the four before it. Each of
+those centred on one AgentCore capability and a small change to the agent's
+code. This one adds a workload identity, a credential provider, a
+token-exchange front door, a second Cognito pool with four Lambda triggers,
+two more secrets, an SSM parameter and a change to what the gateway trusts,
+and every one of them has a way to be wrong that looks like working. The
+sections below say what each is for, what it refuses and what it still does
+not guarantee. The token exchange itself is a teaching component, not
+production-grade. It exists to show the AgentCore Identity integration; in
 production the exchange is done by a managed IdP with a supported
-on-behalf-of integration.**
+on-behalf-of integration, which needs none of the pool, the triggers or the
+front door.**
 
 ## Longer version
 
@@ -37,20 +45,6 @@ filtering in the agent's own code is not an authorisation boundary. The
 tempting fix, giving the agent a broad credential and filtering results in
 its own code, is the one AWS's Well-Architected Agentic AI Lens tells you
 not to reach for.
-
-Be warned that this is a step up from the four posts before it. Each
-previous post centred on one AgentCore capability and needed a small change
-to the agent's code. This one adds a workload identity, a credential
-provider, a token-exchange front door, a second Cognito pool with four
-Lambda triggers, two more Secrets Manager secrets alongside the one
-AgentCore Identity manages for the provider, an SSM parameter and a change
-to what the gateway trusts. The parts are individually small, and most of
-them are what doing the exchange through Cognito's custom authentication
-costs; a managed provider with a supported on-behalf-of integration would
-need none of the pool, the triggers or the front door. What does not go
-away is the care. Every one of these components has a way to be wrong that
-looks like working, and the sections below say what each one is for, what
-it refuses, and what it still does not guarantee.
 
 > The traditional approach of granting the agent broad credentials and
 > relying on application-level filtering (such as adding WHERE clauses to
