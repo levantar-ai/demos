@@ -120,7 +120,7 @@ resource "random_password" "exchange_client_secret" {
 
 # What AgentCore Identity's provider authenticates to /token with.
 resource "aws_secretsmanager_secret" "exchange_client" {
-  # checkov:skip=CKV2_AWS_57:Rotation of the demo's client secret is documented as a production step, not implemented in a stack that lives a day
+  # checkov:skip=CKV2_AWS_57:No rotation; this stack lives a day and its credentials must not be reused in production, where the exchange belongs to a managed IdP
   name                    = "${local.name_prefix}-exchange-client"
   recovery_window_in_days = 0
   kms_key_id              = aws_kms_key.demo.arn
@@ -134,7 +134,7 @@ resource "aws_secretsmanager_secret_version" "exchange_client" {
 # What the front door computes SECRET_HASH with. Kept apart from the secret
 # above: holding the provider's credential does not let you call Cognito.
 resource "aws_secretsmanager_secret" "orders_client" {
-  # checkov:skip=CKV2_AWS_57:Rotation of the app client secret is documented as a production step, not implemented in a stack that lives a day
+  # checkov:skip=CKV2_AWS_57:No rotation; this stack lives a day and its credentials must not be reused in production, where the exchange belongs to a managed IdP
   name                    = "${local.name_prefix}-exchange-orders-client"
   recovery_window_in_days = 0
   kms_key_id              = aws_kms_key.demo.arn
@@ -331,10 +331,10 @@ locals {
 }
 
 resource "aws_lambda_function" "triggers" {
-  # checkov:skip=CKV_AWS_117:The triggers call Cognito, SSM and the customer pool's JWKS over the public AWS endpoints; a VPC would add a NAT or endpoints for no gain
+  # checkov:skip=CKV_AWS_117:Unrestricted egress is accepted for this synthetic demo only; the triggers need Cognito, SSM and the customer pool's JWKS, which in production would be VPC endpoints from a private subnet
   # checkov:skip=CKV_AWS_116:Cognito invokes the triggers synchronously; a dead-letter queue applies to asynchronous invocation only
   # checkov:skip=CKV_AWS_272:Code signing is not adopted for a teaching stack; the package is built from the repository at apply time
-  #ts:skip=AC_AWS_0486 The triggers call Cognito, SSM and the customer pool's JWKS over the public AWS endpoints; a VPC would add a NAT or endpoints for no gain
+  #ts:skip=AC_AWS_0486 Unrestricted egress is accepted for this synthetic demo only; in production the triggers would sit in a private subnet with VPC endpoints
   for_each         = local.trigger_handlers
   function_name    = "${local.name_prefix}-exchange-${each.key}"
   role             = aws_iam_role.exchange_triggers.arn
@@ -361,10 +361,10 @@ resource "aws_lambda_function" "triggers" {
 }
 
 resource "aws_lambda_function" "exchange" {
-  # checkov:skip=CKV_AWS_117:The front door calls Cognito, Secrets Manager and SSM over the public AWS endpoints; a VPC would add a NAT or endpoints for no gain
+  # checkov:skip=CKV_AWS_117:Unrestricted egress is accepted for this synthetic demo only; the front door needs Cognito, Secrets Manager and SSM, which in production would be VPC endpoints from a private subnet
   # checkov:skip=CKV_AWS_116:API Gateway invokes the front door synchronously; a dead-letter queue applies to asynchronous invocation only
   # checkov:skip=CKV_AWS_272:Code signing is not adopted for a teaching stack; the package is built from the repository at apply time
-  #ts:skip=AC_AWS_0486 The front door calls Cognito, Secrets Manager and SSM over the public AWS endpoints; a VPC would add a NAT or endpoints for no gain
+  #ts:skip=AC_AWS_0486 Unrestricted egress is accepted for this synthetic demo only; in production the front door would sit in a private subnet with VPC endpoints
   function_name                  = "${local.name_prefix}-exchange"
   role                           = aws_iam_role.exchange.arn
   runtime                        = "python3.12"

@@ -175,7 +175,12 @@ rule on the `policy_mode` validation message, an unused data source in
 `aws-setup`, and a bandit configuration (tests excluded, the URN constants
 not treated as passwords, the container's bind-all listener marked). The
 full chain and every probe were re-run on the hardened stack and matched.
-Two things the pass taught: the SSM parameter as a `SecureString` needs
+The final review then narrowed two of the
+additions: the key policy's CloudWatch Logs statement is limited to this
+demo's six log groups rather than every group in the account, and the
+runtime role's `kms:Decrypt` on the key was removed, because ECR decrypts
+an encrypted repository through its own grants and a fresh pull without it
+succeeded. Two things the pass taught: the SSM parameter as a `SecureString` needs
 `WithDecryption=True` on the read, which the first apply missed (the front
 door returned `server_error` until it was added), and the runtime's roll to
 a new image version answers `424` for a couple of minutes while the new

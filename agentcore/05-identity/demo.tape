@@ -76,7 +76,7 @@ Enter
 Wait
 Sleep 3.5s
 
-Type "# signed by Cognito, for the order gateway only, five minutes, and it carries my customer id. ask the gateway directly for my own orders with it"
+Type "# signed by Cognito, with the orders app client as its audience, which the order gateway is configured to accept, five minutes, and it carries my customer id. ask the gateway directly for my own orders with it"
 Enter
 Sleep 1s
 

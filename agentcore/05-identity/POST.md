@@ -62,9 +62,10 @@ AgentCore Identity has two halves. Inbound Auth validates the token a caller
 presents to a runtime or a gateway. Outbound Auth gives the agent tokens for
 the things it calls, through a workload identity, credential providers and a
 token vault. Relaying the customer's Cognito token to the gateway uses only
-the inbound half, and is a sound pattern for a first-party tool, but it
-provisions no AgentCore Identity resource at all. This design uses both
-halves. The agent asks AgentCore Identity for a token for the order service, on
+the inbound half. Relaying an inbound token can be appropriate when that
+token was issued for the downstream resource, but this customer token has
+no downstream audience at all, and relaying it provisions no AgentCore
+Identity resource. This design uses both halves. The agent asks AgentCore Identity for a token for the order service, on
 behalf of the customer, and AgentCore Identity brokers an exchange of the
 customer's inbound token for one that a second Cognito pool mints. That is
 the on-behalf-of flow. It suits a background agent because, where the provider
@@ -422,8 +423,8 @@ version, unchanged, evaluating a Cedar policy on every tool call.
 
 https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html
 
-Every claim in the minted token becomes a principal tag, and the rule is the
-one line it always was, now on `customer_id`. The principal itself is the
+JWT claims are exposed as principal tags, including the `customer_id` claim
+used here, and the rule is the one line it always was, now on `customer_id`. The principal itself is the
 token's `sub`, the exchange pool's service user; the customer is the tag.
 
 ```hcl
