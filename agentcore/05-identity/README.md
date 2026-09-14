@@ -46,6 +46,12 @@ too. They are not re-explained, the post they belong to covers them.
   the front door's client secret and the app client's, and one SSM parameter
   the functions read the pool ids from. All five functions share one package
   bundled at apply time by a `local-exec` pip install
+- One customer-managed KMS key for the demo's data at rest (`alias/…-data`):
+  the two exchange secrets, the exchange and API access log groups, the
+  Lambda environment variables and the agent's ECR repository. Not a signing
+  key; the exchange pool signs with Cognito's. The exchange Lambdas and the
+  tool have X-Ray tracing and reserved concurrency, and the HTTP API stage
+  writes an access log (never a body, so never a token)
 - A Policy Engine (`demos_agentcore_05_orders`) and two Cedar policies, a
   `permit` (`own_orders_only`) and a `forbid` guard
   (`deny_other_customers_orders`), attached to the gateway in `ENFORCE` mode
@@ -154,6 +160,15 @@ unset SECRET MINTED TOKEN
 ```
 
 ## Notes kept out of the post
+
+- Lint gates. CI runs cspell, tflint, Trivy (misconfiguration and secrets at
+  HIGH and CRITICAL), ruff and pytest. MegaLinter is run by hand before a
+  post ships; its findings on this demo were applied (two HIGH CVEs in the
+  exchange's pinned `PyJWT` and `cryptography`, since bumped; the KMS,
+  tracing, concurrency and access-log hardening above) or refused inline
+  with a `checkov:skip` reason (VPC placement, dead-letter queues, code
+  signing, one-year log retention, secret rotation, an authorizer on the
+  token endpoint). Bandit's configuration is in the repository root.
 
 - The two Cognito commands take the password as an argument, so it is briefly
   visible in the local process table. That is the AWS walkthrough's shape and

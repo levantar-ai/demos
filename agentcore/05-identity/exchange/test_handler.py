@@ -21,8 +21,11 @@ POOL_SECRET = "orders-client-secret-value"
 def _cognito_like(lifetime=300):
     """An unsigned token with a real payload, as the stub pool's AccessToken."""
     import time
+
+    def b(d):
+        return base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
+
     now = int(time.time())
-    b = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
     return b({"alg": "RS256", "kid": "k"}) + "." + b({"iat": now, "exp": now + lifetime}) + ".sig"
 
 

@@ -54,6 +54,13 @@ resource "aws_iam_role_policy" "runtime" {
         Resource = "*"
       },
       {
+        # The repository is encrypted with the demo key; pulling decrypts.
+        Sid      = "DecryptTheImage"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = aws_kms_key.demo.arn
+      },
+      {
         Sid    = "Logs"
         Effect = "Allow"
         Action = [

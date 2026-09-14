@@ -52,7 +52,7 @@ class Refused(Exception):
 def config() -> dict:
     now = time.monotonic()
     if _config_cache["value"] is None or now - _config_cache["at"] > _CONFIG_TTL:
-        raw = _ssm.get_parameter(Name=CONFIG_PARAMETER)["Parameter"]["Value"]
+        raw = _ssm.get_parameter(Name=CONFIG_PARAMETER, WithDecryption=True)["Parameter"]["Value"]
         cfg = json.loads(raw)
         for key in ("pool_id", "client_id", "service_user"):
             if not isinstance(cfg.get(key), str) or not cfg[key]:

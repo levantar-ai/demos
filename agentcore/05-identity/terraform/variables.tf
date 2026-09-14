@@ -15,6 +15,6 @@ variable "policy_mode" {
   default     = "ENFORCE"
   validation {
     condition     = contains(["ENFORCE", "LOG_ONLY"], var.policy_mode)
-    error_message = "policy_mode must be ENFORCE or LOG_ONLY."
+    error_message = "The policy_mode value must be ENFORCE or LOG_ONLY."
   }
 }

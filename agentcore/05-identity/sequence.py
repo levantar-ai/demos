@@ -32,7 +32,7 @@ for cx, title, sub in people:
     d.box(cx - w / 2, top, w, 54, title, subtitle=sub, tone="accent")
     d._dashed_line(cx, top + 54, cx, bottom, RULE_STRONG)
 
-C, RT, A, ID, EX, G, O = 110, 370, 620, 880, 1150, 1440, 1730
+C, RT, A, ID, EX, G, ORD = 110, 370, 620, 880, 1150, 1440, 1730
 
 
 def msg(x1, x2, y, label, colour=INK_3, dashed=False):
@@ -65,7 +65,7 @@ d.text(G, 610, "token customer_id == customer_id argument ?", 12, 600, TEAL, anc
 # The two outcomes are mutually exclusive, so they sit in one alt frame and
 # only the permit branch reaches the tool.
 d.cluster(1010, 640, 830, 150, "one of two outcomes")
-msg(G, O, 690, "id matches the token: permit", colour=TEAL)
+msg(G, ORD, 690, "id matches the token: permit", colour=TEAL)
 msg(G, A, 754, "another id: forbid wins,\nno permit applies", colour=FLAME, dashed=True)
 
 d.caption(
