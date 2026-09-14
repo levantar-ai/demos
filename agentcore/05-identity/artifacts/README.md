@@ -394,6 +394,11 @@ exchange-pool rewrite was then reviewed afresh, rounds 12 onward.
   documented. Round 20: all resolved, "ready to publish", with three
   wording nits applied (fragments in section 3 and 5, and the same
   gateway-only shorthand in a diagram comment and a test comment).
+- **Rounds 21 and 22**, on the TL;DR, which Andy pointed out named
+  AgentCore Identity once and then talked about Cognito. It now leads with
+  both halves of AgentCore Identity. Round 21 corrected "triggers verify
+  and mint" to "triggers verify the customer's token and control what
+  Cognito mints"; round 22, "ready to publish".
 - **Rounds 17 and 18**, on one paragraph Andy asked for, saying plainly
   that this post is a step up in complexity from the four before it and
   why. Round 17 corrected its count of secrets, its description of the

@@ -2,15 +2,18 @@
 
 ## TL;DR;
 
-This post shows AgentCore Identity brokering an on-behalf-of exchange, from
-the token a customer signed in with, through the runtime and the agent, to a
-token for the order service that a second Cognito user pool mints, so the
-gateway sees only the minted token and a Cedar policy refuses any call whose
-customer differs from it. Cognito's token endpoint does not offer the
-exchange grant, so the exchange follows the architecture of AWS's own
-sample, a small token-exchange front door in front of a Cognito pool whose
-triggers verify and mint. An audience, a confidential client, a five-minute
-token and fail-closed triggers are added on top.
+This post puts both halves of AgentCore Identity to work for one agent.
+Its inbound auth on the runtime validates the token a customer signed in
+with, and its outbound side, a workload identity, an on-behalf-of credential
+provider and the token vault, brokers that token for a short-lived,
+audience-restricted token for the order service, so the gateway sees only
+the minted token and a Cedar policy refuses any call whose customer differs
+from it. Cognito's token endpoint does not offer the exchange grant that
+AgentCore Identity brokers against, so the target is built the way AWS's own
+sample builds it, a small front door in front of a second Cognito pool whose
+triggers verify the customer's token and control what Cognito mints, with an
+audience, a confidential client, a five-minute token and fail-closed
+triggers added on top.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity
