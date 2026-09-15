@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Levantar D3 components — catalogue</title>
+<link rel="stylesheet" href="src/lv.css">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px 80px;}
+  .cover{background:var(--paper-3);padding:40px 0 34px;}
+  .cover .wrap{padding-bottom:0;}
+  .logo-line{display:flex;align-items:center;gap:10px;margin-bottom:56px;}
+  .logo-line img{height:30px;}
+  .logo-line span{font-weight:600;font-size:17px;letter-spacing:-0.02em;}
+  .eyebrow{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--teal);}
+  .tickrule{height:9px;background:repeating-linear-gradient(90deg,var(--teal) 0 1.5px,transparent 1.5px 9px);}
+  .tickrule.small{width:34px;height:8px;display:inline-block;}
+  h1{font-size:44px;font-weight:600;letter-spacing:-0.03em;line-height:1.06;margin:22px 0 0;max-width:20ch;}
+  .standfirst{font-family:var(--serif);font-size:18px;line-height:1.5;color:var(--ink-lede);max-width:62ch;margin:22px 0 0;}
+  .flamebar{width:52px;height:8px;background:var(--flame);margin-top:34px;}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 28px;font-size:12px;color:var(--ink-3);margin-top:22px;}
+  .meta b{color:var(--ink-2);font-weight:600;}
+  nav.index{margin:40px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:26px;}
+  nav.index h2{font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--teal);margin:0 0 10px;font-weight:600;}
+  nav.index ol{list-style:none;margin:0;padding:0;}
+  nav.index li{border-top:1px solid var(--rule);padding:6px 0;font-size:13px;}
+  nav.index a{color:var(--ink);text-decoration:none;}
+  nav.index a:hover{color:var(--teal);}
+  nav.index a small{color:var(--ink-3);font-variant-numeric:tabular-nums;margin-right:8px;}
+  section.group{margin-top:72px;}
+  section.group > .tickrule{margin-bottom:22px;}
+  section.group h2{font-size:28px;font-weight:600;letter-spacing:-0.025em;margin:8px 0 0;}
+  section.group .lede{font-family:var(--serif);font-size:15.5px;color:var(--ink-lede);max-width:64ch;margin:10px 0 0;}
+  .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:28px;margin-top:34px;align-items:start;}
+  .comp{margin-top:40px;scroll-margin-top:16px;}
+  .metrics-grid .comp{margin-top:0;}
+  .comp .cnum{font-size:10px;font-weight:600;letter-spacing:0.18em;color:var(--teal);text-transform:uppercase;}
+  .comp h3{font-size:19px;font-weight:600;letter-spacing:-0.02em;margin:6px 0 0;}
+  .comp .sum{font-family:var(--serif);font-size:14.5px;line-height:1.5;color:var(--ink-lede);max-width:70ch;margin:6px 0 18px;}
+  .comp .demo{margin:0;}
+  .comp .demo.tile{max-width:460px;}
+  .comp .aside{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;}
+  .comp .aside h4{font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px;font-weight:600;}
+  .comp .aside ul{margin:0;padding-left:16px;font-size:13px;color:var(--ink-2);}
+  .comp .aside li{margin:3px 0;}
+  .comp details summary{cursor:pointer;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--teal);font-weight:600;list-style:none;}
+  .comp details summary::-webkit-details-marker{display:none;}
+  .comp details summary::before{content:'+ ';}
+  .comp details[open] summary::before{content:'− ';}
+  .comp pre{margin:8px 0 0;background:var(--paper-warm);border:1px solid var(--rule);padding:12px 14px;font:11.5px/1.5 var(--mono);color:var(--ink-2);overflow:auto;max-height:260px;white-space:pre;}
+  .closing{margin-top:90px;}
+  .closing .tickrule{margin-bottom:24px;}
+  .closing .row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;}
+  .closing .right{text-align:right;font-size:12px;color:var(--ink-3);line-height:1.6;}
+  @media (max-width:720px){.wrap{padding:0 18px 60px;}h1{font-size:34px;}.comp .aside{grid-template-columns:1fr;}.metrics-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<header class="cover">
+  <div class="wrap">
+    <div class="logo-line"><img id="logo" alt=""><span>Levantar</span></div>
+    <div class="eyebrow"><span class="tickrule small"></span> Component catalogue · D3 v7</div>
+    <h1>Charts for evidence, not for decoration.</h1>
+    <p class="standfirst">Twenty-four D3 chart and metric components in the Levantar brand, built for the questions we get paid to answer. Where does AI genuinely pay, what is the evidence, and is it safe to rely on. Every chart carries a table view, a legend where there is more than one series, and hover detail that adds to the picture rather than gating it.</p>
+    <div class="flamebar"></div>
+    <div class="meta"><span><b>Colour</b> teal is structure, sand is the warm pole, ink is the total. Flame never appears in a chart.</span><span><b>Type</b> Inter Tight for everything, Source Serif 4 for captions and standfirsts.</span><span><b>Usage</b> <code>LV.render('name', element, options)</code></span></div>
+  </div>
+</header>
+<div class="tickrule"></div>
+<main class="wrap">
+  <nav class="index" id="index"></nav>
+  <div id="groups"></div>
+  <footer class="closing">
+    <div class="tickrule"></div>
+    <div class="row">
+      <div class="logo-line" style="margin:0"><img id="logo2" alt=""><span>Levantar</span></div>
+      <div class="right">D3 component catalogue · September 2026<br>levantar.ai · put AI only where it works</div>
+    </div>
+  </footer>
+</main>
+<script src="vendor/d3.v7.min.js"></script>
+<script src="catalog/logo.js"></script>
+<script src="src/lv-tokens.js"></script>
+<script src="src/lv-core.js"></script>
+<script src="src/components/01-stat-tile.js"></script>
+<script src="src/components/02-hero-figure.js"></script>
+<script src="src/components/03-gap-meter.js"></script>
+<script src="src/components/04-verdict-tile.js"></script>
+<script src="src/components/05-range-estimate.js"></script>
+<script src="src/components/06-payback-meter.js"></script>
+<script src="src/components/07-evidence-ladder.js"></script>
+<script src="src/components/08-unit-economics-tile.js"></script>
+<script src="src/components/09-initiative-matrix.js"></script>
+<script src="src/components/10-value-waterfall.js"></script>
+<script src="src/components/11-spend-return-lines.js"></script>
+<script src="src/components/12-assumption-tree.js"></script>
+<script src="src/components/13-budget-slope.js"></script>
+<script src="src/components/14-counterfactual-chart.js"></script>
+<script src="src/components/15-exposure-heatmap.js"></script>
+<script src="src/components/16-fix-first.js"></script>
+<script src="src/components/17-run-timeline.js"></script>
+<script src="src/components/18-guardrail-funnel.js"></script>
+<script src="src/components/19-drift-chart.js"></script>
+<script src="src/components/20-readiness-matrix.js"></script>
+<script src="src/components/21-handoff-flow.js"></script>
+<script src="src/components/22-run-outcomes.js"></script>
+<script src="src/components/23-annotated-trend.js"></script>
+<script src="src/components/24-routing-mix.js"></script>
+<script src="catalog/catalog.js"></script>
+</body>
+</html>
