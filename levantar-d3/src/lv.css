@@ -1,0 +1,103 @@
+/* Levantar D3 component styles. Brand tokens from levantar-brand-template.html v1.0. */
+@font-face { font-family:'Inter Tight'; src:url('../fonts/inter-tight-var.woff2') format('woff2'); font-weight:400 700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Source Serif 4'; src:url('../fonts/source-serif-4-400.woff2') format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Source Serif 4'; src:url('../fonts/source-serif-4-400-italic.woff2') format('woff2'); font-weight:400; font-style:italic; font-display:swap; }
+
+:root{
+  --paper:#f7f5f0; --paper-warm:#efece4; --paper-3:#e5e0d4; --surface:#ffffff;
+  --ink:#0e1216; --ink-lede:#2f3438; --ink-2:#4a5158; --ink-3:#798086;
+  --teal:#0d5257; --teal-deep:#083a3e; --teal-lift:#7fc5c2; --teal-wash:#e4f0ef;
+  --flame:#e05a2b; --flame-600:#c24314;
+  --sand:#c6bda9; --sand-deep:#8a7b5a;
+  --rule:#dcd5c6; --rule-strong:#c6bda9;
+  --sans:'Inter Tight',Helvetica,Arial,sans-serif;
+  --serif:'Source Serif 4',Georgia,serif;
+  --mono:ui-monospace,'SF Mono','Cascadia Mono',Consolas,monospace;
+}
+
+/* Figure frame: the brand .fig, with a table view behind a toggle. */
+.lv-fig{background:var(--surface);border:1px solid var(--rule);padding:18px 20px 16px;font-family:var(--sans);color:var(--ink);position:relative;}
+.lv-fig-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;}
+.lv-ft{font-size:9.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-3);font-weight:600;line-height:1.5;}
+.lv-ft b{color:var(--teal);font-weight:600;}
+.lv-title{font-size:15px;font-weight:600;letter-spacing:-0.015em;line-height:1.25;margin-top:4px;color:var(--ink);}
+.lv-sub{font-size:12px;color:var(--ink-2);margin-top:3px;line-height:1.45;}
+.lv-toggle{flex-shrink:0;font:600 10px/1 var(--sans);letter-spacing:0.12em;text-transform:uppercase;color:var(--teal);background:none;border:1px solid var(--rule-strong);padding:7px 10px;cursor:pointer;border-radius:2px;}
+.lv-toggle:hover,.lv-toggle:focus-visible{background:var(--paper-warm);outline:none;}
+.lv-toggle[aria-pressed="true"]{background:var(--teal);color:var(--paper);border-color:var(--teal);}
+.lv-body{position:relative;}
+.lv-body svg{display:block;width:100%;height:auto;font-family:var(--sans);}
+.lv-body[hidden]{display:none;}
+.lv-figcap{font-size:11.5px;color:var(--ink-3);font-style:italic;font-family:var(--serif);margin-top:12px;line-height:1.45;}
+
+/* Table view twin */
+.lv-table{overflow-x:auto;}
+.lv-table table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;}
+.lv-table th{text-align:left;font-size:9.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:0 10px 6px 0;border-bottom:1px solid var(--rule-strong);white-space:nowrap;}
+.lv-table td{padding:7px 10px 7px 0;border-bottom:1px solid var(--rule);vertical-align:top;line-height:1.45;color:var(--ink-2);}
+.lv-table td:first-child{font-weight:600;color:var(--ink);}
+.lv-table td.num,.lv-table th.num{text-align:right;}
+
+/* Legend */
+.lv-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 12px;font-size:12px;color:var(--ink-2);}
+.lv-legend .k{display:inline-flex;align-items:center;gap:7px;}
+.lv-legend .sw{width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0;}
+.lv-legend .sw.line{height:2px;width:14px;border-radius:1px;}
+.lv-legend .sw.dot{border-radius:50%;}
+.lv-legend .sw.hatch{background-image:repeating-linear-gradient(45deg,var(--ink-3) 0 1.5px,transparent 1.5px 5px);}
+.lv-legend .sw.ring{background:transparent;border:2px solid currentColor;box-sizing:border-box;border-radius:50%;}
+
+/* Tooltip */
+.lv-tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font:12px/1.45 var(--sans);padding:8px 10px;border-radius:3px;max-width:240px;z-index:10;opacity:0;transition:opacity .08s;box-shadow:0 2px 8px rgba(14,18,22,.18);}
+.lv-tip b{font-weight:600;color:#fff;}
+.lv-tip .m{color:rgba(247,245,240,.7);}
+.lv-tip[data-on="1"]{opacity:1;}
+
+/* SVG text roles */
+.lv-body text{font-family:var(--sans);}
+.lv-axis text{fill:var(--ink-3);font-size:11px;font-variant-numeric:tabular-nums;}
+.lv-axis line,.lv-axis path{stroke:var(--rule-strong);shape-rendering:crispEdges;}
+.lv-grid line{stroke:var(--rule);shape-rendering:crispEdges;}
+.lv-grid path{display:none;}
+.lv-lbl{fill:var(--ink-2);font-size:11.5px;}
+.lv-lbl.strong{fill:var(--ink);font-weight:600;}
+.lv-lbl.muted{fill:var(--ink-3);}
+.lv-lbl.serif{font-family:var(--serif);font-style:italic;fill:var(--ink-lede);}
+.lv-lbl.eyebrow{fill:var(--teal);font-size:9.5px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;}
+.lv-num{font-variant-numeric:tabular-nums;}
+.lv-hit{fill:transparent;pointer-events:all;}
+
+/* Metric tiles */
+.lv-stat{background:var(--surface);border:1px solid var(--rule);padding:18px 18px 16px;font-family:var(--sans);color:var(--ink);}
+.lv-stat .label{font-size:12px;font-weight:600;color:var(--ink-2);line-height:1.35;margin-bottom:10px;}
+.lv-stat .num{font-size:34px;font-weight:600;letter-spacing:-0.03em;line-height:1;color:var(--ink);}
+.lv-stat.teal .num{color:var(--teal);}
+.lv-stat .num small{font-size:0.5em;font-weight:500;letter-spacing:-0.01em;color:var(--ink-2);}
+.lv-stat .sub{font-size:11.5px;color:var(--ink-3);margin-top:8px;line-height:1.4;}
+.lv-stat .row{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;}
+.lv-stat .delta{font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;margin-top:8px;}
+.lv-stat .delta.good{color:var(--teal);}
+.lv-stat .delta.bad{color:var(--sand-deep);}
+.lv-stat .delta.flat{color:var(--ink-3);}
+.lv-stat .delta span{font-weight:400;color:var(--ink-3);}
+.lv-stat svg{display:block;}
+.lv-hero{font-family:var(--sans);color:var(--ink);}
+.lv-hero .eyebrow{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--teal);}
+.lv-hero .tick{width:34px;height:8px;display:inline-block;background:repeating-linear-gradient(90deg,var(--teal) 0 1.5px,transparent 1.5px 9px);}
+.lv-hero .num{font-size:72px;font-weight:600;letter-spacing:-0.04em;line-height:1;margin-top:14px;color:var(--teal);}
+.lv-hero .num small{font-size:0.4em;color:var(--ink-2);font-weight:500;letter-spacing:-0.01em;margin-left:4px;}
+.lv-hero .stand{font-family:var(--serif);font-size:16px;line-height:1.5;color:var(--ink-lede);margin-top:10px;max-width:38em;}
+.lv-hero .src{font-size:11px;color:var(--ink-3);margin-top:10px;}
+.lv-verdict{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--teal);padding:16px 18px 14px;font-family:var(--sans);}
+.lv-verdict.fix{border-left-color:var(--sand-deep);}
+.lv-verdict.stop{border-left-color:var(--ink);}
+.lv-verdict .tag{font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--teal);margin-bottom:8px;}
+.lv-verdict.fix .tag{color:var(--sand-deep);}
+.lv-verdict.stop .tag{color:var(--ink);}
+.lv-verdict .word{font-size:30px;font-weight:600;letter-spacing:-0.03em;line-height:1;display:flex;align-items:center;gap:10px;color:var(--ink);}
+.lv-verdict .word svg{width:26px;height:26px;flex-shrink:0;}
+.lv-verdict .name{font-size:13px;font-weight:600;color:var(--ink);margin-top:10px;}
+.lv-verdict .why{font-family:var(--serif);font-style:italic;font-size:13px;line-height:1.5;color:var(--ink-lede);margin-top:6px;}
+.lv-verdict .meta{display:flex;gap:16px;font-size:11px;color:var(--ink-3);margin-top:10px;font-variant-numeric:tabular-nums;}
+.lv-verdict .meta b{color:var(--ink-2);font-weight:600;}
+.lv-meter{font-family:var(--sans);}
