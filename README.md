@@ -31,3 +31,7 @@ demos/
 `docs/` holds only static, committed artifacts so the walkthroughs are viewable
 without running anything. To regenerate a demo's published page, re-run its
 capture step and copy `presentation/` into the matching `docs/` subdirectory.
+
+## Moved
+
+The `levantar-d3` chart components now live in [levantar-ai/brand](https://github.com/levantar-ai/brand) alongside the brand guidelines, tokens, fonts and logos.
