@@ -18,8 +18,8 @@ carries the trail of what it chose.
 
 What makes that safe is that identity stayed in trusted code. The model is
 told which customer it acts for and chooses the arguments. It never holds the
-token. Ask it to be someone else and the Cedar policy at the gateway refuses
-the call before the tool runs.
+token. Ask it to be someone else and it declines, and if it were ever talked
+round, the Cedar policy at the gateway refuses the call before the tool runs.
 
 The full walkthrough and the code are here.
 https://levantar.ai/insights/agentcore-06-model-in-the-loop.html
