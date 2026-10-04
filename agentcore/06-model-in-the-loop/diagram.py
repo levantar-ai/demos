@@ -22,8 +22,10 @@ from diagrams.programming.language import Python
 
 graph_attr = {
     "pad": "0.6",
-    "nodesep": "0.7",
-    "ranksep": "1.1",
+    # Wider than the earlier posts: at the social-card font boost the agent's
+    # label otherwise runs into the authorizer's.
+    "nodesep": "0.9",
+    "ranksep": "1.3",
     "fontsize": _fs(20),
     "fontcolor": "#0e1216",
     "labelloc": "t",
@@ -58,7 +60,7 @@ with Diagram(
         # The identity chain of post 05 is unchanged and drawn there; here it
         # is a line in the agent's label so the layout stays one pipeline.
         agent = Python(
-            "agent, trusted code\ncustomer from the verified token,\ngateway token minted on their behalf\nby AgentCore Identity (post 05)",
+            "agent, trusted code\ncustomer from the verified token,\ngateway token from AgentCore Identity\n(post 05)",
             height=_h(4),
         )
         model = Bedrock("Claude Sonnet 4.5\nchooses tools and arguments", height=_h(2))
