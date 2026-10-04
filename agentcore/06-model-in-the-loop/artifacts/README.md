@@ -244,8 +244,8 @@ Every finding and what was done:
 9. **Major, `LOG_ONLY` deployable.** Accepted. The variable is gone and the
    policy engine is `ENFORCE` in the configuration; demo 05 keeps its option
    because that post used it to look at decisions.
-10. **Major, "fetch in one call and analyse in the next" misdescribed the
-    sandbox.** Accepted, reworded.
+10. **Major, "fetch in one call and analyse in the next" described the
+    sandbox wrongly.** Accepted, reworded.
 11. **Major, categorical safety claims.** Accepted. Claims are scoped to the
     order lookup Cedar covers, and section 5 says what it does not cover.
 12. **Major, discovered tools expand authority implicitly.** Accepted.
@@ -317,7 +317,7 @@ Verdict "not ready", one blocker, four majors, three minors.
    as `cancelled` (see 1).
 
 After the changes: ruff clean, 59 agent tests and 101 exchange tests pass.
-Redeployed as image `<<IMAGE4>>` and the live turns re-run below.
+Redeployed as image `05df328` and the live turns re-run below.
 
 <<REVIEW_ROUND_3>>
 
