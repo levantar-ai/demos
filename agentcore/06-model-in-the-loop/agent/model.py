@@ -42,20 +42,22 @@ def answer(prompt, customer, session, gateway_token):
     """
     sandbox = Sandbox()
     trail = Trail()
+    memory = session_manager(customer, session)
     agent = make_agent(
         model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
         system_prompt=SYSTEM_PROMPT.format(customer=customer),
         tools=[orders_tools(gateway_token), sandbox.run_python],
         hooks=[trail],
-        session_manager=session_manager(customer, session),
+        session_manager=memory,
         callback_handler=None,
     )
     try:
         result = agent(prompt)
     finally:
-        # The MCP connection, then the sandbox session. Cleanup failures must
-        # not mask the answer or the error that is already propagating.
-        for close in (agent.cleanup, sandbox.close):
+        # The MCP connection, the sandbox session, then the memory's buffer.
+        # Cleanup failures must not mask the answer or the error that is
+        # already propagating.
+        for close in (agent.cleanup, sandbox.close, memory.close):
             try:
                 close()
             except Exception as exc:  # noqa: BLE001 — logged, never raised over the result

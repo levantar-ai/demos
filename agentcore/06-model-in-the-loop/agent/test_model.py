@@ -35,6 +35,10 @@ class FakeManager:
     def __init__(self, config, region_name=None):
         self.config = config
         self.region_name = region_name
+        self.closed = False
+
+    def close(self):
+        self.closed = True
 
 
 class FakeClient:
@@ -112,6 +116,7 @@ def test_memory_is_keyed_by_the_verified_customer_and_session(fakes):
     assert manager.config.memory_id == "mem-test"
     assert list(manager.config.retrieval_config) == ["/users/{actorId}"]
     assert manager.region_name == "us-east-1"
+    assert manager.closed is True
 
 
 def test_the_model_id_and_region_come_from_the_environment(fakes):
