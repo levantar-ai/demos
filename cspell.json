@@ -211,7 +211,18 @@
     "tabular",
     "Delaunay",
     "hairline",
-    "hairlines"
+    "hairlines",
+    "serialise",
+    "serialised",
+    "capsys",
+    "normalise",
+    "normalising",
+    "normalised",
+    "materialise",
+    "materialised",
+    "materialises",
+    "artefact",
+    "artefacts"
   ],
   "ignorePaths": [
     "node_modules/**",
