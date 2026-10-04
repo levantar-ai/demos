@@ -214,7 +214,10 @@
     "hairlines",
     "serialise",
     "serialised",
-    "capsys"
+    "capsys",
+    "normalise",
+    "normalising",
+    "normalised"
   ],
   "ignorePaths": [
     "node_modules/**",
