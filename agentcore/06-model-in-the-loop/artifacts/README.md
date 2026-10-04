@@ -130,6 +130,34 @@ choice, e.g. `model chose orders___list_orders with {'customer_id':
 pd …'}`, followed by `… returned success`.
 
 
+### Third run, image de0641a (after review round 1)
+
+Runtime version 3, sessions `…-r3-…`, all fresh. Same behaviour as the second
+run on every turn, with the hardened code in place:
+
+1. **Spend** (48.1 s, the first invocation of the new version, so a cold
+   start of the container and the model): `orders___list_orders(c-1000)` then
+   `run_python`, January £250.00, February £310.50, June £70.00, July £113.30,
+   February the biggest, £743.80 in total. Correct.
+2. **Carrier, same session** (14.8 s): `run_python` only, on the restored
+   real orders, DPD 5, Royal Mail 2, preference quoted from memory. Correct.
+3. **Recall**, fresh session (15.5 s): gateway then sandbox, 2 of 7 with Royal
+   Mail (1218, 1242). Correct.
+4. **Other customer** (6.1 s, 5.6 s): declined, no tool call.
+5. **c-1001's own view** (15.7 s): 5 orders, £355.55. Correct.
+6. **No token**: HTTP 401, `Missing Authentication Token`.
+
+The runtime log now reads `model chose orders___list_orders (input 6 chars)`
+and `model chose run_python (input 1248 chars)` followed by `… returned
+success`; no order field appears in any line written by this image. Streams
+written by the earlier images still hold the two `model chose run_python
+with {'code': …}` lines with the embedded (synthetic) orders; they go with
+the log group when the stack is destroyed. No `cleanup failed` and no
+`tool budget spent` lines in any run.
+
+The direct gateway probes from the first run were not repeated; nothing in
+the gateway, the policy or the exchange changed between images.
+
 ## Memory
 
 The seed turn in session `live-06-seed-session-…001` stored five events for
@@ -248,7 +276,7 @@ Every finding and what was done:
 
 After the changes: ruff clean, 54 agent tests and 101 exchange tests pass,
 `terraform validate` and `tflint` clean, Trivy clean. Redeployed as image
-`<<IMAGE3>>` and the live turns re-run below.
+`de0641a` and the live turns re-run below.
 
 <<REVIEW_ROUND_2>>
 
