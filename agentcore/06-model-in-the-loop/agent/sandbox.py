@@ -37,34 +37,50 @@ def _consume(response):
     accessDeniedException or throttlingException. Anything that is not a
     result is a failure and is raised, never read as an empty success.
     """
-    chunks, error, retained, truncated = [], None, 0, False
+    # What is kept across events is bounded, output and error alike, with the
+    # separators counted. Each event is materialised by boto3 before it gets
+    # here, so the bound is on what the agent accumulates, not on what the
+    # service sends.
+    out, err = _Bounded(), _Bounded()
     for event in response.get("stream", []):
         result = event.get("result")
         if not result:
             kinds = ", ".join(sorted(event)) or "empty event"
             detail = next((v.get("message") for v in event.values() if isinstance(v, dict) and v.get("message")), "")
-            raise RuntimeError(f"code interpreter stream error ({kinds}) {detail}".strip())
-        text = "\n".join(
-            item["text"]
-            for item in result.get("content", [])
-            if item.get("type") == "text"
-        )
-        if result.get("isError"):
-            error = error or text or "code interpreter tool failed"
-            continue
-        # Keep at most the limit in memory; the rest of the stream is read
-        # and dropped rather than accumulated.
-        if text and retained < MAX_OUTPUT_CHARS:
-            chunks.append(text[: MAX_OUTPUT_CHARS - retained])
-            retained += len(chunks[-1])
-        elif text:
-            truncated = True
-    if error is not None:
-        raise RuntimeError(error[:MAX_OUTPUT_CHARS])
-    text = "\n".join(chunks).strip()
-    if truncated or len(text) >= MAX_OUTPUT_CHARS:
-        text = text[:MAX_OUTPUT_CHARS] + f"\n... output truncated at {MAX_OUTPUT_CHARS} characters"
-    return text
+            raise RuntimeError(f"code interpreter stream error ({kinds}) {detail[:MAX_OUTPUT_CHARS]}".strip())
+        target = err if result.get("isError") else out
+        for item in result.get("content", []):
+            if item.get("type") == "text":
+                target.add(item.get("text", ""))
+    if err.seen:
+        raise RuntimeError(err.text() or "code interpreter tool failed")
+    return out.text()
+
+
+class _Bounded:
+    """Text accumulated up to MAX_OUTPUT_CHARS, separators included."""
+
+    def __init__(self):
+        self.parts, self.retained, self.truncated, self.seen = [], 0, False, False
+
+    def add(self, text):
+        self.seen = True
+        if not text:
+            return
+        room = MAX_OUTPUT_CHARS - self.retained - (1 if self.parts else 0)
+        if room <= 0:
+            self.truncated = True
+            return
+        if len(text) > room:
+            text, self.truncated = text[:room], True
+        self.parts.append(text)
+        self.retained += len(text) + (1 if len(self.parts) > 1 else 0)
+
+    def text(self):
+        text = "\n".join(self.parts).strip()
+        if self.truncated:
+            text += f"\n... output truncated at {MAX_OUTPUT_CHARS} characters"
+        return text
 
 
 def _call(session_id, name, **arguments):

@@ -114,6 +114,7 @@ def test_the_model_is_told_the_gateway_is_the_only_source_of_orders(fakes):
     assert "only source of order data" in prompt
     assert "Never invent" in prompt
     assert "call it again" in prompt  # a restored snapshot is for analysis, not for current status
+    assert "current status, carrier or ETA of an order" in prompt
 
 
 def test_the_token_goes_to_the_gateway_client_and_never_to_the_model(fakes):
@@ -364,6 +365,22 @@ def test_long_output_is_truncated_for_the_model(fake):
     fake.streams = [[_text_event("x" * (sandbox.MAX_OUTPUT_CHARS + 500))]]
     out = sandbox.execute_code("s1", "print('x' * 9000)")
     assert len(out) < sandbox.MAX_OUTPUT_CHARS + 100
+    assert "truncated" in out
+
+
+def test_a_huge_error_is_bounded_too(fake):
+    fake.streams = [[_text_event("Traceback" + "e" * 30000, is_error=True)]]
+    with pytest.raises(RuntimeError) as exc:
+        sandbox.execute_code("s1", "raise")
+    assert len(str(exc.value)) <= sandbox.MAX_OUTPUT_CHARS + 80
+    assert str(exc.value).startswith("Traceback") and "truncated" in str(exc.value)
+
+
+def test_separators_count_towards_the_bound(fake):
+    fake.streams = [[_text_event("a" * 4000), _text_event("b" * 4000), _text_event("c")]]
+    out = sandbox.execute_code("s1", "print()")
+    body = out.split("\n... output truncated")[0]
+    assert len(body) <= sandbox.MAX_OUTPUT_CHARS
     assert "truncated" in out
 
 

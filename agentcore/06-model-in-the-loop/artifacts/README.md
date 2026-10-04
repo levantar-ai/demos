@@ -337,6 +337,42 @@ Verdict "not ready", one blocker, four majors, three minors.
 After the changes: ruff clean, 59 agent tests and 101 exchange tests pass.
 Redeployed as image `05df328` and the live turns re-run below.
 
-<<REVIEW_ROUND_3>>
+### Round 3, 2026-10-04 (after the round 2 fixes and the fourth live run)
+
+Verdict "not ready", two blockers, three majors, two minors.
+
+1. **Blocker, the post's `answer` excerpt lacked the MCP client's closer.**
+   Correct; the excerpt now matches `model.py` (`orders = orders_tools(…)`,
+   `closers.append(orders.stop)`) and the prose says why it is there.
+2. **Blocker, error text was not bounded and separators were not counted.**
+   Correct. `_consume` accumulates through one bounded collector for output
+   and one for errors, separators counted, truncation flagged whenever part
+   of an item is dropped; the README says the bound is on what the agent
+   keeps, since boto3 materialises each event first. Tests added for a
+   30,000-character error and for separators.
+3. **Major, the freshness instruction listed "carrier" yet the carrier
+   aggregation turn reused the snapshot.** Correct; the instruction now
+   names the current status, carrier or ETA of an order, and whether anything
+   new has been placed or changed, which permits aggregation over a restored
+   snapshot and requires a fresh call for the current state of an order.
+   Redeployed and the carrier and freshness turns re-run below.
+4. **Major, the 900 s session setting is not an execution limit.** Accepted.
+   The post and README say the agent sets no per-execution limit, that the
+   session lifetime bounds an abandoned session, and that the runtime's
+   invocation timeout is what ends a runaway turn.
+5. **Major, "the authority the agent acts with is the same as before" was
+   too broad.** Accepted; scoped to reading orders through the gateway, with
+   a sentence on what is new.
+6. **Minor, the excerpt's cleanup claim.** Resolved by 1.
+7. **Minor, the `SOURCE CODE` and `References:` colons.** Not changed. Both
+   are the series' standing conventions from posts 01 to 05 and are lead-ins
+   to a link and a list, not prose.
+
+After the changes: ruff clean, 61 agent tests and 101 exchange tests pass.
+Redeployed as image `1c25814`, the live turns re-run and the video
+re-recorded on that image, below.
+
+<<REVIEW_ROUND_4>>
+
 
 

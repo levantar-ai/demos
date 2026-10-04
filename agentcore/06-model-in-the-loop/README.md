@@ -166,14 +166,17 @@ stack, for looking at the minted token and calling the gateway directly.
   ninth with a message to answer from what it has (recorded in the trail as
   `cancelled`), and raises on the tenth so the turn ends as a 502 rather
   than running on. That bounds executions and model calls per turn; it does
-  not bound execution time inside the sandbox, which the service's session
-  timeout backstops.
-- The sandbox tool refuses code over 20,000 characters, retains at most
-  8,000 characters of result for the model while draining the rest of the
-  stream, and treats any stream event that is not a result (a throttling or
-  access-denied shape) as an error rather than an empty success. Its session
-  id is forgotten only after a successful stop; the 900 second service
-  timeout is the backstop if the stop fails.
+  not bound execution time inside the sandbox, which only the runtime's
+  invocation timeout ends.
+- The sandbox tool refuses code over 20,000 characters, accumulates at most
+  8,000 characters across stream events for the model, result or error,
+  separators counted (each event is still materialised by boto3 before the
+  agent sees it, so the bound is on what the agent keeps, not on what the
+  service sends), and treats any stream event that is not a result (a
+  throttling or access-denied shape) as an error rather than an empty
+  success. It sets no per-execution time limit. Its session id is forgotten
+  only after a successful stop; the 900 second session lifetime bounds an
+  abandoned session if the stop fails, not a running call.
 - The gateway client loads only the tools named in `gateway.py`'s
   `ALLOWED_TOOLS`, so a target added to the gateway later is not handed to
   the model until the agent is changed to name it. Cedar is default deny for

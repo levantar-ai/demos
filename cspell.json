@@ -217,7 +217,12 @@
     "capsys",
     "normalise",
     "normalising",
-    "normalised"
+    "normalised",
+    "materialise",
+    "materialised",
+    "materialises",
+    "artefact",
+    "artefacts"
   ],
   "ignorePaths": [
     "node_modules/**",
