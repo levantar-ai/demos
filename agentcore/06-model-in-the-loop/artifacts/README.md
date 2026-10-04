@@ -384,7 +384,14 @@ After the changes: ruff clean, 61 agent tests and 101 exchange tests pass.
 Redeployed as image `32339d2`, the live turns re-run and the video
 re-recorded on that image, below.
 
-<<REVIEW_ROUND_4>>
+### Round 4, 2026-10-04 (after the round 3 fixes, the fifth live run and the re-recorded video)
+
+Verdict **"ready to publish"**. Every round 3 fix verified against the code,
+the post and the live record: bounded error text with separators counted,
+the narrowed freshness instruction and the run that shows it, the excerpt
+with the MCP client's closer and the lifecycle tests behind it, the timeout
+wording, the scoped authority sentence. No new finding at any severity.
+
 
 
 
