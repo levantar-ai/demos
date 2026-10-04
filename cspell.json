@@ -213,7 +213,8 @@
     "hairline",
     "hairlines",
     "serialise",
-    "serialised"
+    "serialised",
+    "capsys"
   ],
   "ignorePaths": [
     "node_modules/**",

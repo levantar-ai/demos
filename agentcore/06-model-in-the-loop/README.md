@@ -34,10 +34,13 @@ belong to covers them.
   `USER_PREFERENCE` strategy, the Code Interpreter sandbox, the KMS key
 - No new resources. The runtime gets a `MODEL_ID` environment variable and
   its role gains two statements: `bedrock:InvokeModel` and
-  `bedrock:InvokeModelWithResponseStream` on the inference profile and on the
-  exact foundation model in the three regions the profile routes to, and
-  `bedrock-agentcore:GetEvent` on the memory, which the session manager uses
-  to read a session back
+  `bedrock:InvokeModelWithResponseStream` on the inference profile, and on the
+  foundation-model ARNs the profile itself reports (read with the
+  `aws_bedrock_inference_profile` data source, so changing `model_id` changes
+  the policy with it) under a condition that the call came through that
+  profile, and `bedrock-agentcore:GetEvent` on the memory, which the session
+  manager uses to read a session back. The policy engine is `ENFORCE` with no
+  variable to weaken it; demo 05's `LOG_ONLY` option is not carried forward
 
 ## Before you start, the state backend
 
@@ -91,15 +94,18 @@ SESSION=model-in-the-loop-conversation-000000000000001
 ask() {
   curl -s "$INVOKE_URL" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
     -H "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION" \
-    -d "{\"prompt\": \"$1\"}"
+    --data-binary "$(jq -cn --arg p "$1" '{prompt: $p}')"
 }
 
 ask "How much have I spent with you this year, month by month, and which month was the biggest?"
 ask "Which carrier has delivered most of my orders?"
 ```
 
-The response carries the answer and the trail, every tool the model chose
-with the arguments it chose and whether the call succeeded:
+A session id is required, from the runtime's header or a `session` field in
+the body; there is no default, so two clients of one customer never share a
+conversation by accident. The response carries the answer and the trail,
+every tool the model chose with the arguments it chose and whether the call
+succeeded:
 
 ```json
 {"result": "...", "trail": [
@@ -145,12 +151,33 @@ stack, for looking at the minted token and calling the gateway directly.
   does the same job and would replace `main.py`'s server loop.
 - One sandbox session per invocation, created when the model first calls
   `run_python` and stopped when the answer is out, so no session is left
-  running to block a later destroy. State persists between calls within a
-  turn, not between turns.
+  running to block a later destroy. Variables from one `run_python` call are
+  available to the next within a turn, not between turns, and the sandbox
+  has no access to the gateway's results; the model copies the orders into
+  the code it writes.
 - The trail is a Strands hook, `trail.py`. It records tool name, arguments
-  and status and the first 300 characters of any error, which is what shows
-  Cedar's refusal when the model asks for the wrong customer. The same lines
-  are printed to the runtime's log.
+  and status and the first 300 characters of any error, which is what would
+  show Cedar's refusal if the model asked for the wrong customer. It goes
+  back to the caller, who is the customer whose orders are in it. The
+  runtime's log gets a redacted line per step, the tool name, the status and
+  the size of the input, never the generated code or the order rows it
+  embeds. The same hook caps a turn at eight tool calls and cancels the
+  ninth with a message to the model, so a loop is bounded in cost.
+- The sandbox tool refuses code over 20,000 characters, truncates output at
+  8,000, and treats any stream event that is not a result (a throttling or
+  access-denied shape) as an error rather than an empty success. Its session
+  id is forgotten only after a successful stop; the 900 second service
+  timeout is the backstop if the stop fails.
+- The gateway client loads only the tools named in `gateway.py`'s
+  `ALLOWED_TOOLS`, so a target added to the gateway later is not handed to
+  the model until the agent is changed to name it. Cedar is default deny for
+  anything the model might still ask for.
+- What reaches the model is untrusted at three points: the prompt, the order
+  rows the gateway returns, and the preference records memory retrieves,
+  which started life as customer text. The system prompt tells the model to
+  decline other customers and the live pretexts were all declined, but the
+  controls that hold regardless are outside the model, Cedar at the gateway
+  and the sandbox's lack of network and credentials.
 - Lint gates. CI runs cspell, tflint, Trivy (misconfiguration and secrets at
   HIGH and CRITICAL), ruff and pytest. The tests never call Bedrock: the
   model, the agent, the MCP client and the memory manager are replaced by

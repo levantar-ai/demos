@@ -15,6 +15,7 @@ gateway, as post 05 set up.
 
 import base64
 import json
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from identity import orders_token
@@ -25,8 +26,10 @@ MAX_BODY_BYTES = 2 * 1024 * 1024
 
 # The runtime sends its session id to the container on this header. It is
 # the conversation's id for the memory; a caller may also name one in the
-# body when invoking the agent outside the runtime.
+# body when invoking the agent outside the runtime. There is no default:
+# two clients of one customer must not silently share a conversation.
 SESSION_HEADER = "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"
+SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 
 
 def claims_from(headers):
@@ -68,9 +71,10 @@ def bearer_from(headers):
 
 
 def session_from(headers, payload):
-    """The conversation id: the runtime's session header, else the body's, else one default."""
+    """The conversation id, the runtime's session header or else the body's,
+    or None when neither names a usable one."""
     session = headers.get(SESSION_HEADER) or payload.get("session")
-    return session if isinstance(session, str) and session else "default"
+    return session if isinstance(session, str) and SESSION_RE.match(session) else None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -118,6 +122,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "prompt is required"})
             return
         session = session_from(self.headers, payload)
+        if session is None:
+            self._send(400, {"error": "a session id is required"})
+            return
         try:
             # Trusted code gets the token for the order service, on behalf of
             # the customer, before the model runs. The model chooses what to

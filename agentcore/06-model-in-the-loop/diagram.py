@@ -66,7 +66,7 @@ with Diagram(
         model = Bedrock("Claude Sonnet 4.5\nchooses tools and arguments", height=_h(2))
 
     with Cluster(
-        "the tools the model may choose",
+        "what the model is given: two tools, and memory as context",
         graph_attr={"fontsize": _fs(15), "margin": cluster_margin(), "bgcolor": "#eef3f1"},
     ):
         gateway = APIGateway("AgentCore Gateway\n(MCP) orders___list_orders", height=_h(2))
@@ -74,7 +74,11 @@ with Diagram(
             "Cedar policy\ncustomer_id ==\ntoken customer_id", height=_h(3)
         )
         sandbox = Bedrock("Code Interpreter\nrun_python, SANDBOX", height=_h(2))
-        memory = Bedrock("AgentCore Memory\nevery turn stored,\npreferences recalled", height=_h(3))
+        # Memory is not a tool the model calls. The session manager in the
+        # agent stores every turn and puts retrieved preferences in front of
+        # the model; the edge is drawn from the model's position for a clean
+        # layout and the label says who actually does it.
+        memory = Bedrock("AgentCore Memory\nturns stored, preferences\nretrieved by the session manager", height=_h(3))
 
     orders = Lambda("orders", height=_h(1))
 
@@ -86,4 +90,4 @@ with Diagram(
     gateway >> Edge(label="evaluate", style="dashed") >> policy
     gateway >> Edge(label="matching customer_id:\npermit") >> orders
     model >> Edge(label="run_python(code)\nthe pandas it wrote") >> sandbox
-    model >> Edge(label="turns in,\npreferences out", style="dashed") >> memory
+    model >> Edge(label="turns in, preferences out\n(done by the session manager,\nnot a tool call)", style="dashed") >> memory

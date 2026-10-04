@@ -116,24 +116,26 @@ def test_the_body_is_read_before_an_early_401(server_url):
 
 def test_a_prompt_goes_to_the_model_as_the_verified_customer(server_url):
     turns.clear()
-    status, body = post(f"{server_url}/invocations", {"prompt": "how much have I spent?"})
+    status, body = post(
+        f"{server_url}/invocations", {"prompt": "how much have I spent?"}, headers_for(session="conv-1")
+    )
     assert status == 200
     assert body == {
         "result": "answer for c-1000",
         "trail": [{"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}}],
     }
-    assert turns == [("how much have I spent?", "c-1000", "default", f"obo:{bearer_for('c-1000')}")]
+    assert turns == [("how much have I spent?", "c-1000", "conv-1", f"obo:{bearer_for('c-1000')}")]
 
 
 def test_the_customer_comes_from_the_token_not_the_body(server_url):
     turns.clear()
-    post(f"{server_url}/invocations", {"prompt": "my orders", "customer": "c-1001", "actor": "c-1001"})
+    post(f"{server_url}/invocations", {"prompt": "my orders", "customer": "c-1001", "actor": "c-1001", "session": "s1"})
     assert turns[-1][1] == "c-1000"
 
 
 def test_the_model_is_given_the_minted_token_not_the_customers(server_url):
     turns.clear()
-    post(f"{server_url}/invocations", {"prompt": "my orders"})
+    post(f"{server_url}/invocations", {"prompt": "my orders", "session": "s1"})
     token = turns[-1][3]
     assert token == f"obo:{bearer_for('c-1000')}"
     assert token != bearer_for("c-1000")
@@ -151,6 +153,16 @@ def test_the_body_session_is_used_outside_the_runtime(server_url):
     assert turns[-1][2] == "from-body"
 
 
+def test_a_request_with_no_session_is_rejected_not_defaulted(server_url):
+    """Two clients of one customer must not silently share a conversation."""
+    assert status_of(f"{server_url}/invocations", {"prompt": "hi"}) == 400
+
+
+def test_a_malformed_session_id_is_rejected(server_url):
+    assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "../c-1001"}) == 400
+    assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "x" * 200}) == 400
+
+
 def test_a_failing_turn_is_a_502_not_a_traceback(server_url):
     def boom(prompt, customer, session, token):
         raise RuntimeError("model unavailable")
@@ -158,21 +170,21 @@ def test_a_failing_turn_is_a_502_not_a_traceback(server_url):
     original = StubHandler.respond
     StubHandler.respond = staticmethod(boom)
     try:
-        assert status_of(f"{server_url}/invocations", {"prompt": "hi"}) == 502
+        assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "s1"}) == 502
     finally:
         StubHandler.respond = original
 
 
 def test_a_missing_prompt_is_rejected(server_url):
-    assert status_of(f"{server_url}/invocations", {"csv": "a,b\n1,2\n"}) == 400
+    assert status_of(f"{server_url}/invocations", {"csv": "a,b\n1,2\n", "session": "s1"}) == 400
 
 
 def test_a_blank_prompt_is_rejected(server_url):
-    assert status_of(f"{server_url}/invocations", {"prompt": "   "}) == 400
+    assert status_of(f"{server_url}/invocations", {"prompt": "   ", "session": "s1"}) == 400
 
 
 def test_a_non_string_prompt_is_rejected(server_url):
-    assert status_of(f"{server_url}/invocations", {"prompt": ["list", "orders"]}) == 400
+    assert status_of(f"{server_url}/invocations", {"prompt": ["list", "orders"], "session": "s1"}) == 400
 
 
 def test_non_object_json_is_rejected(server_url):

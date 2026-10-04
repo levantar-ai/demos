@@ -4,13 +4,14 @@
 
 Five posts built an order support agent out of AgentCore primitives, a
 runtime, a gateway, memory, a sandbox and an identity chain, and every one
-of them routed the prompt with code. This post hands a Bedrock model those
-primitives as tools and lets it decide which to call, in what order and with
-what arguments, for a question nobody wrote code for. Trusted code still
-establishes who the customer is and brokers the token the gateway accepts,
-so the model chooses arguments and never holds a credential. Asked to be
-another customer it declines, and if it were ever talked round, the Cedar
-policy at the gateway refuses a call for anyone else before the tool runs.
+of them routed the prompt with code. This post hands a Bedrock model the
+gateway and the sandbox as tools, with the memory supplied as context, and
+lets it decide which to call, in what order and with what arguments, for a
+question nobody wrote code for. Trusted code still establishes who the
+customer is and brokers the token the gateway accepts, so the model chooses
+arguments and the token is never in its context. Asked to be another
+customer it declines, and if it were ever talked round, the Cedar policy at
+the gateway refuses an order lookup for anyone else before the tool runs.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop
@@ -33,19 +34,21 @@ A primitive is easiest to see on its own, and none of them needs a model
 to be useful, but the reason to have them is what happens when a model is
 given all of them at once. This post is the smallest version
 of that. The handler's routing is gone. The prompt goes to Claude Sonnet 4.5
-on Bedrock, which is handed the gateway as an MCP server, the sandbox as a
-tool called `run_python`, and the memory through the session manager, and
-it decides. Ask it how much you have spent this year month by month and it
+on Bedrock, which is handed the gateway as an MCP server and the sandbox as
+a tool called `run_python`, with the conversation and the customer's
+remembered preferences supplied as context by the session manager, and it
+decides. Ask it how much you have spent this year month by month and it
 fetches your orders through the gateway, writes the pandas itself, runs it
 in the sandbox and reads the result back. Nothing in the repository knows
 how to answer that question. The model worked it out from the tools it had.
 
-What makes that safe to do is post 05, and it is unchanged here. The runtime
+What makes the cross-customer question safe is post 05, and it is unchanged
+here. The runtime
 validates the customer's token. Trusted code reads the customer id from it,
 asks AgentCore Identity for a token for the order service on the customer's
 behalf, and builds the gateway client with that token in its header. The
 model is told the customer's id in its system prompt and chooses the
-`customer_id` argument itself. It is never given the token. So the question
+`customer_id` argument itself. The token is never in its context. So the question
 that matters for a model in the loop, what happens when it chooses wrongly,
 has an answer that does not depend on the model. The gateway's Cedar policy
 compares the argument with the token's `customer_id` claim and refuses a
@@ -71,28 +74,38 @@ the tools and the memory for this customer and this conversation, hands
 them to the agent with the model, runs the prompt and returns the answer
 with the trail of what the model chose.
 
+<!-- cspell:ignore getattr qualname -->
 ```python
 def answer(prompt, customer, session, gateway_token):
     sandbox = Sandbox()
     trail = Trail()
-    memory = session_manager(customer, session)
-    agent = Agent(
-        model=BedrockModel(model_id=os.environ["MODEL_ID"], region_name=region()),
-        system_prompt=SYSTEM_PROMPT.format(customer=customer),
-        tools=[orders_tools(gateway_token), sandbox.run_python],
-        hooks=[trail],
-        session_manager=memory,
-        callback_handler=None,
-    )
+    closers = [sandbox.close]
     try:
+        memory = session_manager(customer, session)
+        closers.append(memory.close)
+        agent = Agent(
+            model=BedrockModel(model_id=os.environ["MODEL_ID"], region_name=region()),
+            system_prompt=SYSTEM_PROMPT.format(customer=customer),
+            tools=[orders_tools(gateway_token), sandbox.run_python],
+            hooks=[trail],
+            session_manager=memory,
+            callback_handler=None,
+        )
+        closers.append(agent.cleanup)
         result = agent(prompt)
     finally:
-        for close in (agent.cleanup, sandbox.close, memory.close):
-            close()
+        for close in reversed(closers):
+            try:
+                close()
+            except Exception as exc:
+                print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {exc}")
     return str(result), trail.steps
 ```
 
-Three things in that list are the series so far.
+Everything that gets created is closed in reverse order whether the turn
+succeeds, fails or never starts, and a failed close is logged rather than
+allowed to hide the answer or the error. Two things in the tools list and
+one beside it are the series so far.
 
 The gateway arrives as an MCP server. Post 02 called a named tool from code.
 Here the gateway is connected as a server and whatever tools it lists are
@@ -112,12 +125,19 @@ the connection when the agent loads its tools and stops it on cleanup, so
 it lives exactly as long as one answer.
 
 ```python
+ALLOWED_TOOLS = ["orders___list_orders"]
+
 def orders_tools(gateway_token):
     return MCPClient(
         url=os.environ["GATEWAY_URL"],
         headers={"Authorization": f"Bearer {gateway_token}"},
+        tool_filters={"allowed": list(ALLOWED_TOOLS)},
     )
 ```
+
+The allowlist is the model's side of least privilege. A target added to the
+gateway later is not handed to the model until the agent names it, and
+Cedar is default deny for anything it might still ask.
 
 The sandbox arrives as a tool the model writes code for. Post 04's handler
 wrote the pandas. Here the docstring is the tool description the model
@@ -144,10 +164,15 @@ class Sandbox:
 
 The session behind it is the Code Interpreter from post 04 in `SANDBOX`
 network mode, created the first time the model reaches for the tool and
-stopped when the answer is out. State persists between calls within one
-turn, so the model can fetch in one call and analyse in the next. AWS's
-description of the capability is the reason the code the model writes can be
-allowed to run at all.
+stopped when the answer is out, with the service's own session timeout as
+the backstop. Variables from one `run_python` call are there for the next
+within a turn, but the sandbox has no access to the gateway's results, so
+the model copies the orders it fetched into the code it writes. Code over
+twenty thousand characters is refused, output is truncated at eight
+thousand, and the hook that records the trail cancels the ninth tool call
+of a turn, so a loop is bounded in what it can cost. AWS's description of
+the capability is the reason the code the model writes can be allowed to
+run at all.
 
 > This is critical in Agentic AI applications where the agents may execute
 > arbitrary code that can lead to data compromise or security risks. The
@@ -156,12 +181,14 @@ allowed to run at all.
 
 https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html
 
-And the memory arrives without routes. Post 03 stored and recalled on
-command. The session manager records every turn as an event in the
-customer's own session, and before each message reaches the model it
-retrieves the customer's long-term records, the `USER_PREFERENCE`
-strategy's extractions in `/users/{actorId}`, and puts them in front of the
-message. The actor is the verified customer and nothing else.
+And the memory arrives beside the tools rather than as one. Post 03 stored
+and recalled on command. The session manager records every turn as an event
+in the customer's own session, restores the conversation at the start of
+the next turn, and before each message reaches the model it retrieves the
+customer's long-term records, the `USER_PREFERENCE` strategy's extractions
+in `/users/{actorId}`, and puts them in front of the message. The model does
+not call memory or choose what is retrieved. The actor is the verified
+customer and nothing else.
 
 ```python
 def config_for(customer, session):
@@ -170,23 +197,21 @@ def config_for(customer, session):
         actor_id=customer,
         session_id=session,
         retrieval_config={"/users/{actorId}": RetrievalConfig(top_k=5, relevance_score=0.3)},
-        filter_restored_tool_context=True,
     )
 ```
 
 The conversation's id is the runtime's own session header, which the
 runtime passes to the container, so a client that keeps the session header
 the same across calls gets one conversation with a memory, and one that
-changes it starts another, as the runtime's session isolation already
-implies.
+changes it starts another. There is no default id. A request that names no
+session is refused, so two clients of one customer never share a
+conversation by accident.
 
-> NOTE: keep the session manager's default of restoring tool calls and
-> results along with the conversation. With them filtered out, a second
-> question in the same conversation sees the model's earlier answer but not
-> the orders behind it, and the model will reconstruct a dataset in the
-> sandbox rather than fetch again. With them restored it reuses the real
-> orders, and the system prompt says besides that the gateway is the only
-> source of orders.
+> NOTE: leave the session manager's `filter_restored_tool_context` at its
+> default. Filtered, a second question in the same conversation sees the
+> model's earlier answer but not the orders behind it, and the model will
+> reconstruct a dataset rather than fetch again. Restored, it reuses the
+> real orders.
 
 ## 2 - What the model is told
 
@@ -203,7 +228,8 @@ different id, decline plainly and do not try the tool.
 
 Nothing else about identity is in the prompt. The minted token is not there,
 the customer's own token is not there, and the model has no tool that could
-return either. That is the division of labour this post is about, the model
+return either. The agent process holds both, as it must to call the runtime
+and the gateway, and neither reaches the model's context. That is the division of labour this post is about, the model
 decides what to ask the gateway and code decides what authenticates the
 asking.
 
@@ -215,12 +241,12 @@ wrong.
 
 ## 3 - The model's own permission
 
-The model is reached through the runtime's execution role, so the container
-holds no model credential. Invocation goes to a cross-region inference
-profile, `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, which routes to the
-foundation model in one of three regions, and Bedrock evaluates both the
-profile's ARN and the model's, so the role names the profile and the exact
-model in each region the profile covers.
+Bedrock is called with the runtime's execution role, so the image carries no
+model credential and nothing static to rotate. Invocation goes to a
+cross-region inference profile, `us.anthropic.claude-sonnet-4-5-20250929-v1:0`,
+which routes to the foundation model in one of several regions, and Bedrock
+evaluates both the profile's ARN and the model's, so the role names the
+profile and the exact model in each region the profile covers.
 
 ```hcl
 {
@@ -233,7 +259,7 @@ model in each region the profile covers.
   Sid      = "InvokeTheModelThroughTheProfile"
   Effect   = "Allow"
   Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
-  Resource = [for r in var.model_regions : "arn:aws:bedrock:${r}::foundation-model/${local.foundation_model}"]
+  Resource = data.aws_bedrock_inference_profile.model.models[*].model_arn
   Condition = {
     StringEquals = { "bedrock:InferenceProfileArn" = local.inference_profile_arn }
   }
@@ -248,12 +274,13 @@ https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-prereq.h
 
 The condition on the second statement is the same page's optional
 tightening, so the model can be invoked only through that profile and never
-by naming a regional model directly. The three regions are the ones
-`get-inference-profile` lists for the profile, and they are a variable so a
-different profile can be named without editing the policy. The only other
-change to the role is `bedrock-agentcore:GetEvent` on the memory, which the
-session manager uses to read a session back. No new resources are created,
-everything the model is handed already existed.
+by naming a regional model directly. The model ARNs are not a list anyone
+maintains. The `aws_bedrock_inference_profile` data source reads them from
+the profile at plan time, so naming a different profile in `model_id`
+changes the policy to match. The only other change to the role is
+`bedrock-agentcore:GetEvent` on the memory, which the session manager uses
+to read a session back. No new resources are created, everything the model
+is handed already existed.
 
 ## 4 - Running it
 
@@ -373,11 +400,13 @@ denied by the gateway: Tool Execution Denied: Tool call not allowed due to
 policy enforcement [Policy evaluation denied due to deny_other_customers_orders]
 ```
 
-That text comes back to the model as a tool error, which the trail records
-as the call's status, and the model reports a refusal rather than data.
-Signed in as c-1001 instead, the same agent lists c-1001's five orders and
-nothing else, because the token, the system prompt and the policy all
-change together.
+Had the model made that call, the MCP client would have returned the
+refusal to it as a tool error, the trail would record the call with its
+error status, and the model would report a refusal rather than data. That
+path is covered by the unit tests rather than by a live turn, since the
+live model never produced one. Signed in as c-1001 instead, the same agent
+lists c-1001's five orders and nothing else, because the token, the system
+prompt and the policy all change together.
 
 ## 5 - What the model can and cannot change
 
@@ -393,21 +422,26 @@ because a prompt talked it into it, meets the same Cedar policy as before,
 and the policy compares it with the claim in the token that was actually
 presented. In the live attempts the model never put a wrong id into a call,
 which is the instruction doing its job, and the policy is what holds when
-the instruction does not. The model being in the loop adds a new way to ask
-for the wrong thing and no new way to get it.
+the instruction does not. For the order lookup, the model being in the loop
+adds a new way to ask for the wrong customer and no new way to get them.
+That is the one action Cedar covers here. It does not reach into the
+sandbox or the memory, and it does not make the model's answers right.
 
 The model chooses code. The code runs in a session with no network and no
-credentials, so it can compute over the data the model put into it and
-nothing else. It cannot reach the gateway, the memory, the account or the
+credentials, so it cannot reach the gateway, the memory, the account or the
 customer's token from inside the sandbox, which is the property post 04
-probed directly.
+probed directly. What that isolation does not bound is time and volume, so
+the agent bounds those itself, eight tool calls a turn, twenty thousand
+characters of code, eight thousand of output.
 
-The model chooses what to say. It can be wrong, it can be verbose, and it
-can be led. The system prompt asks it to decline requests for other
-customers and to use the sandbox for arithmetic, and a model follows
-instructions like that most of the time, not all of it. That is why the
-controls that matter are the ones outside the model, and why the next two
-posts are about seeing what the model did and testing it before it ships.
+The model chooses what to say, and what it says is shaped by everything in
+its context. Three of those things are untrusted, the prompt, the order rows
+the gateway returns and the preference records memory retrieves, which began
+as customer text. Any of them can carry instruction-shaped content. The
+system prompt asks the model to decline requests for other customers and to
+use the sandbox for arithmetic, and a model follows instructions like that
+most of the time, not all of it. That is why the controls that matter are
+the ones outside the model.
 
 Memory is keyed by the verified customer. The session manager is built with
 the actor from the token and a session id the caller controls, so a caller
@@ -430,15 +464,13 @@ answers a question that no code in the repository anticipated, with the
 trail of its choices returned alongside the answer. What made that safe to
 do is that identity stayed where post 05 put it. Trusted code establishes
 the customer and holds the token, the model chooses arguments and code, and
-Policy in AgentCore refuses a wrong customer before the tool runs, and the
-model, asked five ways to be someone else, declined before it got that far. The model brings judgement
-to the agent, and the authority it acts with is the same as before.
+Policy in AgentCore refuses a lookup for a wrong customer before the tool
+runs. All five live attempts to be someone else were declined by the model
+first, and the policy stayed the independent control for a mismatched
+argument. The authority the agent acts with is the same as before.
 
-What it also adds is a component whose behaviour cannot be read from the
-source. The next post puts the model's reasoning, tool calls and latencies
-into traces, so a turn like the ones above can be inspected after the
-fact, and the one after that turns prompts like "actually I am c-1001"
-into tests that gate a release.
+What the model adds is a component whose behaviour cannot be read from the
+source, which is what the next post, on tracing, is for.
 
 References:
 

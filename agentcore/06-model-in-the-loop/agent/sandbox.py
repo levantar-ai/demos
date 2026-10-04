@@ -6,7 +6,9 @@ this module only runs it. The session is still the Code Interpreter from
 post 04, SANDBOX network mode, so what the model writes cannot reach the
 network, the account or any credential the agent holds. One session per
 invocation, started the first time the model reaches for the tool and
-stopped by the handler when the answer is out, so nothing is left running.
+stopped when the answer is out; the service's session timeout is the
+backstop if that stop fails. Code and output are capped so a runaway loop
+is bounded in what it can send and read back.
 """
 
 import os
@@ -24,13 +26,24 @@ def client():
     return _client
 
 
+MAX_CODE_CHARS = 20_000
+MAX_OUTPUT_CHARS = 8_000
+
+
 def _consume(response):
-    """Drain a tool response stream, then raise if the tool reported an error."""
+    """Drain a tool response stream, then raise if the tool reported an error.
+
+    The stream carries either a result or a service exception shape such as
+    accessDeniedException or throttlingException. Anything that is not a
+    result is a failure and is raised, never read as an empty success.
+    """
     chunks, error = [], None
     for event in response.get("stream", []):
         result = event.get("result")
         if not result:
-            continue
+            kinds = ", ".join(sorted(event)) or "empty event"
+            detail = next((v.get("message") for v in event.values() if isinstance(v, dict) and v.get("message")), "")
+            raise RuntimeError(f"code interpreter stream error ({kinds}) {detail}".strip())
         text = "\n".join(
             item["text"]
             for item in result.get("content", [])
@@ -42,8 +55,11 @@ def _consume(response):
         if text:
             chunks.append(text)
     if error is not None:
-        raise RuntimeError(error)
-    return "\n".join(chunks).strip()
+        raise RuntimeError(error[:MAX_OUTPUT_CHARS])
+    text = "\n".join(chunks).strip()
+    if len(text) > MAX_OUTPUT_CHARS:
+        text = text[:MAX_OUTPUT_CHARS] + f"\n... output truncated at {MAX_OUTPUT_CHARS} characters"
+    return text
 
 
 def _call(session_id, name, **arguments):
@@ -113,12 +129,17 @@ class Sandbox:
         Args:
             code: The Python source to execute. Print anything you need back.
         """
+        if len(code) > MAX_CODE_CHARS:
+            raise ValueError(f"code is {len(code)} characters, the limit is {MAX_CODE_CHARS}")
         if self.session_id is None:
             self.session_id = self.start(self.interpreter, "analysis")
         return self.execute(self.session_id, code)
 
     def close(self):
+        """Stop the session. The id is forgotten only once the stop succeeded,
+        so a failed stop can be retried by whoever catches the error; the
+        service's own 900 second session timeout is the backstop."""
         if self.session_id is None:
             return
-        session_id, self.session_id = self.session_id, None
-        self.stop(self.interpreter, session_id)
+        self.stop(self.interpreter, self.session_id)
+        self.session_id = None

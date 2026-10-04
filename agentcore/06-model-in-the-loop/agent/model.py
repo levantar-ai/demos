@@ -38,28 +38,33 @@ def answer(prompt, customer, session, gateway_token):
 
     Returns the model's final text and the trail of tool calls it chose.
     The tools, the memory and the model are all built per request so that
-    nothing from one customer's turn is in scope for another's.
+    nothing from one customer's turn is in scope for another's, and every
+    resource that was created is closed whether the turn succeeds, fails,
+    or never starts because a later resource failed to build.
     """
     sandbox = Sandbox()
     trail = Trail()
-    memory = session_manager(customer, session)
-    agent = make_agent(
-        model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
-        system_prompt=SYSTEM_PROMPT.format(customer=customer),
-        tools=[orders_tools(gateway_token), sandbox.run_python],
-        hooks=[trail],
-        session_manager=memory,
-        callback_handler=None,
-    )
+    closers = [sandbox.close]
     try:
+        memory = session_manager(customer, session)
+        closers.append(memory.close)
+        agent = make_agent(
+            model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
+            system_prompt=SYSTEM_PROMPT.format(customer=customer),
+            tools=[orders_tools(gateway_token), sandbox.run_python],
+            hooks=[trail],
+            session_manager=memory,
+            callback_handler=None,
+        )
+        closers.append(agent.cleanup)
         result = agent(prompt)
     finally:
-        # The MCP connection, the sandbox session, then the memory's buffer.
-        # Cleanup failures must not mask the answer or the error that is
-        # already propagating.
-        for close in (agent.cleanup, sandbox.close, memory.close):
+        # The MCP connection, the memory's buffer, then the sandbox session,
+        # most recently created first. A failed close is logged and the rest
+        # still run; it must not mask the answer or the error already raised.
+        for close in reversed(closers):
             try:
                 close()
             except Exception as exc:  # noqa: BLE001 — logged, never raised over the result
-                print(f"cleanup failed: {exc}")
+                print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {exc}")
     return str(result), trail.steps

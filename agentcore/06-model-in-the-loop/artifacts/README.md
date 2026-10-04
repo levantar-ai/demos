@@ -105,7 +105,7 @@ gateway probed from outside the agent:
 So the control the post describes is live on this stack; the model simply
 never gave it anything to refuse.
 
-### Second run, image c772175
+### Second run, image c772175 (before review round 1)
 
 Runtime version 2, same sessions renamed `…-r2-…`, all fresh.
 
@@ -181,4 +181,74 @@ carrier turn in the first run quoted it unprompted.
 
 ## External review (gpt-5.6-sol via the OpenAI API)
 
-<<REVIEW>>
+### Round 1, 2026-10-04 (post, code and Terraform after the second live run)
+
+Verdict "not ready", two blockers, eleven majors, five minors, one nit.
+Every finding and what was done:
+
+1. **Blocker, post excerpt still showed `filter_restored_tool_context=True`.**
+   Correct, the excerpt predated the fix. Excerpt now matches `memory.py`
+   and the NOTE says to leave the option at its default.
+2. **Blocker, the trail logs generated code with order rows to CloudWatch.**
+   Correct for the log. The runtime log now carries tool name, status and
+   input size only; the trail still goes back to the caller, who is the
+   customer whose rows they are, and the README says so. Test added that
+   representative order values never appear in the log line.
+3. **Major, memory is context, not a tool.** Accepted. TL;DR, longer version,
+   section 1, diagram cluster title and the memory edge's label all reworded.
+4. **Major, the `answer` excerpt simplified the cleanup loop.** Accepted; the
+   excerpt is now the real loop.
+5. **Major, construction outside the `try`.** Accepted. Resources are
+   registered as they are created and closed in reverse on any failure;
+   tests cover agent construction failing after the memory manager exists,
+   and a failing close not stopping the others or masking the answer.
+6. **Major, `_consume` ignored non-result stream events.** Accepted. Any
+   event without a `result` raises with its exception kind and message;
+   tested with an `accessDeniedException` shape.
+7. **Major, `Sandbox.close` forgot the session id before the stop succeeded.**
+   Accepted. The id is cleared only after a successful stop so a retry is
+   possible; tested. Prose now names the 900 s service timeout as the
+   backstop.
+8. **Major, no loop or size limits.** Accepted in proportion to a teaching
+   demo. Eight tool calls a turn (the hook cancels the ninth with a message
+   to the model), 20,000 characters of code, 8,000 of output; the prose
+   claim is narrowed to network and credential isolation.
+9. **Major, `LOG_ONLY` deployable.** Accepted. The variable is gone and the
+   policy engine is `ENFORCE` in the configuration; demo 05 keeps its option
+   because that post used it to look at decisions.
+10. **Major, "fetch in one call and analyse in the next" misdescribed the
+    sandbox.** Accepted, reworded.
+11. **Major, categorical safety claims.** Accepted. Claims are scoped to the
+    order lookup Cedar covers, and section 5 says what it does not cover.
+12. **Major, discovered tools expand authority implicitly.** Accepted.
+    `tool_filters={"allowed": ["orders___list_orders"]}` on the MCP client,
+    tested.
+13. **Major, prompt injection through tool output and memory.** Accepted as
+    an acknowledgement in section 5 and the README; normalising order fields
+    is outside this post's subject.
+14. **Minor, the `"default"` session.** Accepted. A session id is required
+    and validated (`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`); a request without
+    one is a 400. Tests updated.
+15. **Minor, README `ask` built JSON by interpolation.** Accepted, `jq -cn --arg`.
+16. **Minor, credential wording.** Accepted. "The image carries no model
+    credential" and "the token is never in the model's context", with a
+    sentence that the agent process holds both.
+17. **Minor, the tool-error-to-trail path was not a live finding.** Accepted,
+    labelled as covered by the unit tests, not by a live turn.
+18. **Minor, `model_regions` was a hand-kept list.** Accepted, and better
+    than the suggested validation. The `aws_bedrock_inference_profile` data
+    source supplies the profile ARN and the model ARNs it routes to; the
+    variable is gone. `terraform plan` showed no changes against the three
+    ARNs the manual list had.
+19. **Minor, style.** `TL;DR;` is the series' convention and stays. No colons
+    or semicolons remain in prose. The failed-first-run detail lives here,
+    not in the post; the NOTE keeps one sentence of advice. The future-post
+    preview is one sentence.
+20. **Nit, the conclusion's close.** Accepted, split and tightened.
+
+After the changes: ruff clean, 54 agent tests and 101 exchange tests pass,
+`terraform validate` and `tflint` clean, Trivy clean. Redeployed as image
+`<<IMAGE3>>` and the live turns re-run below.
+
+<<REVIEW_ROUND_2>>
+

@@ -106,8 +106,17 @@ def test_the_token_goes_to_the_gateway_client_and_never_to_the_model(fakes):
     assert client.kw == {
         "url": "https://gw.example/mcp",
         "headers": {"Authorization": "Bearer minted-token"},
+        "tool_filters": {"allowed": ["orders___list_orders"]},
     }
     assert "minted-token" not in agent.kw["system_prompt"]
+
+
+def test_only_the_allowlisted_gateway_tools_reach_the_model(fakes):
+    """A target added to the gateway later is not handed to the model until
+    it is named in the agent."""
+    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    client = next(t for t in fakes.built[-1].kw["tools"] if isinstance(t, FakeClient))
+    assert client.kw["tool_filters"]["allowed"] == ["orders___list_orders"]
 
 
 def test_the_model_is_given_the_sandbox_as_a_tool(fakes):
@@ -146,6 +155,34 @@ def test_the_agent_is_cleaned_up_even_when_the_turn_fails(fakes, monkeypatch):
     assert fakes.built[-1].cleaned is True
 
 
+def test_everything_created_is_closed_when_the_agent_cannot_be_built(fakes, monkeypatch):
+    """The memory manager exists before the agent; if the agent (and with it
+    the MCP connection) fails to build, the manager is still closed."""
+    managers = []
+
+    class RecordingManager(FakeManager):
+        def __init__(self, config, region_name=None):
+            super().__init__(config, region_name)
+            managers.append(self)
+
+    def explode(**kw):
+        raise RuntimeError("gateway unreachable")
+
+    monkeypatch.setattr(memory, "make_manager", RecordingManager)
+    monkeypatch.setattr(model, "make_agent", explode)
+    with pytest.raises(RuntimeError, match="gateway unreachable"):
+        model.answer("my orders", "c-1000", "session-1", "minted-token")
+    assert managers and managers[-1].closed is True
+
+
+def test_a_failing_close_does_not_stop_the_others_or_mask_the_answer(fakes, monkeypatch, capsys):
+    monkeypatch.setattr(FakeManager, "close", lambda self: (_ for _ in ()).throw(RuntimeError("flush failed")))
+    text, _ = model.answer("my orders", "c-1000", "session-1", "minted-token")
+    assert text == "answered: my orders"
+    assert fakes.built[-1].cleaned is True
+    assert "cleanup failed" in capsys.readouterr().out
+
+
 def test_the_trail_is_the_agents_hook(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     hooks = fakes.built[-1].kw["hooks"]
@@ -173,6 +210,32 @@ def test_the_trail_records_each_call_with_its_arguments_and_outcome():
         {"tool": "run_python", "input": {"code": "print(1)"}, "status": "success"},
     ]
     assert json.dumps(t.steps)  # what the handler returns must serialise
+
+
+def test_the_runtime_log_never_carries_the_tool_input(capsys):
+    """The trail goes back to the customer; CloudWatch gets names and sizes."""
+    t = trail_module.Trail()
+    code = "orders = [{'order_id': 1033, 'total': 12.0}]\nprint(sum(o['total'] for o in orders))"
+    use = {"name": "run_python", "input": {"code": code}, "toolUseId": "u1"}
+    t.before(_Event(use))
+    t.after(_Event(use, {"status": "success", "content": [{"text": "12.0"}]}))
+    out = capsys.readouterr().out
+    assert "1033" not in out and "12.0" not in out and "orders" not in out
+    assert f"model chose run_python (input {len(code)} chars)" in out
+    assert t.steps[0]["input"]["code"] == code
+
+
+def test_the_trail_cancels_calls_past_the_budget():
+    t = trail_module.Trail(max_tool_calls=2)
+    events = []
+    for i in range(3):
+        e = _Event({"name": "run_python", "input": {"code": "print(1)"}, "toolUseId": f"u{i}"})
+        e.cancel_tool = None
+        t.before(e)
+        events.append(e)
+    assert [e.cancel_tool for e in events[:2]] == [None, None]
+    assert "budget" in events[2].cancel_tool
+    assert len(t.steps) == 2
 
 
 def test_the_trail_ignores_a_result_it_never_saw_start():
@@ -225,6 +288,47 @@ def test_run_python_starts_one_session_and_reuses_it(fake, monkeypatch):
     box.close()
     box.close()
     assert stopped == ["s9"]
+
+
+def test_a_stream_without_a_result_is_an_error_not_an_empty_answer(fake):
+    fake.streams = [[{"accessDeniedException": {"message": "not allowed"}}]]
+    with pytest.raises(RuntimeError, match="accessDeniedException.*not allowed"):
+        sandbox.execute_code("s1", "print(1)")
+
+
+def test_long_output_is_truncated_for_the_model(fake):
+    fake.streams = [[_text_event("x" * (sandbox.MAX_OUTPUT_CHARS + 500))]]
+    out = sandbox.execute_code("s1", "print('x' * 9000)")
+    assert len(out) < sandbox.MAX_OUTPUT_CHARS + 100
+    assert "truncated" in out
+
+
+def test_oversized_code_is_refused_before_a_session_is_started(monkeypatch):
+    started = []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: started.append(n) or "s1"))
+    with pytest.raises(ValueError, match="limit"):
+        sandbox.Sandbox().run_python(code="x" * (sandbox.MAX_CODE_CHARS + 1))
+    assert started == []
+
+
+def test_a_failed_stop_keeps_the_session_id_for_a_retry(monkeypatch):
+    attempts = []
+
+    def flaky_stop(interpreter, sid):
+        attempts.append(sid)
+        if len(attempts) == 1:
+            raise RuntimeError("throttled")
+
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s7"))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: "ok"))
+    monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(flaky_stop))
+    box = sandbox.Sandbox()
+    box.run_python(code="print(1)")
+    with pytest.raises(RuntimeError):
+        box.close()
+    assert box.session_id == "s7"
+    box.close()
+    assert box.session_id is None and attempts == ["s7", "s7"]
 
 
 def test_closing_an_unused_sandbox_stops_nothing(monkeypatch):

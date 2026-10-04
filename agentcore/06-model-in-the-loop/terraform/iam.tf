@@ -101,7 +101,8 @@ resource "aws_iam_role_policy" "runtime" {
         # which routes to the foundation model in one of its regions, and
         # Bedrock evaluates both ARNs, so this statement names the profile
         # and the next names the exact model in each region the profile
-        # covers. Nothing else in Bedrock is callable from this role.
+        # reports it routes to. Nothing else in Bedrock is callable from
+        # this role.
         Sid    = "InvokeTheInferenceProfile"
         Effect = "Allow"
         Action = [
@@ -119,7 +120,7 @@ resource "aws_iam_role_policy" "runtime" {
           "bedrock:InvokeModel",
           "bedrock:InvokeModelWithResponseStream"
         ]
-        Resource = [for r in var.model_regions : "arn:aws:bedrock:${r}::foundation-model/${local.foundation_model}"]
+        Resource = data.aws_bedrock_inference_profile.model.models[*].model_arn
         Condition = {
           StringEquals = {
             "bedrock:InferenceProfileArn" = local.inference_profile_arn

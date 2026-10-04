@@ -98,9 +98,12 @@ resource "aws_bedrockagentcore_gateway" "orders" {
     }
   }
 
+  # ENFORCE, and nothing to set it otherwise. Demo 05 offered LOG_ONLY for
+  # looking at decisions; with a model choosing the arguments there is no
+  # version of this stack where a denied call should still return the data.
   policy_engine_configuration {
     arn  = aws_bedrockagentcore_policy_engine.orders.policy_engine_arn
-    mode = var.policy_mode
+    mode = "ENFORCE"
   }
 
   # The authorizer's discovery document is the exchange pool's own, which
