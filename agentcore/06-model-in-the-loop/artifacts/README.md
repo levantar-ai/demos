@@ -176,6 +176,18 @@ re-fetched for a question about now rather than answering from the restored
 snapshot, which is what the prompt asks for. No budget was ever reached in
 any run; the most tool calls in one turn across all four runs was two.
 
+### Fifth run, image 32339d2 (after review round 3), and the video
+
+Runtime version 5, sessions `…-r6-…`, all fresh. Spend 73.1 s (cold start
+of the new version) with the same trail and figures, this time with order
+counts per month as well; carrier 13.0 s on the restored orders, DPD 5,
+Royal Mail 2, preference quoted; recall 15.4 s, 2 of 7 with Royal Mail;
+both other-customer prompts declined (5.5 s, 5.4 s); c-1001's own view 5
+orders, £355.55 (14.4 s); no token 401; the freshness question in the spend
+session re-fetched through the gateway and reported no change. The demo
+video was re-recorded against this version straight after the turns, so it
+shows the final code.
+
 ## Memory
 
 The seed turn in session `live-06-seed-session-…001` stored five events for
@@ -369,7 +381,7 @@ Verdict "not ready", two blockers, three majors, two minors.
    to a link and a list, not prose.
 
 After the changes: ruff clean, 61 agent tests and 101 exchange tests pass.
-Redeployed as image `1c25814`, the live turns re-run and the video
+Redeployed as image `32339d2`, the live turns re-run and the video
 re-recorded on that image, below.
 
 <<REVIEW_ROUND_4>>

@@ -275,10 +275,12 @@ with the trail of what the model chose.</p>
     try:
         memory = session_manager(customer, session)
         closers.append(memory.close)
+        orders = orders_tools(gateway_token)
+        closers.append(orders.stop)
         agent = Agent(
             model=BedrockModel(model_id=os.environ[&quot;MODEL_ID&quot;], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer),
-            tools=[orders_tools(gateway_token), sandbox.run_python],
+            tools=[orders, sandbox.run_python],
             hooks=[trail],
             session_manager=memory,
             callback_handler=None,
@@ -294,9 +296,11 @@ with the trail of what the model chose.</p>
     return str(result), trail.steps
 </code></pre>
 <p>Everything that gets created is closed in reverse order whether the turn
-succeeds, fails or never starts, and a failed close is logged rather than
-allowed to hide the answer or the error. Two things in the tools list and
-one beside it are the series so far.</p>
+succeeds, fails or never starts. Strands starts the MCP client while the
+agent is built and stops it on <code>agent.cleanup</code>, so the client has a closer
+of its own for the case where the build fails in between, and a failed
+close is logged rather than allowed to hide the answer or the error. Two
+things in the tools list and one beside it are the series so far.</p>
 <p>The gateway arrives as an MCP server. Post 02 called a named tool from code.
 Here the gateway is connected as a server and whatever tools it lists are
 the ones the model may choose from, under the names the gateway gives them,
@@ -346,8 +350,8 @@ code and run it again.</p>
 </code></pre>
 <p>The session behind it is the Code Interpreter from post 04 in <code>SANDBOX</code>
 network mode, created the first time the model reaches for the tool and
-stopped when the answer is out, with the service's own session timeout as
-the backstop. Variables from one <code>run_python</code> call are there for the next
+stopped when the answer is out, with the session's 900 second lifetime as
+the backstop if that stop fails. Variables from one <code>run_python</code> call are there for the next
 within a turn, but the sandbox has no access to the gateway's results, so
 the model copies the orders it fetched into the code it writes. Source
 over twenty thousand characters is refused, the result handed back to the
@@ -498,8 +502,8 @@ session shows the conversation working as one. The question is about the
 same orders, so the model did not go back to the gateway. It reused the
 figures from the earlier turn, which the session manager had restored with
 the conversation, and it brought in something from outside the conversation
-as well. Asked about current status it would fetch again, which the system
-prompt requires.</p>
+as well. Asked about the current status of an order, or whether anything is new,
+it fetches again, which the system prompt requires and the artefacts show.</p>
 <pre><code>$ ask &quot;Which carrier has delivered most of my orders?&quot;
   1. run_python  [success]
 
@@ -556,7 +560,7 @@ policy enforcement [Policy evaluation denied due to deny_other_customers_orders]
 <p>Had the model made that call, the MCP client would have returned the
 refusal to it as a tool error and the model would have reported a refusal
 rather than data. The hook's recording of an error-shaped result is
-unit-tested; the live model never produced one, and the probe above is the
+unit-tested. The live model never produced one, and the probe above is the
 evidence that the gateway denies. Signed in as c-1001 instead, the same agent
 lists c-1001's five orders and nothing else, because the token, the system
 prompt and the policy all change together.</p>
@@ -582,9 +586,10 @@ customer's token from inside the sandbox, which is the property post 04
 probed directly. What that isolation does not bound is how much the model
 asks for, so the agent puts numbers on that itself, eight tool executions a
 turn and then the turn ends, twenty thousand characters of submitted
-source, eight thousand of result returned to the model. Execution time
-inside a call is the service's to limit, and its session timeout is the
-backstop.</p>
+source, eight thousand of result or error kept for the model. It puts no
+limit on how long one execution runs. The 900 second session lifetime
+bounds an abandoned session, not a running call, and the runtime's own
+invocation timeout is what ends a turn that runs away.</p>
 <p>The model chooses what to say, and what it says is shaped by everything in
 its context. Three of those things are untrusted, the prompt, the order rows
 the gateway returns and the preference records memory retrieves, which began
@@ -614,7 +619,10 @@ the customer and holds the token, the model chooses arguments and code, and
 Policy in AgentCore refuses a lookup for a wrong customer before the tool
 runs. All five live attempts to be someone else were declined by the model
 first, and the policy stayed the independent control for a mismatched
-argument. The authority the agent acts with is the same as before.</p>
+argument. The agent's authority to read orders through the gateway is
+unchanged and still bound to the customer in the presented token. What is
+new is what the model may decide within that, which arguments, which code,
+how many calls, and those have their own bounds.</p>
 <p>What the model adds is a component whose behaviour cannot be read from the
 source, which is what the next post, on tracing, is for.</p>
 <p>References:</p>
