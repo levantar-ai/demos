@@ -158,6 +158,24 @@ the log group when the stack is destroyed. No `cleanup failed` and no
 The direct gateway probes from the first run were not repeated; nothing in
 the gateway, the policy or the exchange changed between images.
 
+### Fourth run, image 05df328 (after review round 2)
+
+Runtime version 4, sessions `…-r4-…`, all fresh. Every turn as before:
+spend 49.3 s (cold start of the new version) with the same trail and
+figures; carrier 12.0 s, `run_python` only on the restored orders, DPD 5,
+Royal Mail 2, preference quoted; recall 16.5 s, 2 of 7 with Royal Mail;
+both other-customer prompts declined (6.1 s, 5.3 s); c-1001's own view 5
+orders, £355.55 (13.4 s); no token 401.
+
+One more turn in the same session as the spend question, to exercise the
+round 2 prompt change about freshness. "Has anything changed with my orders
+since we last spoke, any new ones or status updates today?" (7.3 s). Trail
+`orders___list_orders({"customer_id": "c-1000"})` only, no sandbox, and the
+answer that nothing had changed, seven orders all delivered. The model
+re-fetched for a question about now rather than answering from the restored
+snapshot, which is what the prompt asks for. No budget was ever reached in
+any run; the most tool calls in one turn across all four runs was two.
+
 ## Memory
 
 The seed turn in session `live-06-seed-session-…001` stored five events for
