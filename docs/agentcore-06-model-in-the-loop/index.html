@@ -36,7 +36,7 @@
   "image": "https://levantar-ai.github.io/demos/agentcore-06-model-in-the-loop/social.png",
   "datePublished": "2026-10-04",
   "dateModified": "2026-10-04",
-  "wordCount": 3000,
+  "wordCount": 3200,
   "inLanguage": "en-GB",
   "mainEntityOfPage": {
     "@type": "WebPage",
@@ -191,7 +191,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
-          <div class="facts"><time datetime="2026-10-04">4 October 2026</time><span class="sep">·</span>15 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-10-04">4 October 2026</time><span class="sep">·</span>16 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
       <nav class="series-nav prev">
@@ -349,12 +349,13 @@ network mode, created the first time the model reaches for the tool and
 stopped when the answer is out, with the service's own session timeout as
 the backstop. Variables from one <code>run_python</code> call are there for the next
 within a turn, but the sandbox has no access to the gateway's results, so
-the model copies the orders it fetched into the code it writes. Code over
-twenty thousand characters is refused, output is truncated at eight
-thousand, and the hook that records the trail cancels the ninth tool call
-of a turn, so a loop is bounded in what it can cost. AWS's description of
-the capability is the reason the code the model writes can be allowed to
-run at all.</p>
+the model copies the orders it fetched into the code it writes. Source
+over twenty thousand characters is refused, the result handed back to the
+model is cut at eight thousand, and the hook that records the trail allows
+eight tool executions a turn, refuses the next with a message to answer
+from what it has, and ends the turn if the model keeps asking. AWS's
+description of the capability is the reason the code the model writes can
+be allowed to run at all.</p>
 <blockquote>
 <p>This is critical in Agentic AI applications where the agents may execute
 arbitrary code that can lead to data compromise or security risks. The
@@ -363,9 +364,10 @@ you avoid running into these issues.</p>
 </blockquote>
 <p><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html</a></p>
 <p>And the memory arrives beside the tools rather than as one. Post 03 stored
-and recalled on command. The session manager records every turn as an event
-in the customer's own session, restores the conversation at the start of
-the next turn, and before each message reaches the model it retrieves the
+and recalled on command. The session manager writes each turn's messages
+and state as events in the customer's own session, restores the
+conversation at the start of the next turn, and before each message reaches
+the model it retrieves the
 customer's long-term records, the <code>USER_PREFERENCE</code> strategy's extractions
 in <code>/users/{actorId}</code>, and puts them in front of the message. The model does
 not call memory or choose what is retrieved. The actor is the verified
@@ -382,14 +384,16 @@ customer and nothing else.</p>
 runtime passes to the container, so a client that keeps the session header
 the same across calls gets one conversation with a memory, and one that
 changes it starts another. There is no default id. A request that names no
-session is refused, so two clients of one customer never share a
-conversation by accident.</p>
+session is refused, so two clients of one customer do not fall into one
+conversation through a shared default, and a fresh, unguessable id per
+conversation keeps them apart on purpose.</p>
 <blockquote>
 <p>NOTE: leave the session manager's <code>filter_restored_tool_context</code> at its
 default. Filtered, a second question in the same conversation sees the
 model's earlier answer but not the orders behind it, and the model will
-reconstruct a dataset rather than fetch again. Restored, it reuses the
-real orders.</p>
+reconstruct a dataset rather than fetch again. Restored, it can analyse
+the orders it already fetched, and the system prompt tells it to fetch
+again for anything about current status.</p>
 </blockquote>
 <h2>2 - What the model is told</h2>
 <p>The system prompt is short, and two sentences of it carry weight. The
@@ -490,10 +494,12 @@ for month, total in monthly.items():
 print(f&quot;\nBiggest month: {monthly.idxmax()} with £{monthly.max():.2f}&quot;)
 </code></pre>
 <p>Every figure matches <code>tool/orders.csv</code>. A second question in the same
-session shows the conversation working as one. The model did not go back to
-the gateway, it reused the orders from the earlier turn, which the session
-manager had restored with the conversation, and it brought in something
-from outside the conversation as well.</p>
+session shows the conversation working as one. The question is about the
+same orders, so the model did not go back to the gateway. It reused the
+figures from the earlier turn, which the session manager had restored with
+the conversation, and it brought in something from outside the conversation
+as well. Asked about current status it would fetch again, which the system
+prompt requires.</p>
 <pre><code>$ ask &quot;Which carrier has delivered most of my orders?&quot;
   1. run_python  [success]
 
@@ -548,10 +554,10 @@ denied by the gateway: Tool Execution Denied: Tool call not allowed due to
 policy enforcement [Policy evaluation denied due to deny_other_customers_orders]
 </code></pre>
 <p>Had the model made that call, the MCP client would have returned the
-refusal to it as a tool error, the trail would record the call with its
-error status, and the model would report a refusal rather than data. That
-path is covered by the unit tests rather than by a live turn, since the
-live model never produced one. Signed in as c-1001 instead, the same agent
+refusal to it as a tool error and the model would have reported a refusal
+rather than data. The hook's recording of an error-shaped result is
+unit-tested; the live model never produced one, and the probe above is the
+evidence that the gateway denies. Signed in as c-1001 instead, the same agent
 lists c-1001's five orders and nothing else, because the token, the system
 prompt and the policy all change together.</p>
 <h2>5 - What the model can and cannot change</h2>
@@ -573,9 +579,12 @@ sandbox or the memory, and it does not make the model's answers right.</p>
 <p>The model chooses code. The code runs in a session with no network and no
 credentials, so it cannot reach the gateway, the memory, the account or the
 customer's token from inside the sandbox, which is the property post 04
-probed directly. What that isolation does not bound is time and volume, so
-the agent bounds those itself, eight tool calls a turn, twenty thousand
-characters of code, eight thousand of output.</p>
+probed directly. What that isolation does not bound is how much the model
+asks for, so the agent puts numbers on that itself, eight tool executions a
+turn and then the turn ends, twenty thousand characters of submitted
+source, eight thousand of result returned to the model. Execution time
+inside a call is the service's to limit, and its session timeout is the
+backstop.</p>
 <p>The model chooses what to say, and what it says is shaped by everything in
 its context. Three of those things are untrusted, the prompt, the order rows
 the gateway returns and the preference records memory retrieves, which began

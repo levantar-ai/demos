@@ -10,8 +10,16 @@ in CloudWatch.
 
 The same hook is the turn's budget. A model loop that keeps calling tools is
 a cost and an availability problem before it is anything else, so after
-MAX_TOOL_CALLS the hook cancels further calls and the model is told why.
+MAX_TOOL_CALLS executions the next request is cancelled with a message that
+tells the model to answer from what it has, recorded in the trail as
+cancelled, and a request after that ends the turn with BudgetExceeded, which
+the handler turns into a 502. Cancelling alone would not bound anything, the
+model could keep asking and each ask is another model invocation.
 """
+
+
+class BudgetExceeded(RuntimeError):
+    """The model kept asking for tools after being told the budget was spent."""
 
 from strands.hooks import (
     AfterToolCallEvent,
@@ -42,6 +50,7 @@ class Trail(HookProvider):
     def __init__(self, max_tool_calls=MAX_TOOL_CALLS):
         self.steps = []
         self.max_tool_calls = max_tool_calls
+        self.executed = 0
         self._open = {}
 
     def register_hooks(self, registry: HookRegistry, **kwargs) -> None:
@@ -50,14 +59,22 @@ class Trail(HookProvider):
 
     def before(self, event):
         use = event.tool_use
-        if len(self.steps) >= self.max_tool_calls:
+        step = {"tool": use["name"], "input": use.get("input", {})}
+        if self.executed >= self.max_tool_calls:
+            refused = sum(1 for s in self.steps if s.get("status") == "cancelled")
+            step["status"] = "cancelled"
+            self.steps.append(step)
+            print(f"tool budget spent, refused {use['name']}")
+            if refused >= 1:
+                raise BudgetExceeded(
+                    f"the model asked for a tool again after the budget of {self.max_tool_calls} was spent"
+                )
             event.cancel_tool = (
                 f"tool budget of {self.max_tool_calls} calls for this turn is spent; "
                 "answer with what you have"
             )
-            print(f"tool budget spent, refused {use['name']}")
             return
-        step = {"tool": use["name"], "input": use.get("input", {})}
+        self.executed += 1
         self.steps.append(step)
         self._open[use.get("toolUseId")] = step
         print(f"model chose {use['name']} (input {_size_of(step['input'])} chars)")

@@ -37,7 +37,7 @@ def _consume(response):
     accessDeniedException or throttlingException. Anything that is not a
     result is a failure and is raised, never read as an empty success.
     """
-    chunks, error = [], None
+    chunks, error, retained, truncated = [], None, 0, False
     for event in response.get("stream", []):
         result = event.get("result")
         if not result:
@@ -52,12 +52,17 @@ def _consume(response):
         if result.get("isError"):
             error = error or text or "code interpreter tool failed"
             continue
-        if text:
-            chunks.append(text)
+        # Keep at most the limit in memory; the rest of the stream is read
+        # and dropped rather than accumulated.
+        if text and retained < MAX_OUTPUT_CHARS:
+            chunks.append(text[: MAX_OUTPUT_CHARS - retained])
+            retained += len(chunks[-1])
+        elif text:
+            truncated = True
     if error is not None:
         raise RuntimeError(error[:MAX_OUTPUT_CHARS])
     text = "\n".join(chunks).strip()
-    if len(text) > MAX_OUTPUT_CHARS:
+    if truncated or len(text) >= MAX_OUTPUT_CHARS:
         text = text[:MAX_OUTPUT_CHARS] + f"\n... output truncated at {MAX_OUTPUT_CHARS} characters"
     return text
 

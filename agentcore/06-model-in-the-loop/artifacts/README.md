@@ -278,5 +278,47 @@ After the changes: ruff clean, 54 agent tests and 101 exchange tests pass,
 `terraform validate` and `tflint` clean, Trivy clean. Redeployed as image
 `de0641a` and the live turns re-run below.
 
-<<REVIEW_ROUND_2>>
+### Round 2, 2026-10-04 (after the round 1 fixes and the third live run)
+
+Verdict "not ready", one blocker, four majors, three minors.
+
+1. **Blocker, the budget cancelled calls but did not end the turn.** Correct;
+   a cancelled call is another model invocation and the model could ask
+   again indefinitely. The hook now counts executions separately, records a
+   refused request in the trail as `cancelled`, and raises `BudgetExceeded`
+   on the next request after the refusal, which ends the turn; the handler
+   returns a 502 that says so. Tests cover the cancel, the raise and that
+   every resource is still closed on the way out.
+2. **Major, the prompt made a restored snapshot a permanent substitute for
+   the gateway.** Correct. The prompt now allows reuse only for further
+   analysis of the same figures and requires a fresh call for anything about
+   current status, carrier, ETA, new orders, or "now" and "today". The post
+   describes the second turn as reuse of the same orders for a follow-up.
+3. **Major, the MCP client was not an independently closed resource.**
+   Correct. It is now a named variable whose `stop` is registered before the
+   agent is built; `stop` on a client that never started, or that
+   `agent.cleanup` already stopped, is a no-op in Strands 1.57.2 (checked in
+   the source). Tests use a lifecycle-aware fake that is started by agent
+   construction and then fails.
+4. **Major, the output cap applied after accumulation and the prose claimed
+   time was bounded.** Accepted. `_consume` retains at most 8,000 characters
+   while draining the rest of the stream; the prose claims executions,
+   submitted source and returned result only, and names the service's
+   session timeout as the time backstop.
+5. **Major, the Cedar-to-trail path was called unit-tested.** Accepted; the
+   post now says the hook's handling of an error-shaped result is
+   unit-tested and that the probe is the evidence the gateway denies.
+6. **Minor, same-customer session collisions.** Accepted; the post and README
+   say the requirement removes the shared default and recommend a fresh,
+   unguessable id per conversation.
+7. **Minor, "every turn as an event".** Accepted, "each turn's messages and
+   state as events".
+8. **Minor, cancelled attempts missing from the trail.** Accepted, recorded
+   as `cancelled` (see 1).
+
+After the changes: ruff clean, 59 agent tests and 101 exchange tests pass.
+Redeployed as image `<<IMAGE4>>` and the live turns re-run below.
+
+<<REVIEW_ROUND_3>>
+
 

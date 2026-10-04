@@ -42,8 +42,18 @@ class FakeManager:
 
 
 class FakeClient:
+    """Lifecycle-aware stand-in: Strands starts the real client while the
+    agent is built, so the fake is 'started' as soon as the agent sees it."""
+
     def __init__(self, **kw):
         self.kw = kw
+        self.started = False
+        self.stopped = 0
+
+    def stop(self, *args):
+        if self.started:
+            self.stopped += 1
+            self.started = False
 
 
 class FakeResult:
@@ -60,6 +70,9 @@ class FakeAgent:
     def __init__(self, **kw):
         self.kw = kw
         self.cleaned = False
+        for t in kw.get("tools", []):
+            if isinstance(t, FakeClient):
+                t.started = True
         FakeAgent.built.append(self)
 
     def __call__(self, prompt):
@@ -68,6 +81,9 @@ class FakeAgent:
 
     def cleanup(self):
         self.cleaned = True
+        for t in self.kw.get("tools", []):
+            if isinstance(t, FakeClient):
+                t.stop()
 
 
 @pytest.fixture
@@ -97,6 +113,7 @@ def test_the_model_is_told_the_gateway_is_the_only_source_of_orders(fakes):
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "only source of order data" in prompt
     assert "Never invent" in prompt
+    assert "call it again" in prompt  # a restored snapshot is for analysis, not for current status
 
 
 def test_the_token_goes_to_the_gateway_client_and_never_to_the_model(fakes):
@@ -153,6 +170,35 @@ def test_the_agent_is_cleaned_up_even_when_the_turn_fails(fakes, monkeypatch):
     with pytest.raises(RuntimeError, match="throttled"):
         model.answer("my orders", "c-1000", "session-1", "minted-token")
     assert fakes.built[-1].cleaned is True
+
+
+def test_the_mcp_client_is_stopped_when_the_agent_fails_after_starting_it(fakes, monkeypatch):
+    """Strands starts the MCP client during Agent construction. If the
+    construction then fails, the client is stopped by its own closer."""
+    clients = []
+
+    class RecordingClient(FakeClient):
+        def __init__(self, **kw):
+            super().__init__(**kw)
+            clients.append(self)
+
+    def starts_then_fails(**kw):
+        for t in kw["tools"]:
+            if isinstance(t, FakeClient):
+                t.started = True
+        raise RuntimeError("model config invalid")
+
+    monkeypatch.setattr(gateway, "make_client", RecordingClient)
+    monkeypatch.setattr(model, "make_agent", starts_then_fails)
+    with pytest.raises(RuntimeError, match="model config invalid"):
+        model.answer("my orders", "c-1000", "session-1", "minted-token")
+    assert clients[-1].stopped == 1 and clients[-1].started is False
+
+
+def test_the_mcp_client_is_stopped_once_on_the_happy_path(fakes):
+    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    client = next(t for t in fakes.built[-1].kw["tools"] if isinstance(t, FakeClient))
+    assert client.stopped == 1  # agent.cleanup stopped it; the extra stop was a no-op
 
 
 def test_everything_created_is_closed_when_the_agent_cannot_be_built(fakes, monkeypatch):
@@ -225,7 +271,9 @@ def test_the_runtime_log_never_carries_the_tool_input(capsys):
     assert t.steps[0]["input"]["code"] == code
 
 
-def test_the_trail_cancels_calls_past_the_budget():
+def test_the_trail_cancels_the_call_past_the_budget_then_ends_the_turn():
+    """Cancelling alone would let the model ask forever; the second ask after
+    the budget raises and the turn ends."""
     t = trail_module.Trail(max_tool_calls=2)
     events = []
     for i in range(3):
@@ -235,7 +283,23 @@ def test_the_trail_cancels_calls_past_the_budget():
         events.append(e)
     assert [e.cancel_tool for e in events[:2]] == [None, None]
     assert "budget" in events[2].cancel_tool
-    assert len(t.steps) == 2
+    assert t.executed == 2
+    assert [s.get("status") for s in t.steps] == [None, None, "cancelled"]
+    fourth = _Event({"name": "run_python", "input": {"code": "print(2)"}, "toolUseId": "u3"})
+    fourth.cancel_tool = None
+    with pytest.raises(trail_module.BudgetExceeded):
+        t.before(fourth)
+    assert [s.get("status") for s in t.steps][-2:] == ["cancelled", "cancelled"]
+
+
+def test_a_budget_overrun_still_closes_everything(fakes, monkeypatch):
+    def keeps_asking(self, prompt):
+        raise trail_module.BudgetExceeded("kept asking")
+
+    monkeypatch.setattr(FakeAgent, "__call__", keeps_asking)
+    with pytest.raises(trail_module.BudgetExceeded):
+        model.answer("loop forever", "c-1000", "session-1", "minted-token")
+    assert fakes.built[-1].cleaned is True
 
 
 def test_the_trail_ignores_a_result_it_never_saw_start():
@@ -300,6 +364,15 @@ def test_long_output_is_truncated_for_the_model(fake):
     fake.streams = [[_text_event("x" * (sandbox.MAX_OUTPUT_CHARS + 500))]]
     out = sandbox.execute_code("s1", "print('x' * 9000)")
     assert len(out) < sandbox.MAX_OUTPUT_CHARS + 100
+    assert "truncated" in out
+
+
+def test_output_past_the_limit_is_drained_not_retained(fake):
+    """Many chunks beyond the limit are read and dropped; what is kept never
+    exceeds the limit, whatever the service sends."""
+    fake.streams = [[_text_event("y" * 1000) for _ in range(50)]]
+    out = sandbox.execute_code("s1", "print('y' * 50000)")
+    assert sandbox.MAX_OUTPUT_CHARS - 50 <= out.count("y") <= sandbox.MAX_OUTPUT_CHARS
     assert "truncated" in out
 
 

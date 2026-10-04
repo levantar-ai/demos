@@ -175,6 +175,23 @@ def test_a_failing_turn_is_a_502_not_a_traceback(server_url):
         StubHandler.respond = original
 
 
+def test_a_budget_overrun_is_a_502_that_says_so(server_url):
+    import trail
+
+    def loops(prompt, customer, session, token):
+        raise trail.BudgetExceeded("kept asking")
+
+    original = StubHandler.respond
+    StubHandler.respond = staticmethod(loops)
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            post(f"{server_url}/invocations", {"prompt": "hi", "session": "s1"})
+        assert exc.value.code == 502
+        assert "budget" in json.loads(exc.value.read())["error"]
+    finally:
+        StubHandler.respond = original
+
+
 def test_a_missing_prompt_is_rejected(server_url):
     assert status_of(f"{server_url}/invocations", {"csv": "a,b\n1,2\n", "session": "s1"}) == 400
 

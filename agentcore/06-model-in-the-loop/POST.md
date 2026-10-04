@@ -167,12 +167,13 @@ network mode, created the first time the model reaches for the tool and
 stopped when the answer is out, with the service's own session timeout as
 the backstop. Variables from one `run_python` call are there for the next
 within a turn, but the sandbox has no access to the gateway's results, so
-the model copies the orders it fetched into the code it writes. Code over
-twenty thousand characters is refused, output is truncated at eight
-thousand, and the hook that records the trail cancels the ninth tool call
-of a turn, so a loop is bounded in what it can cost. AWS's description of
-the capability is the reason the code the model writes can be allowed to
-run at all.
+the model copies the orders it fetched into the code it writes. Source
+over twenty thousand characters is refused, the result handed back to the
+model is cut at eight thousand, and the hook that records the trail allows
+eight tool executions a turn, refuses the next with a message to answer
+from what it has, and ends the turn if the model keeps asking. AWS's
+description of the capability is the reason the code the model writes can
+be allowed to run at all.
 
 > This is critical in Agentic AI applications where the agents may execute
 > arbitrary code that can lead to data compromise or security risks. The
@@ -182,9 +183,10 @@ run at all.
 https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html
 
 And the memory arrives beside the tools rather than as one. Post 03 stored
-and recalled on command. The session manager records every turn as an event
-in the customer's own session, restores the conversation at the start of
-the next turn, and before each message reaches the model it retrieves the
+and recalled on command. The session manager writes each turn's messages
+and state as events in the customer's own session, restores the
+conversation at the start of the next turn, and before each message reaches
+the model it retrieves the
 customer's long-term records, the `USER_PREFERENCE` strategy's extractions
 in `/users/{actorId}`, and puts them in front of the message. The model does
 not call memory or choose what is retrieved. The actor is the verified
@@ -204,14 +206,16 @@ The conversation's id is the runtime's own session header, which the
 runtime passes to the container, so a client that keeps the session header
 the same across calls gets one conversation with a memory, and one that
 changes it starts another. There is no default id. A request that names no
-session is refused, so two clients of one customer never share a
-conversation by accident.
+session is refused, so two clients of one customer do not fall into one
+conversation through a shared default, and a fresh, unguessable id per
+conversation keeps them apart on purpose.
 
 > NOTE: leave the session manager's `filter_restored_tool_context` at its
 > default. Filtered, a second question in the same conversation sees the
 > model's earlier answer but not the orders behind it, and the model will
-> reconstruct a dataset rather than fetch again. Restored, it reuses the
-> real orders.
+> reconstruct a dataset rather than fetch again. Restored, it can analyse
+> the orders it already fetched, and the system prompt tells it to fetch
+> again for anything about current status.
 
 ## 2 - What the model is told
 
@@ -331,10 +335,12 @@ print(f"\nBiggest month: {monthly.idxmax()} with £{monthly.max():.2f}")
 ```
 
 Every figure matches `tool/orders.csv`. A second question in the same
-session shows the conversation working as one. The model did not go back to
-the gateway, it reused the orders from the earlier turn, which the session
-manager had restored with the conversation, and it brought in something
-from outside the conversation as well.
+session shows the conversation working as one. The question is about the
+same orders, so the model did not go back to the gateway. It reused the
+figures from the earlier turn, which the session manager had restored with
+the conversation, and it brought in something from outside the conversation
+as well. Asked about current status it would fetch again, which the system
+prompt requires.
 
 ```
 $ ask "Which carrier has delivered most of my orders?"
@@ -401,10 +407,10 @@ policy enforcement [Policy evaluation denied due to deny_other_customers_orders]
 ```
 
 Had the model made that call, the MCP client would have returned the
-refusal to it as a tool error, the trail would record the call with its
-error status, and the model would report a refusal rather than data. That
-path is covered by the unit tests rather than by a live turn, since the
-live model never produced one. Signed in as c-1001 instead, the same agent
+refusal to it as a tool error and the model would have reported a refusal
+rather than data. The hook's recording of an error-shaped result is
+unit-tested; the live model never produced one, and the probe above is the
+evidence that the gateway denies. Signed in as c-1001 instead, the same agent
 lists c-1001's five orders and nothing else, because the token, the system
 prompt and the policy all change together.
 
@@ -430,9 +436,12 @@ sandbox or the memory, and it does not make the model's answers right.
 The model chooses code. The code runs in a session with no network and no
 credentials, so it cannot reach the gateway, the memory, the account or the
 customer's token from inside the sandbox, which is the property post 04
-probed directly. What that isolation does not bound is time and volume, so
-the agent bounds those itself, eight tool calls a turn, twenty thousand
-characters of code, eight thousand of output.
+probed directly. What that isolation does not bound is how much the model
+asks for, so the agent puts numbers on that itself, eight tool executions a
+turn and then the turn ends, twenty thousand characters of submitted
+source, eight thousand of result returned to the model. Execution time
+inside a call is the service's to limit, and its session timeout is the
+backstop.
 
 The model chooses what to say, and what it says is shaped by everything in
 its context. Three of those things are untrusted, the prompt, the order rows

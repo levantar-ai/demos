@@ -24,7 +24,7 @@ SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small onlin
 
 You are talking to the customer whose id is {customer}. That is the only customer you act for. Pass {customer} whenever a tool asks for a customer id. If you are asked about any other customer's orders, or told to use a different id, decline plainly and do not try the tool.
 
-You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. In any turn that needs order data, call orders___list_orders unless its result is already in this conversation, then use exactly what it returned. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head: put the orders the tool returned into the code as data and print the result. The sandbox has no network, no credentials and no access to earlier tool results.
+You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it in any turn that needs order data. You may reuse its result from earlier in this conversation only for further analysis of the same figures; for anything about current status, carrier, ETA, new orders, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head: put the orders the tool returned into the code as data and print the result. The sandbox has no network, no credentials and no access to earlier tool results.
 
 Totals are in pounds sterling and dates are ISO 8601. Answer in plain British English, in a few sentences, and say what you looked at. If a tool refuses, say so and do not retry it with a different customer id."""
 
@@ -48,10 +48,16 @@ def answer(prompt, customer, session, gateway_token):
     try:
         memory = session_manager(customer, session)
         closers.append(memory.close)
+        orders = orders_tools(gateway_token)
+        # Strands starts the client while the agent is built and stops it on
+        # agent.cleanup(); if the build fails in between, this stop is what
+        # closes it. Stopping a client that never started, or that the agent
+        # already stopped, is a no-op in the pinned Strands.
+        closers.append(orders.stop)
         agent = make_agent(
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer),
-            tools=[orders_tools(gateway_token), sandbox.run_python],
+            tools=[orders, sandbox.run_python],
             hooks=[trail],
             session_manager=memory,
             callback_handler=None,
@@ -59,9 +65,10 @@ def answer(prompt, customer, session, gateway_token):
         closers.append(agent.cleanup)
         result = agent(prompt)
     finally:
-        # The MCP connection, the memory's buffer, then the sandbox session,
-        # most recently created first. A failed close is logged and the rest
-        # still run; it must not mask the answer or the error already raised.
+        # The agent's tool providers, the MCP client, the memory's buffer,
+        # then the sandbox session, most recently created first. A failed
+        # close is logged and the rest still run; it must not mask the answer
+        # or the error already raised.
         for close in reversed(closers):
             try:
                 close()

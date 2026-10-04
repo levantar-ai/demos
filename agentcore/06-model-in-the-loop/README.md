@@ -102,8 +102,9 @@ ask "Which carrier has delivered most of my orders?"
 ```
 
 A session id is required, from the runtime's header or a `session` field in
-the body; there is no default, so two clients of one customer never share a
-conversation by accident. The response carries the answer and the trail,
+the body; there is no default, so two clients of one customer do not fall
+into one conversation by accident. Use a fresh, unguessable id for each
+conversation (the examples below are fixed only so they read well). The response carries the answer and the trail,
 every tool the model chose with the arguments it chose and whether the call
 succeeded:
 
@@ -161,10 +162,15 @@ stack, for looking at the minted token and calling the gateway directly.
   back to the caller, who is the customer whose orders are in it. The
   runtime's log gets a redacted line per step, the tool name, the status and
   the size of the input, never the generated code or the order rows it
-  embeds. The same hook caps a turn at eight tool calls and cancels the
-  ninth with a message to the model, so a loop is bounded in cost.
-- The sandbox tool refuses code over 20,000 characters, truncates output at
-  8,000, and treats any stream event that is not a result (a throttling or
+  embeds. The same hook allows eight tool executions a turn, refuses the
+  ninth with a message to answer from what it has (recorded in the trail as
+  `cancelled`), and raises on the tenth so the turn ends as a 502 rather
+  than running on. That bounds executions and model calls per turn; it does
+  not bound execution time inside the sandbox, which the service's session
+  timeout backstops.
+- The sandbox tool refuses code over 20,000 characters, retains at most
+  8,000 characters of result for the model while draining the rest of the
+  stream, and treats any stream event that is not a result (a throttling or
   access-denied shape) as an error rather than an empty success. Its session
   id is forgotten only after a successful stop; the 900 second service
   timeout is the backstop if the stop fails.

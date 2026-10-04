@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from identity import orders_token
 from model import answer
+from trail import BudgetExceeded
 
 PORT = 8080
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -131,7 +132,11 @@ class Handler(BaseHTTPRequestHandler):
             # ask the gateway; it never holds what authenticates the asking.
             gateway_token = self.exchange(bearer_from(self.headers))
             result, trail = self.respond(prompt, customer, session, gateway_token)
-        except Exception as exc:  # noqa: BLE001 — any failure in the turn is a 502
+        except BudgetExceeded as exc:
+            print(f"turn ended for {customer}: {exc}")
+            self._send(502, {"error": "the model exceeded its tool budget for this turn"})
+            return
+        except Exception as exc:  # noqa: BLE001 — any other failure in the turn is a 502
             print(f"turn failed for {customer}: {exc}")
             self._send(502, {"error": "request failed"})
             return
