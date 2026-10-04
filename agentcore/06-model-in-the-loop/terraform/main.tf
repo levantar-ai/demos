@@ -34,7 +34,7 @@ data "aws_caller_identity" "current" {}
 locals {
   demo_slug        = "06-model-in-the-loop"
   name_prefix      = "demos-agentcore-${local.demo_slug}"
-  runtime_name     = "demos_agentcore_06_identity"
+  runtime_name     = "demos_agentcore_06_model_in_the_loop"
   interpreter_name = "demos_agentcore_06_interpreter"
   memory_name      = "demos_agentcore_06_memory"
   ecr_repo         = "demos/agentcore/${local.demo_slug}"

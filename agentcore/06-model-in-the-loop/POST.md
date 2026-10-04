@@ -38,7 +38,7 @@ tool called `run_python`, and the memory through the session manager, and
 it decides. Ask it how much you have spent this year month by month and it
 fetches your orders through the gateway, writes the pandas itself, runs it
 in the sandbox and reads the result back. Nothing in the repository knows
-how to answer that question; the model worked it out from the tools it had.
+how to answer that question. The model worked it out from the tools it had.
 
 What makes that safe to do is post 05, and it is unchanged here. The runtime
 validates the customer's token. Trusted code reads the customer id from it,
@@ -59,7 +59,7 @@ sends tool results back to the model, and the `bedrock-agentcore` SDK brings
 a session manager that stores every turn in AgentCore Memory and retrieves
 the customer's long-term records before the model sees a message. The HTTP
 contract is still the hand-rolled server from post 01. The SDK's
-`BedrockAgentCoreApp` does the same job and would replace it; keeping the
+`BedrockAgentCoreApp` does the same job and would replace it. Keeping the
 server keeps the diff between post 05 and this one about the model.
 
 ![A model handed the tools the series built, choosing what to call, with identity staying in trusted code](architecture.png)
@@ -94,8 +94,8 @@ def answer(prompt, customer, session, gateway_token):
 
 Three things in that list are the series so far.
 
-The gateway arrives as an MCP server. Post 02 called a named tool from code;
-here the gateway is connected as a server and whatever tools it lists are
+The gateway arrives as an MCP server. Post 02 called a named tool from code.
+Here the gateway is connected as a server and whatever tools it lists are
 the ones the model may choose from, under the names the gateway gives them,
 `<target>___<tool>`, so the model sees `orders___list_orders` with the
 description and schema the gateway target declares. That is what AWS says
@@ -120,7 +120,7 @@ def orders_tools(gateway_token):
 ```
 
 The sandbox arrives as a tool the model writes code for. Post 04's handler
-wrote the pandas; here the docstring is the tool description the model
+wrote the pandas. Here the docstring is the tool description the model
 reads, the argument is the code it writes, and the return value is what the
 code printed. A failure is returned to the model as a tool error rather than
 raised at the caller, which is what lets it read the traceback, fix the
@@ -244,7 +244,7 @@ by naming a regional model directly. The three regions are the ones
 `get-inference-profile` lists for the profile, and they are a variable so a
 different profile can be named without editing the policy. The only other
 change to the role is `bedrock-agentcore:GetEvent` on the memory, which the
-session manager uses to read a session back. No new resources are created;
+session manager uses to read a session back. No new resources are created,
 everything the model is handed already existed.
 
 ## 4 - Running it
