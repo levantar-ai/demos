@@ -8,6 +8,11 @@ records, the USER_PREFERENCE strategy's extractions in /users/{actorId}, and
 puts them in front of the message. The actor is always the verified customer,
 never a value from the request body, so one customer's preferences cannot be
 read into another's conversation.
+
+Restored turns keep their tool calls and results (the SDK's default). The
+live run showed why: with them filtered out, a second turn in the same
+conversation saw its own earlier answer but not the orders behind it, and the
+model invented a dataset in the sandbox rather than fetching again.
 """
 
 import os
@@ -40,7 +45,6 @@ def config_for(customer, session):
         actor_id=customer,
         session_id=session,
         retrieval_config={PREFERENCES: RetrievalConfig(top_k=5, relevance_score=0.3)},
-        filter_restored_tool_context=True,
     )
 
 

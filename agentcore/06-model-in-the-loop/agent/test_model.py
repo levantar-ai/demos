@@ -90,6 +90,15 @@ def test_the_model_learns_the_customer_from_trusted_code(fakes):
     assert "c-1001" not in agent.kw["system_prompt"]
 
 
+def test_the_model_is_told_the_gateway_is_the_only_source_of_orders(fakes):
+    """The live run's lesson: without this the second turn of a conversation
+    invented a dataset in the sandbox instead of fetching again."""
+    model.answer("which carrier?", "c-1000", "session-1", "minted-token")
+    prompt = fakes.built[-1].kw["system_prompt"]
+    assert "only source of order data" in prompt
+    assert "Never invent" in prompt
+
+
 def test_the_token_goes_to_the_gateway_client_and_never_to_the_model(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     agent = fakes.built[-1]
