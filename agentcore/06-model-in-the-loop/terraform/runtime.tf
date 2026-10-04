@@ -1,0 +1,55 @@
+# The AgentCore Runtime, as post 01, checking who is calling as post 05, and
+# now running a model. The model is reached through the runtime role (iam.tf),
+# so the container holds no model credential of its own.
+#
+# With a JWT authorizer the runtime validates every caller's bearer token
+# against the pool's discovery document before the request reaches the
+# agent, and IAM SigV4 invocation is off. The Authorization header is
+# forwarded to the container so the agent can read the verified claims and
+# use the token as the subject of the on-behalf-of exchange (identity.py).
+# It is not sent to the gateway; the gateway trusts the exchange issuer.
+
+resource "aws_bedrockagentcore_agent_runtime" "agent" {
+  agent_runtime_name = local.runtime_name
+  role_arn           = aws_iam_role.runtime.arn
+
+  agent_runtime_artifact {
+    container_configuration {
+      container_uri = "${aws_ecr_repository.agent.repository_url}:${var.image_tag}"
+    }
+  }
+
+  network_configuration {
+    network_mode = "PUBLIC"
+  }
+
+  protocol_configuration {
+    server_protocol = "HTTP"
+  }
+
+  authorizer_configuration {
+    custom_jwt_authorizer {
+      discovery_url   = local.discovery_url
+      allowed_clients = [aws_cognito_user_pool_client.customers.id]
+    }
+  }
+
+  request_header_configuration {
+    request_header_allowlist = ["Authorization"]
+  }
+
+  environment_variables = {
+    MODEL_ID            = var.model_id
+    CODE_INTERPRETER_ID = aws_bedrockagentcore_code_interpreter.sandbox.code_interpreter_id
+    GATEWAY_URL         = aws_bedrockagentcore_gateway.orders.gateway_url
+    MEMORY_ID           = aws_bedrockagentcore_memory.agent.id
+    WORKLOAD_NAME       = aws_bedrockagentcore_workload_identity.agent.name
+    OBO_PROVIDER_NAME   = local.obo_provider_name
+    ORDERS_SCOPE        = local.orders_scope
+  }
+
+  tags = {
+    Project = "demos"
+    Demo    = local.demo_slug
+  }
+}

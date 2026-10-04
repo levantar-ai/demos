@@ -211,7 +211,9 @@
     "tabular",
     "Delaunay",
     "hairline",
-    "hairlines"
+    "hairlines",
+    "serialise",
+    "serialised"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -24,3 +24,4 @@ agentcore/PLAN.md
 # Private working notes (kept out of the public repo)
 notes/
 agentcore/05-identity/terraform/.build/
+agentcore/06-model-in-the-loop/terraform/.build/
