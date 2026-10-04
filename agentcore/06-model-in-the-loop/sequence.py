@@ -1,4 +1,4 @@
-"""Sequence diagram for post 05, the on-behalf-of exchange and the two checks.
+"""Sequence diagram for post 06, one turn with the model choosing.
 
 Run from this directory: python3 sequence.py
 Produces sequence.png referenced by POST.md.
@@ -11,28 +11,28 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from levantar_diagram import FLAME, INK_3, RULE_STRONG, TEAL, Diagram
 
-d = Diagram(1900, 900)
+d = Diagram(1900, 960)
 
-# Participants and their lifeline x-centres. The runtime authorizer, which
-# validates the customer's token, is kept separate from the agent. AgentCore
-# Identity and the token exchange (a front door in front of a second Cognito
-# pool, the AWS sample's shape) are the new pair in the middle.
+# Participants and their lifeline x-centres. Trusted code (the agent) sits
+# between the runtime and the model; everything the model reaches is to its
+# right, and the token it never sees is obtained to its left.
 people = [
     (110, "customer", None),
-    (370, "AgentCore Runtime", "the JWT authorizer"),
-    (620, "agent", "the container"),
-    (880, "AgentCore Identity", "workload identity, OBO"),
-    (1150, "token exchange", "front door + exchange pool"),
-    (1440, "AgentCore Gateway", "trusts the exchange pool, Cedar"),
-    (1730, "orders", "the tool"),
+    (340, "AgentCore Runtime", "validates the JWT"),
+    (590, "agent", "trusted code"),
+    (840, "AgentCore Identity", "on-behalf-of (post 05)"),
+    (1090, "model", "Claude Sonnet 4.5"),
+    (1360, "AgentCore Gateway", "MCP, Cedar per call"),
+    (1620, "Code Interpreter", "SANDBOX"),
+    (1810, "Memory", None),
 ]
-top, bottom = 40, 840
+top, bottom = 40, 900
 for cx, title, sub in people:
     w = 230 if sub else 140
     d.box(cx - w / 2, top, w, 54, title, subtitle=sub, tone="accent")
     d._dashed_line(cx, top + 54, cx, bottom, RULE_STRONG)
 
-C, RT, A, ID, EX, G, ORD = 110, 370, 620, 880, 1150, 1440, 1730
+C, RT, A, ID, M, G, S, MEM = 110, 340, 590, 840, 1090, 1360, 1620, 1810
 
 
 def msg(x1, x2, y, label, colour=INK_3, dashed=False):
@@ -43,35 +43,30 @@ def note(cx, y, w, text, sub=None):
     d.box(cx - w / 2, y, w, 44 if sub else 38, text, subtitle=sub)
 
 
-# Inbound, unchanged: the customer's token validated at the runtime.
-msg(C, RT, 120, "invoke, Bearer JWT")
-note(RT, 150, 230, "runtime validates the token")
-msg(RT, A, 214, "forward request and token")
+# Trusted code first: who is asking, and a token for the order service.
+msg(C, RT, 120, "prompt, Bearer JWT")
+msg(RT, A, 170, "forward, token validated")
+msg(A, ID, 220, "a token for the order service,\non the customer's behalf")
+msg(ID, A, 284, "the minted token, 5 min", dashed=True)
+note(A, 310, 300, "builds the tools with the minted token", "the model is told the customer id, not the token")
 
-# On behalf of the customer: the agent gets a token for the order service from
-# AgentCore Identity, which brokers the exchange with the customer's token as
-# the subject. The customer's own token never goes to the gateway.
-msg(A, ID, 268, "GetWorkloadAccessTokenForJWT,\nthen GetResourceOauth2Token (on behalf of)")
-msg(ID, EX, 336, "RFC 8693 exchange,\nsubject_token = the customer's JWT")
-note(EX, 362, 330, "front door verifies the JWT", "the pool's triggers verify again, Cognito mints, 5 min")
-msg(EX, ID, 430, "the minted token, aud = orders client", dashed=True)
-msg(ID, A, 476, "the minted token", dashed=True)
-
-# The minted token goes to the gateway, which trusts the exchange pool.
-msg(A, G, 530, "list_orders(customer_id),\nthe minted token")
-note(G, 560, 300, "gateway validates the token, then Cedar")
-d.text(G, 610, "token customer_id == customer_id argument ?", 12, 600, TEAL, anchor="ma")
-
-# The two outcomes are mutually exclusive, so they sit in one alt frame and
-# only the permit branch reaches the tool.
-d.cluster(1010, 640, 830, 150, "one of two outcomes")
-msg(G, ORD, 690, "id matches the token: permit", colour=TEAL)
-msg(G, A, 754, "another id: forbid wins,\nno permit applies", colour=FLAME, dashed=True)
+# Then the model decides.
+msg(A, M, 380, "system prompt: you act for c-1000\n+ the prompt + the tools")
+msg(M, MEM, 440, "recall preferences for c-1000", dashed=True)
+msg(M, G, 492, "orders___list_orders(customer_id)")
+note(G, 518, 250, "Cedar: argument == token's customer_id ?")
+d.cluster(1230, 560, 300, 120, "one of two outcomes")
+msg(G, M, 606, "permit: the orders", colour=TEAL, dashed=True)
+msg(G, M, 650, "another id: refused, no tool runs", colour=FLAME, dashed=True)
+msg(M, S, 712, "run_python(the pandas it wrote)")
+msg(S, M, 758, "what it printed", dashed=True)
+msg(M, A, 806, "the answer", dashed=True)
+msg(A, C, 854, "answer + trail of tool calls", dashed=True)
 
 d.caption(
-    110, 868,
-    "The customer's token is validated at the runtime, exchanged on their behalf through "
-    "AgentCore Identity for a five-minute token the exchange pool mints for the gateway, and Cedar decides on that.",
+    110, 928,
+    "Trusted code establishes the customer and the token; the model chooses the tools and the arguments; "
+    "Cedar at the gateway decides whether a chosen customer_id is allowed.",
 )
 d.save("sequence.png")
 print("wrote sequence.png")

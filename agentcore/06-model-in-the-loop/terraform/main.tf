@@ -41,7 +41,8 @@ locals {
 
   # The foundation model behind the inference profile: the profile id with
   # its region prefix (us., eu., global.) removed.
-  foundation_model = regex("^(?:[a-z]+\\.)?(.+)$", var.model_id)[0]
+  foundation_model      = regex("^(?:[a-z]+\\.)?(.+)$", var.model_id)[0]
+  inference_profile_arn = "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.model_id}"
 
   # The pool's discovery document is what the runtime validates the customer's
   # Cognito token against. The gateway does not use it; it validates the

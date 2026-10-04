@@ -99,18 +99,32 @@ resource "aws_iam_role_policy" "runtime" {
       {
         # The model. Invocation goes to the cross-region inference profile,
         # which routes to the foundation model in one of its regions, and
-        # IAM evaluates both ARNs, so the exact model is named in each
-        # region the profile covers and nothing else in Bedrock is callable.
-        Sid    = "InvokeTheModel"
+        # Bedrock evaluates both ARNs, so this statement names the profile
+        # and the next names the exact model in each region the profile
+        # covers. Nothing else in Bedrock is callable from this role.
+        Sid    = "InvokeTheInferenceProfile"
         Effect = "Allow"
         Action = [
           "bedrock:InvokeModel",
           "bedrock:InvokeModelWithResponseStream"
         ]
-        Resource = concat(
-          ["arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.model_id}"],
-          [for r in var.model_regions : "arn:aws:bedrock:${r}::foundation-model/${local.foundation_model}"]
-        )
+        Resource = local.inference_profile_arn
+      },
+      {
+        # The condition means the model can be reached only through that
+        # profile, never by naming a regional model directly.
+        Sid    = "InvokeTheModelThroughTheProfile"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream"
+        ]
+        Resource = [for r in var.model_regions : "arn:aws:bedrock:${r}::foundation-model/${local.foundation_model}"]
+        Condition = {
+          StringEquals = {
+            "bedrock:InferenceProfileArn" = local.inference_profile_arn
+          }
+        }
       },
       {
         # The session manager reads the session back (ListEvents, GetEvent),
