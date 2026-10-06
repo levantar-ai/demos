@@ -153,9 +153,9 @@ stack, for looking at the minted token and calling the gateway directly.
 - One sandbox session per invocation, created when the model first calls
   `run_python` and stopped when the answer is out, so no session is left
   running to block a later destroy. Variables from one `run_python` call are
-  available to the next within a turn, not between turns, and the sandbox
-  has no access to the gateway's results; the model copies the orders into
-  the code it writes.
+  available to the next within a turn, not between turns. The sandbox has no
+  access to the gateway itself; the handoff hook is what puts the gateway's
+  result there.
 - The trail is a Strands hook, `trail.py`. It records tool name, arguments
   and status and the first 300 characters of any error, which is what would
   show Cedar's refusal if the model asked for the wrong customer. It goes
@@ -177,6 +177,13 @@ stack, for looking at the minted token and calling the gateway directly.
   success. It sets no per-execution time limit. Its session id is forgotten
   only after a successful stop; the 900 second session lifetime bounds an
   abandoned session if the stop fails, not a running call.
+- The gateway's result is handed to the sandbox by trusted code. `handoff.py`
+  is a second Strands hook: on a successful `orders___list_orders` result it
+  writes the result text into the turn's sandbox session as `orders.json`,
+  and the system prompt tells the model to read that file and never retype
+  rows. The model still decides whether and how to compute; the rows it
+  computes over are the gateway's. A failed handoff is logged and the turn
+  continues with the result in the model's context.
 - The gateway client loads only the tools named in `gateway.py`'s
   `ALLOWED_TOOLS`, so a target added to the gateway later is not handed to
   the model until the agent is changed to name it. Cedar is default deny for

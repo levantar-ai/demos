@@ -11,6 +11,7 @@ import os
 from typing import ClassVar
 
 import gateway
+import handoff
 import memory
 import model
 import pytest
@@ -230,10 +231,67 @@ def test_a_failing_close_does_not_stop_the_others_or_mask_the_answer(fakes, monk
     assert "cleanup failed" in capsys.readouterr().out
 
 
-def test_the_trail_is_the_agents_hook(fakes):
+def test_the_trail_and_the_handoff_are_the_agents_hooks(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     hooks = fakes.built[-1].kw["hooks"]
-    assert len(hooks) == 1 and isinstance(hooks[0], trail_module.Trail)
+    assert [type(h) for h in hooks] == [trail_module.Trail, handoff.Handoff]
+    assert hooks[1].sandbox is not None
+
+
+def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
+    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    prompt = fakes.built[-1].kw["system_prompt"]
+    assert "orders.json" in prompt and "never retype order rows" in prompt
+
+
+# --- the handoff: the gateway's result reaches the sandbox untouched ---------
+class _Box:
+    def __init__(self, fail=False):
+        self.files, self.fail = [], fail
+
+    def write(self, path, text):
+        if self.fail:
+            raise RuntimeError("session unavailable")
+        self.files.append((path, text))
+
+
+def test_a_successful_gateway_result_is_written_to_the_sandbox_byte_for_byte(capsys):
+    box = _Box()
+    h = handoff.Handoff(box)
+    text = '{"customer_id": "c-1000", "orders": [{"order_id": 1033, "total": 12.0}]}'
+    h.after(_Event({"name": "orders___list_orders", "input": {"customer_id": "c-1000"}, "toolUseId": "u1"},
+                   {"status": "success", "content": [{"text": text}]}))
+    assert box.files == [("orders.json", text)]
+    assert h.written == ["orders.json"]
+    assert "1033" not in capsys.readouterr().out  # the log line carries the size, not the rows
+
+
+def test_other_tools_and_failed_calls_are_not_handed_over():
+    box = _Box()
+    h = handoff.Handoff(box)
+    h.after(_Event({"name": "run_python", "input": {"code": "print(1)"}, "toolUseId": "u1"},
+                   {"status": "success", "content": [{"text": "1"}]}))
+    h.after(_Event({"name": "orders___list_orders", "input": {"customer_id": "c-1001"}, "toolUseId": "u2"},
+                   {"status": "error", "content": [{"text": "Tool Execution Denied"}]}))
+    assert box.files == [] and h.written == []
+
+
+def test_a_failed_handoff_is_logged_and_does_not_break_the_turn(capsys):
+    h = handoff.Handoff(_Box(fail=True))
+    h.after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"},
+                   {"status": "success", "content": [{"text": "{}"}]}))
+    assert h.written == []
+    assert "handoff of orders___list_orders to orders.json failed" in capsys.readouterr().out
+
+
+def test_sandbox_write_starts_the_session_and_puts_the_file(monkeypatch):
+    started, puts = [], []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: started.append(n) or "s3"))
+    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, text: puts.append((sid, path, text))))
+    box = sandbox.Sandbox()
+    box.write("orders.json", "{}")
+    box.write("orders.json", "{}")
+    assert started == ["analysis"] and puts == [("s3", "orders.json", "{}")] * 2
 
 
 # --- the trail records the model's choices in order --------------------------

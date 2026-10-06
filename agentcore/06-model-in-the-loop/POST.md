@@ -169,15 +169,13 @@ class Sandbox:
 The session behind it is the Code Interpreter from post 04 in `SANDBOX`
 network mode, created the first time the model reaches for the tool and
 stopped when the answer is out, with the session's 900 second lifetime as
-the backstop if that stop fails. Variables from one `run_python` call are there for the next
-within a turn, but the sandbox has no access to the gateway's results, so
-the model copies the orders it fetched into the code it writes. Source
-over twenty thousand characters is refused, the result handed back to the
-model is cut at eight thousand, and the hook that records the trail allows
-eight tool executions a turn, refuses the next with a message to answer
-from what it has, and ends the turn if the model keeps asking. AWS's
-description of the capability is the reason the code the model writes can
-be allowed to run at all.
+the backstop if that stop fails. Variables from one `run_python` call are
+there for the next within a turn. Source over twenty thousand characters is
+refused, the result handed back to the model is cut at eight thousand, and
+the hook that records the trail allows eight tool executions a turn,
+refuses the next with a message to answer from what it has, and ends the
+turn if the model keeps asking. AWS's description of the capability is the
+reason the code the model writes can be allowed to run at all.
 
 > This is critical in Agentic AI applications where the agents may execute
 > arbitrary code that can lead to data compromise or security risks. The
@@ -185,6 +183,25 @@ be allowed to run at all.
 > you avoid running into these issues.
 
 https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html
+
+The data the model computes over does not pass through the model. The
+sandbox has no access to the gateway, so left to itself the model would
+carry the orders across by typing them into the code it writes, which is
+fine for seven rows and is where a wrong figure would come from with three
+hundred. A second hook watches the gateway tool's result and writes it,
+unchanged, into the turn's sandbox session as `orders.json`, and the system
+prompt tells the model to read that file and never to retype rows. The
+model still decides whether to compute and how. The rows are the gateway's.
+
+```python
+class Handoff(HookProvider):
+    def after(self, event):
+        path = self.handoffs.get(event.tool_use.get("name"))
+        result = event.result or {}
+        if path is None or result.get("status") != "success":
+            return
+        self.sandbox.write(path, _text_of(result))
+```
 
 And the memory arrives beside the tools rather than as one. Post 03 stored
 and recalled on command. The session manager writes each turn's messages
@@ -241,11 +258,13 @@ and the gateway, and neither reaches the model's context. That is the division o
 decides what to ask the gateway and code decides what authenticates the
 asking.
 
-The rest of the prompt tells the model what the tools are for and to use
-`run_python` for arithmetic rather than doing it in its head, which is the
-one instruction that changes the shape of the answers most, because without
+The rest of the prompt tells the model what the tools are for, to use
+`run_python` for arithmetic rather than doing it in its head, and to read
+`orders.json` in the sandbox rather than retype rows. The first of those is
+the instruction that changes the shape of the answers most, because without
 it a model will happily sum eight totals in prose and occasionally get one
-wrong.
+wrong. The second is what keeps the figures the gateway's rather than the
+model's.
 
 ## 3 - The model's own permission
 
@@ -440,7 +459,14 @@ sandbox or the memory, and it does not make the model's answers right.
 The model chooses code. The code runs in a session with no network and no
 credentials, so it cannot reach the gateway, the memory, the account or the
 customer's token from inside the sandbox, which is the property post 04
-probed directly. What that isolation does not bound is how much the model
+probed directly. It is worth being clear about where a model's variability
+sits in this design, because it is not in the arithmetic. The same question
+produced a pandas groupby on one run and a plain dictionary count on
+another, and the figures were the same each time, because once the code is
+written the sandbox runs it deterministically, and because the rows it runs
+over came from the gateway by way of the handoff and not by way of the
+model. What varies is the route and the wording. That is the part the evals
+in a later post measure, and the part a support conversation can bear. What that isolation does not bound is how much the model
 asks for, so the agent puts numbers on that itself, eight tool executions a
 turn and then the turn ends, twenty thousand characters of submitted
 source, eight thousand of result or error kept for the model. It puts no

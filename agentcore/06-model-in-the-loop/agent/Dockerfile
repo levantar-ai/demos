@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1
 RUN pip install --no-cache-dir boto3==1.43.108 strands-agents==1.57.2 bedrock-agentcore==1.24.0
 
 WORKDIR /app
-COPY main.py model.py gateway.py identity.py memory.py sandbox.py trail.py ./
+COPY main.py model.py gateway.py identity.py memory.py sandbox.py trail.py handoff.py ./
 
 EXPOSE 8080
 USER nobody

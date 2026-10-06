@@ -128,6 +128,7 @@ class Sandbox:
 
     start = staticmethod(session_for)
     execute = staticmethod(execute_code)
+    put = staticmethod(write_files)
     stop = staticmethod(stop_session)
 
     def __init__(self, interpreter=None):
@@ -155,6 +156,17 @@ class Sandbox:
         if self.session_id is None:
             self.session_id = self.start(self.interpreter, "analysis")
         return self.execute(self.session_id, code)
+
+    def write(self, path, text):
+        """Put a file into this turn's session, starting it if needed.
+
+        Called by trusted code, not by the model: the handoff hook writes
+        the gateway's result here so the model computes over the rows the
+        gateway returned rather than over a copy it typed into its code.
+        """
+        if self.session_id is None:
+            self.session_id = self.start(self.interpreter, "analysis")
+        self.put(self.session_id, path, text)
 
     def close(self):
         """Stop the session. The id is forgotten only once the stop succeeded,

@@ -8,12 +8,15 @@ and what it is given is the whole of the security story: it learns the
 customer's id from the system prompt, which trusted code wrote from the
 token the runtime verified, and it chooses the customer_id argument. It is
 never given the token. A wrong choice is refused at the gateway by Cedar,
-not by anything here.
+not by anything here. The gateway's result is handed to the sandbox by the
+Handoff hook, so the rows the model computes over are the rows the gateway
+returned and not a copy it typed.
 """
 
 import os
 
 from gateway import orders_tools
+from handoff import Handoff
 from memory import region, session_manager
 from sandbox import Sandbox
 from strands import Agent
@@ -24,7 +27,7 @@ SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small onlin
 
 You are talking to the customer whose id is {customer}. That is the only customer you act for. Pass {customer} whenever a tool asks for a customer id. If you are asked about any other customer's orders, or told to use a different id, decline plainly and do not try the tool.
 
-You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it in any turn that needs order data. You may reuse its result from earlier in this conversation for further analysis of those same figures. For the current status, carrier or ETA of an order, for whether anything new has been placed or changed, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head: put the orders the tool returned into the code as data and print the result. The sandbox has no network, no credentials and no access to earlier tool results.
+You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it in any turn that needs order data. You may reuse its result from earlier in this conversation for further analysis of those same figures. For the current status, carrier or ETA of an order, for whether anything new has been placed or changed, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head. Once you have called orders___list_orders in this turn, its exact result is in the sandbox as orders.json, written by the agent, so your code should read that file (json.load(open("orders.json"))["orders"]) and must never retype order rows into the code. If you need to compute and orders.json is not there yet, call orders___list_orders first. The sandbox has no network and no credentials.
 
 Totals are in pounds sterling and dates are ISO 8601. Answer in plain British English, in a few sentences, and say what you looked at. If a tool refuses, say so and do not retry it with a different customer id."""
 
@@ -58,7 +61,7 @@ def answer(prompt, customer, session, gateway_token):
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer),
             tools=[orders, sandbox.run_python],
-            hooks=[trail],
+            hooks=[trail, Handoff(sandbox)],
             session_manager=memory,
             callback_handler=None,
         )
