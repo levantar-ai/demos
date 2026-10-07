@@ -326,8 +326,9 @@ line and no `withheld` line.
 `carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
 `fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
 returned them. They hold synthetic order data and no token. The post's
-section 4 quotes them with the Markdown bold markers removed and lines
-re-wrapped, nothing else changed.
+section 4 quotes them with Markdown emphasis, wrapping and punctuation
+normalised (bold markers removed, an en dash made a comma), nothing else
+changed.
 
 **Provenance.** Image `a082e71` is ECR digest
 `sha256:4cb9e2db168f512a49febc5e47d662bf073d2ac6d2ba0ab0940dd259e75fa081`.
@@ -748,7 +749,42 @@ Verdict "not ready", one blocker, five majors, four minors.
 After the changes: ruff clean, 86 agent tests pass. Redeploy (the fixture
 changes the Lambda package), live re-run and video follow.
 
-<<REVIEW_ROUND_14>>
+### Round 14, 2026-10-07 (after the round 13 fixes)
+
+Verdict "not ready", two blockers, four majors, five minors, one nit.
+
+1. **Blocker, the `answer` excerpt lacked `today=today()` and the
+   conversation manager.** Correct; the excerpt is the real call.
+2. **Blocker, `read_timeout` is a socket timeout, not a deadline, and
+   `max_attempts` is ambiguous.** Accepted. The sandbox call now runs on a
+   worker thread and is abandoned at a wall-clock deadline the agent
+   enforces, with `total_max_attempts: 1`; tested with a call that sleeps
+   past a short deadline. The prose says giving up does not stop the code
+   and that the session is stopped at the end of the turn.
+3. **Major, the published spend answer carried a wrong count.** Accepted.
+   The prompt now says to state only figures `run_python` printed and to
+   have the code print a count or total it wants to give. The turn is
+   re-run below; the wrong count stays recorded here.
+4. **Major, "months beside them" was attached to the carrier capture.**
+   Correct; moved to the recall capture.
+5. **Major, retries not clearly disabled.** Accepted, `total_max_attempts`.
+6. **Major, "stores every turn" was categorical.** Accepted; records each
+   turn, a failed final flush logged rather than failing a given answer.
+7. **Minor, stale `var.model_regions` in the README.** Accepted.
+8. **Minor, punctuation normalised in a quote.** Accepted; the provenance
+   note says so.
+9. **Minor, `restore()` sees only the window.** Accepted; the prose says
+   the latest result found in the restored window, and the prompt says to
+   fetch if the file is missing.
+10. **Minor, "never reaches the model's context".** Accepted; the wording
+    is what trusted code does and does not provide.
+11. **Minor, forward references and history in section 5.** Section 5 is
+    trimmed to the present limitation; the conclusion keeps the series'
+    one-line pointer to the next post.
+12. **Nit, lead-ins and H1 dashes.** Not changed; series conventions.
+
+<<REVIEW_ROUND_15>>
+
 
 
 

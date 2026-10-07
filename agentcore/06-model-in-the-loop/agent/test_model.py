@@ -267,6 +267,8 @@ def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
     assert "orders.json" in prompt and "never retype order rows" in prompt
     assert "returned non-empty text and the agent successfully wrote it" in prompt
     assert "call orders___list_orders again before computing" in prompt
+    assert "if the file is missing when your code opens it" in prompt
+    assert "state in your answer only the figures run_python printed" in prompt
 
 
 def _conversation_with_a_fetch(text):
@@ -666,7 +668,7 @@ def test_a_failed_stop_is_retried_once_then_raised_with_the_session_id_kept(monk
     assert box.session_id is None and attempts == ["s7", "s7", "s7"]
 
 
-def test_the_sandbox_client_waits_a_bounded_time_and_does_not_retry(monkeypatch):
+def test_the_sandbox_client_makes_one_http_attempt(monkeypatch):
     made = {}
 
     class FakeBoto:
@@ -680,8 +682,35 @@ def test_the_sandbox_client_waits_a_bounded_time_and_does_not_retry(monkeypatch)
     sandbox.client()
     assert made["name"] == "bedrock-agentcore"
     assert made["config"].read_timeout == sandbox.WAIT_SECONDS
-    assert made["config"].retries == {"max_attempts": 1}
+    assert made["config"].retries == {"total_max_attempts": 1}
     monkeypatch.setattr(sandbox, "_client", None)
+
+
+def test_a_call_that_outlives_the_deadline_is_abandoned_with_an_error(monkeypatch):
+    """Wall clock, not a socket timeout: a call that keeps the agent waiting
+    past WAIT_SECONDS is given up and reported, whatever the service does."""
+    import threading
+    import time
+
+    release = threading.Event()
+
+    class Slow:
+        def invoke_code_interpreter(self, **kw):
+            release.wait(5)
+            return {"stream": [_text_event("late")]}
+
+    monkeypatch.setattr(sandbox, "client", lambda: Slow())
+    monkeypatch.setattr(sandbox, "WAIT_SECONDS", 0.2)
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="did not finish within"):
+        sandbox.execute_code("s1", "while True: pass")
+    assert time.monotonic() - started < 2
+    release.set()
+
+
+def test_a_call_within_the_deadline_returns_its_output(fake):
+    fake.streams = [[_text_event("fast")]]
+    assert sandbox.execute_code("s1", "print('fast')") == "fast"
 
 
 def test_closing_an_unused_sandbox_stops_nothing(monkeypatch):

@@ -143,10 +143,9 @@ stack, for looking at the minted token and calling the gateway directly.
   for c-1001) on top of the 300 the series shares, so "this year" has
   something to exclude. The 2026 figures the post quotes are unchanged.
 - The model is Claude Sonnet 4.5 through the `us.` cross-region inference
-  profile, the default of `var.model_id`. The IAM statement names the
-  profile and the foundation model in each region the profile routes to
-  (`var.model_regions`), confirmed with `aws bedrock get-inference-profile`,
-  because Bedrock evaluates the invoke against both ARNs.
+  profile, the default of `var.model_id`. The IAM statement names the profile and the foundation-model ARNs the
+  `aws_bedrock_inference_profile` data source reports for it, because
+  Bedrock evaluates the invoke against both.
 - The agent framework is Strands Agents, which AWS's own AgentCore samples
   use. It brings the MCP client, so the gateway's tools are loaded by name
   from the gateway, and the `bedrock-agentcore` SDK's session manager is
@@ -172,10 +171,11 @@ stack, for looking at the minted token and calling the gateway directly.
   context: the prompt is capped at 4,000 characters, the restored
   conversation is windowed to the last 40 messages by Strands'
   `SlidingWindowConversationManager`, and a handed-over result over 200,000
-  characters is withheld. There is no application-enforced execution
-  deadline inside the sandbox; the agent's boto3 client waits at most 180 s
-  on a call with no automatic retry, and a call it stops waiting for may run
-  on until the session's lifetime ends it.
+  characters is withheld. The agent gives up on a sandbox call after 180 s by its own clock (the
+  call runs on a worker thread and is abandoned at the deadline) and makes
+  one HTTP attempt per call; abandoned code may still be running until the
+  session is stopped at the end of the turn, with the session's lifetime as
+  the backstop.
 - The sandbox tool refuses code over 20,000 characters, accumulates at most
   8,000 characters across stream events for the model, result or error,
   separators counted (each event is still materialised by boto3 before the
@@ -214,10 +214,10 @@ stack, for looking at the minted token and calling the gateway directly.
 - Lint gates. CI runs cspell, tflint, Trivy (misconfiguration and secrets at
   HIGH and CRITICAL), ruff and pytest. The tests never call Bedrock: the
   model, the agent, the MCP client and the memory manager are replaced by
-  fakes that record how they were built. They check that the customer id
-  and the date reach the model's system prompt as text, that the minted
-  token reaches the MCP client as a header and is absent from the system
-  prompt string, and what each hook does. The full request Strands sends to
+  fakes that record how they were built. They check that the customer id and the date reach the model's system
+  prompt as text, that trusted code gives the model neither token and
+  passes the minted one to the MCP client as a header, and what each hook
+  does. The full request Strands sends to
   Bedrock is Strands' to build and is not inspected here.
 
 ## Tear down

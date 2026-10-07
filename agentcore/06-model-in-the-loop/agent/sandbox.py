@@ -12,6 +12,8 @@ is bounded in what it can send and read back.
 """
 
 import os
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 import boto3
 from botocore.config import Config
@@ -19,10 +21,13 @@ from strands import tool
 
 _client = None
 
-# How long the agent waits on one code interpreter call. This is the agent's
-# wait, not the execution: the service may keep running the code until the
-# session ends. No automatic retries, a timed-out call is reported as such.
+# How long the agent waits on one code interpreter call, wall clock, enforced
+# here by running the call on a worker thread and abandoning it at the
+# deadline. The code may still be running in the session after that; the
+# session is stopped at the end of the turn, which ends it. One HTTP attempt
+# per call, so a slow call is not silently made twice.
 WAIT_SECONDS = 180
+_calls = ThreadPoolExecutor(max_workers=8, thread_name_prefix="sandbox-call")
 
 
 def client():
@@ -30,7 +35,7 @@ def client():
     if _client is None:
         _client = boto3.client(
             "bedrock-agentcore",
-            config=Config(read_timeout=WAIT_SECONDS, connect_timeout=10, retries={"max_attempts": 1}),
+            config=Config(read_timeout=WAIT_SECONDS, connect_timeout=10, retries={"total_max_attempts": 1}),
         )
     return _client
 
@@ -92,7 +97,7 @@ class _Bounded:
         return text
 
 
-def _call(session_id, name, **arguments):
+def _invoke(session_id, name, arguments):
     response = client().invoke_code_interpreter(
         codeInterpreterIdentifier=os.environ["CODE_INTERPRETER_ID"],
         sessionId=session_id,
@@ -100,6 +105,17 @@ def _call(session_id, name, **arguments):
         arguments=arguments,
     )
     return _consume(response)
+
+
+def _call(session_id, name, **arguments):
+    """Run one interpreter call with a wall-clock deadline."""
+    future = _calls.submit(_invoke, session_id, name, arguments)
+    try:
+        return future.result(timeout=WAIT_SECONDS)
+    except FutureTimeout:
+        raise RuntimeError(
+            f"{name} did not finish within {WAIT_SECONDS} seconds; the session will be stopped at the end of the turn"
+        ) from None
 
 
 def write_files(session_id, path, text):
