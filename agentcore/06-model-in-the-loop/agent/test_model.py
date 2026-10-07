@@ -242,6 +242,7 @@ def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "orders.json" in prompt and "never retype order rows" in prompt
+    assert "starts empty on every turn" in prompt  # the live run showed it assuming the file persisted
 
 
 # --- the handoff: the gateway's result reaches the sandbox untouched ---------
