@@ -19,6 +19,7 @@ import time
 
 import boto3
 from botocore.exceptions import ClientError
+from trail import describe
 
 _agentcore = None
 
@@ -70,7 +71,7 @@ def orders_token(inbound_jwt: str) -> str:
     except ClientError as exc:
         if not _transient(exc):
             raise
-        print(f"exchange failed once, retrying in {RETRY_AFTER_SECONDS}s: {exc}")
+        print(f"exchange failed once, retrying in {RETRY_AFTER_SECONDS}s: {describe(exc)}")
         time.sleep(RETRY_AFTER_SECONDS)
         result = client.get_resource_oauth2_token(**request)
     token = result.get("accessToken")

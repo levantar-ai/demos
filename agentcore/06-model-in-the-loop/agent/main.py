@@ -17,11 +17,12 @@ gateway, as post 05 set up.
 import base64
 import json
 import re
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from identity import orders_token
 from model import answer
-from trail import BudgetExceeded
+from trail import BudgetExceeded, describe
 
 PORT = 8080
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -32,9 +33,34 @@ MAX_PROMPT_CHARS = 4_000
 # The runtime sends its session id to the container on this header. It is
 # the conversation's id for the memory; a caller may also name one in the
 # body when invoking the agent outside the runtime. There is no default:
-# two clients of one customer must not silently share a conversation.
+# two clients of one customer must not silently share a conversation. The
+# runtime requires at least 33 characters and this checks the same, so a
+# conversation outside the runtime is named the way one inside it is. A
+# session id is a locator within the customer's own namespace, never an
+# authorisation boundary: the customer comes from the token, and any client
+# holding that customer's token may continue any of that customer's
+# conversations it knows the id of.
 SESSION_HEADER = "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"
-SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{32,127}$")
+
+# Turns in one conversation run one at a time. The server answers requests
+# concurrently, and two turns restoring and appending to the same
+# conversation at once would interleave its history, so a second request
+# for the same customer and session waits for the first to finish.
+MAX_TURN_LOCKS = 1024
+_turns = {}
+_turns_guard = threading.Lock()
+
+
+def turn_lock(customer, session):
+    """The lock for one conversation, created on first use. Idle entries are
+    dropped when the table is full, so it is bounded without ever dropping
+    a lock that is held."""
+    with _turns_guard:
+        if len(_turns) >= MAX_TURN_LOCKS:
+            for key in [k for k, lock in _turns.items() if not lock.locked()]:
+                del _turns[key]
+        return _turns.setdefault((customer, session), threading.Lock())
 
 
 def claims_from(headers):
@@ -134,17 +160,21 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "a session id is required"})
             return
         try:
-            # Trusted code gets the token for the order service, on behalf of
-            # the customer, before the model runs. The model chooses what to
-            # ask the gateway; it never holds what authenticates the asking.
-            gateway_token = self.exchange(bearer_from(self.headers))
-            result, trail = self.respond(prompt, customer, session, gateway_token)
+            with turn_lock(customer, session):
+                # Trusted code gets the token for the order service, on behalf
+                # of the customer, before the model runs. The model chooses
+                # what to ask the gateway; it never holds what authenticates
+                # the asking.
+                gateway_token = self.exchange(bearer_from(self.headers))
+                result, trail = self.respond(prompt, customer, session, gateway_token)
         except BudgetExceeded as exc:
             print(f"turn ended for {customer}: {exc}")
             self._send(502, {"error": "the model exceeded its tool budget for this turn"})
             return
         except Exception as exc:  # noqa: BLE001 — any other failure in the turn is a 502
-            print(f"turn failed for {customer}: {exc}")
+            # The class and an AWS error code only; a message can carry a
+            # response body, a token or the model's code.
+            print(f"turn failed for {customer}: {describe(exc)}")
             self._send(502, {"error": "request failed"})
             return
         self._send(200, {"result": result, "trail": trail})

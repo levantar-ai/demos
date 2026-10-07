@@ -10,11 +10,16 @@ in CloudWatch.
 
 The same hook is the turn's budget. A model loop that keeps calling tools is
 a cost and an availability problem before it is anything else, so after
-MAX_TOOL_CALLS executions the next request is cancelled with a message that
-tells the model to answer from what it has, recorded in the trail as
-cancelled, and a request after that ends the turn with BudgetExceeded, which
-the handler turns into a 502. Cancelling alone would not bound anything, the
+MAX_TOOL_CALLS attempts, counted as the model asks and whether or not the
+tool then succeeds, the next request is cancelled with a message that tells
+the model to answer from what it has, recorded in the trail as cancelled,
+and a request after that ends the turn with BudgetExceeded, which the
+handler turns into a 502. Cancelling alone would not bound anything, the
 model could keep asking and each ask is another model invocation.
+
+describe() is what every failure looks like in the log: the exception's
+class and, for an AWS error, its code, never its message, which can carry
+a response body, a token or the model's code.
 """
 
 
@@ -33,6 +38,13 @@ MAX_TOOL_CALLS = 8
 
 class BudgetExceeded(RuntimeError):
     """The model kept asking for tools after being told the budget was spent."""
+
+
+def describe(exc):
+    """A failure as the log may carry it: class and AWS error code only."""
+    response = getattr(exc, "response", None)
+    code = response.get("Error", {}).get("Code") if isinstance(response, dict) else None
+    return f"{type(exc).__name__}" + (f" {code}" if isinstance(code, str) and code else "")
 
 
 def _text_of(result):

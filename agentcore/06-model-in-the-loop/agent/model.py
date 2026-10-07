@@ -26,7 +26,8 @@ from strands import Agent
 from strands.agent.conversation_manager import SlidingWindowConversationManager
 from strands.models import BedrockModel
 from strands.tools.executors import SequentialToolExecutor
-from trail import Trail
+from strands.types.exceptions import EventLoopException
+from trail import Trail, describe
 
 # How much of a restored conversation the model is shown. Memory keeps the
 # whole conversation; the model's context does not have to.
@@ -36,9 +37,9 @@ SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small onlin
 
 You are talking to the customer whose id is {customer}. That is the only customer you act for. Pass {customer} whenever a tool asks for a customer id. If you are asked about any other customer's orders, or told to use a different id, decline plainly and do not try the tool.
 
-You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it when a turn needs order data and there is no suitable result from earlier in this conversation; you may reuse an earlier result for further analysis of those same figures. For the current status, carrier or ETA of an order, for whether anything new has been placed or changed, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head. Every figure in your answer must be one run_python printed, and that includes any count of orders: if you want to say how many orders a total covers or how many you looked at, have the code print that number, and if the code did not print a number, do not state it. When the latest orders___list_orders call in this conversation returned non-empty text, the agent writes that text into the sandbox as orders.json before your code runs, so your code should read that file (json.load(open("orders.json"))["orders"]) and must never retype order rows into the code. If no orders have been fetched yet, if the file is missing when your code opens it, or if run_python says the file is not available because the latest call failed or returned no usable text, call orders___list_orders again before computing; if run_python says the file could not be written, run it again. The sandbox has no network and no credentials.
+You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it when a turn needs order data and there is no suitable result from earlier in this conversation; you may reuse an earlier result for further analysis of those same figures. For the current status, carrier or ETA of an order, for whether anything new has been placed or changed, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head. Every figure in your answer must be one run_python printed, and that includes any count of orders: if you want to say how many orders a total covers or how many you looked at, have the code print that number, and if the code did not print a number, do not state it. When the latest orders___list_orders call in this conversation returned non-empty text, the agent writes that text into the sandbox as orders.json before your code runs, so your code should read that file with totals as decimals (from decimal import Decimal; json.load(open("orders.json"), parse_float=Decimal)["orders"]), print money to two decimal places, and must never retype order rows into the code. If no orders have been fetched yet, if the file is missing when your code opens it, or if run_python says the file is not available because the latest call failed or returned no usable text, call orders___list_orders again before computing; if run_python says the file could not be written, run it again. The sandbox has no network and no credentials.
 
-Totals are in pounds sterling and dates are ISO 8601. Answer in plain British English, in a few sentences, and say what you looked at. If a tool refuses, say so and do not retry it with a different customer id."""
+Totals are in pounds sterling with two decimal places and dates are ISO 8601. Answer in plain British English, in a few sentences, and say what you looked at. If a tool refuses, say so and do not retry it with a different customer id."""
 
 # Seams for the tests, which substitute fakes for the model, the agent and
 # the clock.
@@ -97,7 +98,16 @@ def answer(prompt, customer, session, gateway_token):
         # and the file it was told about is there whichever turn fetched it.
         window.apply_management(agent)
         restore(agent.messages, sandbox)
-        result = agent(prompt)
+        try:
+            result = agent(prompt)
+        except EventLoopException as exc:
+            # Strands wraps whatever ends its loop, including what a hook
+            # raised. The handler needs the original, so that the budget's
+            # end of a turn is reported as such and a failure is logged by
+            # its own class.
+            if isinstance(exc.original_exception, Exception):
+                raise exc.original_exception from exc
+            raise
     finally:
         # The agent's tool providers, the MCP client, the memory's buffer,
         # then the sandbox session, most recently created first. A failed
@@ -109,5 +119,5 @@ def answer(prompt, customer, session, gateway_token):
             try:
                 close()
             except Exception as exc:  # noqa: BLE001 — logged, never raised over the result
-                print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {exc}")
+                print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {describe(exc)}")
     return str(result), trail.steps

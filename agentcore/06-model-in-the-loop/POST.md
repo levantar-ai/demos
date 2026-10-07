@@ -9,7 +9,7 @@ gateway and the sandbox as tools, with the memory supplied as context, and
 lets it decide which to call, in what order and with what arguments, for a
 question nobody wrote code for. Trusted code still establishes who the
 customer is and brokers the token the gateway accepts, so the model chooses
-arguments and the token is never in its context. Asked to be another
+arguments and is never given the token. Asked to be another
 customer it declines, and if it were ever talked round, the Cedar policy at
 the gateway refuses an order lookup for anyone else before the tool runs.
 
@@ -25,15 +25,11 @@ behind AgentCore Gateway, post 03 added AgentCore Memory, post 04 the Code
 Interpreter sandbox and post 05 gave the agent an identity at both ends,
 with Policy in AgentCore refusing any order lookup for a customer other than
 the one whose token was presented. Each of those posts ended the same way,
-there is no model in this agent, the routing is code. A regex
-looked for the word "order", a prefix of "remember" wrote to memory, and
-the sandbox ran one pandas script that was written in advance for every CSV
-it was given.
+there is no model in this agent, the routing is code.
 
-A primitive is easiest to see on its own, and none of them needs a model
-to be useful, but the reason to have them is what happens when a model is
-given all of them at once. This post is the smallest version
-of that. The handler's routing is gone. The prompt goes to Claude Sonnet 4.5
+The reason to have the primitives is what happens when a model is given all
+of them at once, and this post is the smallest version of that. The
+handler's routing is gone. The prompt goes to Claude Sonnet 4.5
 on Bedrock, which is handed the gateway as an MCP server and the sandbox as
 a tool called `run_python`, with the conversation and the customer's
 remembered preferences supplied as context by the session manager, and it
@@ -43,12 +39,13 @@ in the sandbox and reads the result back. Nothing in the repository knows
 how to answer that question. The model worked it out from the tools it had.
 
 What makes the cross-customer question safe is post 05, and it is unchanged
-here. The runtime
-validates the customer's token. Trusted code reads the customer id from it,
-asks AgentCore Identity for a token for the order service on the customer's
-behalf, and builds the gateway client with that token in its header. The
-model is told the customer's id in its system prompt and chooses the
-`customer_id` argument itself. The token is never in its context. So the question
+here. The runtime's authorizer validates the customer's token and forwards
+it. Trusted code decodes the forwarded, already-authorised token for the
+customer id, asks AgentCore Identity for a token for the order service on
+the customer's behalf, and builds the gateway client with that token in
+its header. The model is told the customer's id in its system prompt and
+chooses the `customer_id` argument itself. Trusted code puts neither token
+in the model's prompt, its messages or its tool arguments. So the question
 that matters for a model in the loop, what happens when it chooses wrongly,
 has an answer that does not depend on the model. The gateway's Cedar policy
 compares the argument with the token's `customer_id` claim and refuses a
@@ -179,7 +176,8 @@ class Sandbox:
         arithmetic over the customer's orders rather than working it out in
         your head. pandas is installed. The sandbox has no network access and
         no credentials. ... the agent writes that text into the sandbox as
-        orders.json ... before your code runs. Read that file. Never put
+        orders.json ... before your code runs. Read that file with totals
+        as decimals ... and print money to two decimal places. Never put
         order rows into the code. ... Print every figure your answer will
         state, including how many orders a figure covers; do not state a
         number the code did not print. ...
@@ -217,12 +215,15 @@ there for the next within a turn, and one lock serialises starting the
 session, writing to it, running in it and stopping it. Source over twenty
 thousand characters is refused, at most eight thousand characters of
 output are kept for the model plus a note that it was cut, the agent
-gives up on a call after three minutes by its own clock and stops the
-session at the end of the turn, at most eight calls are in flight in the
-process at once and a ninth is refused rather than queued, and the hook
-that records the trail allows eight tool executions a turn, refuses the
-next with a message to answer from what it has, and ends the turn if the
-model keeps asking. Those bound what the model asks for in a turn. The
+gives up on any call to the sandbox service, starting, writing, running or
+stopping, after three minutes by its own clock and stops the session at
+the end of the turn, at most eight such calls are in flight in the process
+at once and a ninth is refused rather than queued, a stop waiting for a
+slot instead so that a busy process still ends its sessions, and the hook
+that records the trail allows eight tool attempts a turn, counted as the
+model asks, refuses the next with a message to answer from what it has,
+and ends the turn if the model keeps asking. Those bound what the model
+asks for in a turn. The
 prompt itself is capped at four thousand characters before the model
 sees it and the restored conversation is windowed to the last forty
 messages. Neither bounds what a tool result puts in the model's context.
@@ -331,7 +332,14 @@ the same across calls gets one conversation with a memory, and one that
 changes it starts another. There is no default id. A request that names no
 session is refused, so two clients of one customer do not fall into one
 conversation through a shared default, and a fresh, unguessable id per
-conversation keeps them apart on purpose.
+conversation keeps them apart on purpose. The runtime requires an id of at
+least thirty-three characters and the agent checks the same. An id is a
+locator within the customer's own namespace, not an authorisation
+boundary, since the customer comes from the token and any client holding
+that token may continue a conversation whose id it knows, which is why a
+client mints a random one. Turns in one conversation run one at a time, a
+second request for the same session waiting for the first, so two turns
+never restore and append to one history at once.
 
 > NOTE: leave the session manager's `filter_restored_tool_context` at its
 > default. Filtered, a second question in the same conversation sees the
@@ -364,15 +372,19 @@ That is the division of labour this post is about, the model decides what
 to ask the gateway and code decides what authenticates the asking.
 
 The rest of the prompt tells the model what the tools are for, to use
-`run_python` for arithmetic rather than doing it in its head and to state
-only figures the code printed, a count of orders included, and to read
-`orders.json` in the sandbox, the gateway's latest result in the
-conversation, rather than retype rows. The first of those is the
-instruction that changes the shape of the answers most, because without
-it a model will happily sum eight totals in prose and occasionally get one
-wrong, and a model that has printed the totals will still add a count it
-never computed unless told that counts are figures too. The second avoids
-asking the model to reproduce the gateway's rows in the source it writes.
+`run_python` for arithmetic rather than doing it in its head, with totals
+loaded as decimals and money printed to two places, to state only figures
+the code printed, a count of orders included, and to read `orders.json`
+in the sandbox, the gateway's latest result in the conversation, rather
+than retype rows. The first of those is the instruction that changes the
+shape of the answers most, because without it a model will happily sum
+eight totals in prose and occasionally get one wrong, and a model that has
+printed the totals will still add a count it never computed unless told
+that counts are figures too. The second avoids asking the model to
+reproduce the gateway's rows in the source it writes. Both are
+instructions. The model follows them most of the time, the trail returned
+with every answer shows when it has not, and nothing outside the model
+enforces either.
 
 ## 3 - The model's own permission
 
@@ -419,9 +431,8 @@ is handed already existed.
 
 ## 4 - Running it
 
-The whole turn works as follows. Trusted code establishes the customer and
-the token, the model chooses, and the gateway decides whether what it chose
-is allowed.
+In one turn, trusted code establishes the customer and the token, the
+model chooses, and the gateway decides whether what it chose is allowed.
 
 ![One turn: trusted code establishes the customer and the token, the model chooses the tools and the arguments, Cedar at the gateway decides whether a chosen customer_id is allowed](sequence.png)
 
@@ -612,13 +623,13 @@ date comes from trusted code for the same reason, so that "this year" is
 a filter the program applies rather than an assumption about the data.
 That is the reason the controls that must hold are outside the model.
 What the isolation does not bound is how much the model asks for, so the
-agent puts numbers on that itself, eight tool executions a turn and then
+agent puts numbers on that itself, eight tool attempts a turn and then
 the turn ends, twenty thousand characters of submitted source, eight
 thousand of result or error kept for the model, three minutes by the
 agent's own clock before it gives up on a call, eight calls in flight at
-once. Giving up does not stop the code. The session is stopped at the end
-of the turn, and the service's 900 second session lifetime is the backstop
-if that stop fails.
+once. Giving up does not stop the code. The stop at the end of the turn
+ends it when the stop succeeds, and the session's 900 second lifetime does
+when it does not.
 
 The model chooses what to say, and what it says is shaped by everything in
 its context. Three of those things are untrusted, the prompt, the order rows
@@ -659,10 +670,11 @@ AgentCore refuses a lookup for a wrong customer before the tool runs. All
 five live attempts to be someone else were declined by the model first,
 and the policy stayed the independent control for a mismatched argument.
 That is what the policy covers, the order lookup. It says nothing about
-whether the code the model wrote or the sentence it produced is right,
-which is what the bounds in section 1 and the rule about printed figures
-are for, and what the trail returned with every answer lets a caller
-check. The agent's authority to read orders through the gateway is
+whether the code the model wrote or the sentence it produced is right. The
+bounds in section 1 limit how much the model asks for, the rule about
+printed figures is an instruction it follows most of the time, and the
+trail returned with every answer is what lets a caller check. The agent's
+authority to read orders through the gateway is
 unchanged and still bound to the customer in the presented token. What is
 new is what the model may decide within that, which arguments, which code,
 how many calls, and those have their own bounds.

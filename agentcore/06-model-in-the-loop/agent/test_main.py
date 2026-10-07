@@ -11,7 +11,7 @@ import json
 import threading
 import urllib.error
 import urllib.request
-from http.server import HTTPServer
+from http.server import ThreadingHTTPServer
 
 import main
 import pytest
@@ -32,11 +32,16 @@ class StubHandler(Handler):
 
 @pytest.fixture(scope="module")
 def server_url():
-    server = HTTPServer(("127.0.0.1", 0), StubHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), StubHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{server.server_port}"
     server.shutdown()
+
+
+def sid(label):
+    """A session id of the runtime's minimum length, 33 characters."""
+    return (label + "-").ljust(33, "0")
 
 
 def _b64(obj):
@@ -117,25 +122,25 @@ def test_the_body_is_read_before_an_early_401(server_url):
 def test_a_prompt_goes_to_the_model_as_the_verified_customer(server_url):
     turns.clear()
     status, body = post(
-        f"{server_url}/invocations", {"prompt": "how much have I spent?"}, headers_for(session="conv-1")
+        f"{server_url}/invocations", {"prompt": "how much have I spent?"}, headers_for(session=sid("conv-1"))
     )
     assert status == 200
     assert body == {
         "result": "answer for c-1000",
         "trail": [{"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}}],
     }
-    assert turns == [("how much have I spent?", "c-1000", "conv-1", f"obo:{bearer_for('c-1000')}")]
+    assert turns == [("how much have I spent?", "c-1000", sid("conv-1"), f"obo:{bearer_for('c-1000')}")]
 
 
 def test_the_customer_comes_from_the_token_not_the_body(server_url):
     turns.clear()
-    post(f"{server_url}/invocations", {"prompt": "my orders", "customer": "c-1001", "actor": "c-1001", "session": "s1"})
+    post(f"{server_url}/invocations", {"prompt": "my orders", "customer": "c-1001", "actor": "c-1001", "session": sid("s1")})
     assert turns[-1][1] == "c-1000"
 
 
 def test_the_model_is_given_the_minted_token_not_the_customers(server_url):
     turns.clear()
-    post(f"{server_url}/invocations", {"prompt": "my orders", "session": "s1"})
+    post(f"{server_url}/invocations", {"prompt": "my orders", "session": sid("s1")})
     token = turns[-1][3]
     assert token == f"obo:{bearer_for('c-1000')}"
     assert token != bearer_for("c-1000")
@@ -143,14 +148,14 @@ def test_the_model_is_given_the_minted_token_not_the_customers(server_url):
 
 def test_the_runtime_session_header_names_the_conversation(server_url):
     turns.clear()
-    post(f"{server_url}/invocations", {"prompt": "hi", "session": "from-body"}, headers_for(session="runtime-session-1"))
-    assert turns[-1][2] == "runtime-session-1"
+    post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("from-body")}, headers_for(session=sid("runtime-session-1")))
+    assert turns[-1][2] == sid("runtime-session-1")
 
 
 def test_the_body_session_is_used_outside_the_runtime(server_url):
     turns.clear()
-    post(f"{server_url}/invocations", {"prompt": "hi", "session": "from-body"})
-    assert turns[-1][2] == "from-body"
+    post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("from-body")})
+    assert turns[-1][2] == sid("from-body")
 
 
 def test_a_request_with_no_session_is_rejected_not_defaulted(server_url):
@@ -163,6 +168,63 @@ def test_a_malformed_session_id_is_rejected(server_url):
     assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "x" * 200}) == 400
 
 
+def test_a_session_id_shorter_than_the_runtimes_minimum_is_rejected(server_url):
+    """The runtime requires 33 characters; a conversation named outside the
+    runtime is held to the same rule, so short, guessable ids are refused."""
+    assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "s1"}) == 400
+    assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "x" * 32}) == 400
+    assert post(f"{server_url}/invocations", {"prompt": "hi", "session": "x" * 33})[0] == 200
+
+
+def test_turns_in_one_conversation_run_one_at_a_time(server_url):
+    """The server answers requests concurrently; two turns for the same
+    customer and session must not restore and append to one conversation at
+    once, while turns for different sessions still overlap."""
+    import time
+
+    spans = []
+
+    def slow(prompt, customer, session, token):
+        started = time.monotonic()
+        time.sleep(0.3)
+        spans.append((session, started, time.monotonic()))
+        return "ok", []
+
+    original = StubHandler.respond
+    StubHandler.respond = staticmethod(slow)
+    try:
+        for same in (True, False):
+            spans.clear()
+            sessions = [sid("same"), sid("same")] if same else [sid("one"), sid("two")]
+            threads = [threading.Thread(target=post, args=(f"{server_url}/invocations", {"prompt": "hi", "session": x})) for x in sessions]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            (_, _, first_end), (_, second_start, _) = sorted(spans, key=lambda x: x[1])
+            overlapped = second_start < first_end
+            assert overlapped is (not same)
+    finally:
+        StubHandler.respond = original
+
+
+def test_a_failing_turns_message_stays_out_of_the_log(server_url, capsys):
+    """An exception's text can carry a response body, a token or the model's
+    code; the log gets the class only."""
+    def boom(prompt, customer, session, token):
+        raise RuntimeError('Bearer eyJhbGciOi.eyJzdWIi.sig {"order_id": 1033} print(total)')
+
+    original = StubHandler.respond
+    StubHandler.respond = staticmethod(boom)
+    try:
+        assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": sid("s1")}) == 502
+    finally:
+        StubHandler.respond = original
+    out = capsys.readouterr().out
+    assert "turn failed for c-1000: RuntimeError" in out
+    assert "eyJ" not in out and "1033" not in out and "print" not in out
+
+
 def test_a_failing_turn_is_a_502_not_a_traceback(server_url):
     def boom(prompt, customer, session, token):
         raise RuntimeError("model unavailable")
@@ -170,7 +232,7 @@ def test_a_failing_turn_is_a_502_not_a_traceback(server_url):
     original = StubHandler.respond
     StubHandler.respond = staticmethod(boom)
     try:
-        assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "s1"}) == 502
+        assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": sid("s1")}) == 502
     finally:
         StubHandler.respond = original
 
@@ -185,7 +247,7 @@ def test_a_budget_overrun_is_a_502_that_says_so(server_url):
     StubHandler.respond = staticmethod(loops)
     try:
         with pytest.raises(urllib.error.HTTPError) as exc:
-            post(f"{server_url}/invocations", {"prompt": "hi", "session": "s1"})
+            post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("s1")})
         assert exc.value.code == 502
         assert "budget" in json.loads(exc.value.read())["error"]
     finally:
@@ -194,21 +256,21 @@ def test_a_budget_overrun_is_a_502_that_says_so(server_url):
 
 def test_an_oversized_prompt_is_refused_before_the_model(server_url):
     turns.clear()
-    big = {"prompt": "x" * (main.MAX_PROMPT_CHARS + 1), "session": "s1"}
+    big = {"prompt": "x" * (main.MAX_PROMPT_CHARS + 1), "session": sid("s1")}
     assert status_of(f"{server_url}/invocations", big) == 400
     assert turns == []
 
 
 def test_a_missing_prompt_is_rejected(server_url):
-    assert status_of(f"{server_url}/invocations", {"csv": "a,b\n1,2\n", "session": "s1"}) == 400
+    assert status_of(f"{server_url}/invocations", {"csv": "a,b\n1,2\n", "session": sid("s1")}) == 400
 
 
 def test_a_blank_prompt_is_rejected(server_url):
-    assert status_of(f"{server_url}/invocations", {"prompt": "   ", "session": "s1"}) == 400
+    assert status_of(f"{server_url}/invocations", {"prompt": "   ", "session": sid("s1")}) == 400
 
 
 def test_a_non_string_prompt_is_rejected(server_url):
-    assert status_of(f"{server_url}/invocations", {"prompt": ["list", "orders"], "session": "s1"}) == 400
+    assert status_of(f"{server_url}/invocations", {"prompt": ["list", "orders"], "session": sid("s1")}) == 400
 
 
 def test_non_object_json_is_rejected(server_url):

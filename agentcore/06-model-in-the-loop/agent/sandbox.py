@@ -24,12 +24,14 @@ _client = None
 
 # How long the agent waits on one code interpreter call, wall clock, enforced
 # here by running the call on a worker thread and abandoning it at the
-# deadline. The code may still be running in the session after that; the
-# session is stopped at the end of the turn, which ends it. One HTTP attempt
-# per call, so a slow call is not silently made twice. At most MAX_IN_FLIGHT
-# calls are in flight in the process at once, admitted by a semaphore the
-# worker releases when its call finishes, so nothing queues behind the
-# workers: a call that finds every slot taken is refused outright.
+# deadline. Starting, writing, running and stopping all go through it. The
+# code may still be running in the session after that; the stop at the end
+# of the turn ends it when the stop succeeds. One HTTP attempt per call, so
+# a slow call is not silently made twice. At most MAX_IN_FLIGHT calls are in
+# flight in the process at once, admitted by a semaphore the worker releases
+# when its call finishes, so nothing queues behind the workers: a call that
+# finds every slot taken is refused outright, except a stop, which waits for
+# a slot so that a busy process still ends its sessions.
 WAIT_SECONDS = 180
 MAX_IN_FLIGHT = 8
 _calls = ThreadPoolExecutor(max_workers=MAX_IN_FLIGHT, thread_name_prefix="sandbox-call")
@@ -103,6 +105,11 @@ class _Bounded:
         return text
 
 
+class Abandoned(RuntimeError):
+    """A call the agent gave up waiting on. The service may still be
+    running it."""
+
+
 def _invoke(session_id, name, arguments):
     response = client().invoke_code_interpreter(
         codeInterpreterIdentifier=os.environ["CODE_INTERPRETER_ID"],
@@ -113,55 +120,65 @@ def _invoke(session_id, name, arguments):
     return _consume(response)
 
 
-def _held(session_id, name, arguments):
-    """Run the call on the worker and give the slot back when it is over,
-    however it ended, so an abandoned call holds its slot only as long as
-    its HTTP attempt lasts."""
-    try:
-        return _invoke(session_id, name, arguments)
-    finally:
-        _slots.release()
-
-
-def _call(session_id, name, **arguments):
-    """Run one interpreter call with a wall-clock deadline, one of at most
-    MAX_IN_FLIGHT in the process."""
-    if not _slots.acquire(blocking=False):
-        raise RuntimeError(f"{name} refused: the sandbox already has {MAX_IN_FLIGHT} calls in flight; try again")
-    try:
-        future = _calls.submit(_held, session_id, name, arguments)
-    except BaseException:
-        _slots.release()
-        raise
-    try:
-        return future.result(timeout=WAIT_SECONDS)
-    except FutureTimeout:
-        raise RuntimeError(
-            f"{name} did not finish within {WAIT_SECONDS} seconds; the session will be stopped at the end of the turn"
-        ) from None
-
-
-def write_files(session_id, path, text):
-    return _call(session_id, "writeFiles", content=[{"path": path, "text": text}])
-
-
-def execute_code(session_id, code, language="python"):
-    return _call(session_id, "executeCode", code=code, language=language)
-
-
-def stop_session(interpreter, session_id):
-    client().stop_code_interpreter_session(
-        codeInterpreterIdentifier=interpreter, sessionId=session_id
-    )
-
-
-def session_for(interpreter, name):
+def _start(interpreter, name):
     resp = client().start_code_interpreter_session(
         codeInterpreterIdentifier=interpreter,
         name=name,
         sessionTimeoutSeconds=900,
     )
     return resp["sessionId"]
+
+
+def _stop(interpreter, session_id):
+    client().stop_code_interpreter_session(
+        codeInterpreterIdentifier=interpreter, sessionId=session_id
+    )
+
+
+def _held(fn, args):
+    """Run the call on the worker and give the slot back when it is over,
+    however it ended, so an abandoned call holds its slot only as long as
+    its HTTP attempt lasts."""
+    try:
+        return fn(*args)
+    finally:
+        _slots.release()
+
+
+def _call(name, fn, *args, wait=False):
+    """Run one service call with a wall-clock deadline, one of at most
+    MAX_IN_FLIGHT in the process. A call that finds no free slot is refused,
+    unless it asked to wait, which a stop does."""
+    admitted = _slots.acquire(timeout=WAIT_SECONDS) if wait else _slots.acquire(blocking=False)
+    if not admitted:
+        raise RuntimeError(f"{name} refused: the sandbox already has {MAX_IN_FLIGHT} calls in flight; try again")
+    try:
+        future = _calls.submit(_held, fn, args)
+    except BaseException:
+        _slots.release()
+        raise
+    try:
+        return future.result(timeout=WAIT_SECONDS)
+    except FutureTimeout:
+        raise Abandoned(
+            f"{name} did not finish within {WAIT_SECONDS} seconds; the session will be stopped at the end of the turn"
+        ) from None
+
+
+def write_files(session_id, path, text):
+    return _call("writeFiles", _invoke, session_id, "writeFiles", {"content": [{"path": path, "text": text}]})
+
+
+def execute_code(session_id, code, language="python"):
+    return _call("executeCode", _invoke, session_id, "executeCode", {"code": code, "language": language})
+
+
+def session_for(interpreter, name):
+    return _call("startCodeInterpreterSession", _start, interpreter, name)
+
+
+def stop_session(interpreter, session_id):
+    return _call("stopCodeInterpreterSession", _stop, interpreter, session_id, wait=True)
 
 
 class Sandbox:
@@ -187,6 +204,9 @@ class Sandbox:
         self.interpreter = interpreter or os.environ.get("CODE_INTERPRETER_ID", "")
         self.session_id = None
         self._lock = threading.Lock()
+        # Set when a call was given up on at the deadline: the service may
+        # still be running it when the session is stopped.
+        self.abandoned = False
         # Files held for the session, path to text, written before the next
         # run and forgotten once written. Trusted code puts them here.
         self.staged = {}
@@ -206,15 +226,17 @@ class Sandbox:
         no credentials. When the latest orders___list_orders call in this
         conversation returned non-empty text, the agent writes that text
         into the sandbox as orders.json, a JSON object with an "orders"
-        list, before your code runs. Read that file. Never put order rows
-        into the code. If the latest call failed or returned no usable
-        text, this tool refuses to run until orders___list_orders is called
-        again and succeeds; if the file could not be written, the error
-        says so and running again writes it again. Print every figure your
-        answer will state, including how many orders a figure covers; do
-        not state a number the code did not print. Variables persist
-        between calls within one conversation turn. An execution error is
-        returned when the code fails, so correct the code and run it again.
+        list, before your code runs. Read that file with totals as
+        decimals, json.load(open("orders.json"), parse_float=Decimal), and
+        print money to two decimal places. Never put order rows into the
+        code. If the latest call failed or returned no usable text, this
+        tool refuses to run until orders___list_orders is called again and
+        succeeds; if the file could not be written, the error says so and
+        running again writes it again. Print every figure your answer will
+        state, including how many orders a figure covers; do not state a
+        number the code did not print. Variables persist between calls
+        within one conversation turn. An execution error is returned when
+        the code fails, so correct the code and run it again.
 
         Args:
             code: The Python source to execute. Print anything you need back.
@@ -237,7 +259,11 @@ class Sandbox:
                     raise RuntimeError(f"{path} could not be written to the sandbox: {exc}; run again to retry") from exc
                 del self.staged[path]
                 self.written.append(path)
-            return self.execute(self.session_id, code)
+            try:
+                return self.execute(self.session_id, code)
+            except Abandoned:
+                self.abandoned = True
+                raise
 
     def stage(self, path, text):
         """Hold a file for this turn's session. It is written just before
@@ -260,13 +286,17 @@ class Sandbox:
     def close(self):
         """Stop the session, retrying once. The id is forgotten only once the
         stop succeeded; if both attempts fail the error reaches the caller,
-        and the service's 900 second session lifetime is the backstop."""
+        and the service's 900 second session lifetime is the backstop. A
+        stop is what ends code the agent gave up waiting on, so one with an
+        abandoned call behind it is logged as such."""
         with self._lock:
             if self.session_id is None:
                 return
+            if self.abandoned:
+                print(f"stopping sandbox session {self.session_id} with an abandoned call still in flight")
             try:
                 self.stop(self.interpreter, self.session_id)
             except Exception as exc:  # noqa: BLE001 — one retry, then the caller hears about it
-                print(f"stopping sandbox session {self.session_id} failed once, retrying: {exc}")
+                print(f"stopping sandbox session {self.session_id} failed once, retrying: {type(exc).__name__}")
                 self.stop(self.interpreter, self.session_id)
             self.session_id = None

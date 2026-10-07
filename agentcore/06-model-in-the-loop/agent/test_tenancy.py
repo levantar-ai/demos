@@ -70,3 +70,17 @@ def test_recall_searches_only_the_customers_namespace():
     (namespace,) = config.retrieval_config
     assert namespace == "/users/{actorId}"
     assert namespace.format(actorId=config.actor_id) == "/users/c-1000"
+
+
+# --- what the Terraform fixes that the code relies on -------------------------
+TERRAFORM = pathlib.Path(__file__).resolve().parents[1] / "terraform"
+
+
+def test_the_sandbox_has_no_network():
+    """SANDBOX mode is what lets the model's code run at all."""
+    assert 'network_mode = "SANDBOX"' in (TERRAFORM / "tools.tf").read_text()
+
+
+def test_the_execution_roles_trust_the_service_only_for_this_demos_runtime_and_gateway():
+    assert "runtime/${local.runtime_name}-*" in (TERRAFORM / "iam.tf").read_text()
+    assert "gateway/${local.name_prefix}-gw-*" in (TERRAFORM / "gateway.tf").read_text()

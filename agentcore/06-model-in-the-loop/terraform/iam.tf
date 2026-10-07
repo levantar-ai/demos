@@ -1,4 +1,7 @@
-# Execution role assumed by the AgentCore Runtime for this demo only.
+# Execution role assumed by the AgentCore Runtime. The trust is bound to a
+# runtime in this account whose ARN starts with this demo's runtime name;
+# the ARN itself is not known until the runtime exists, so a name pattern
+# is as tight as the trust can be written.
 
 resource "aws_iam_role" "runtime" {
   name = "${local.name_prefix}-runtime"
@@ -17,7 +20,7 @@ resource "aws_iam_role" "runtime" {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
           ArnLike = {
-            "aws:SourceArn" = "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:runtime/*"
+            "aws:SourceArn" = "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:runtime/${local.runtime_name}-*"
           }
         }
       }

@@ -927,6 +927,62 @@ Verdict "not ready", one blocker, seven majors, five minors.
 13. **Minor, lead-ins and H1 dashes.** Not changed; series conventions
     the site build reads.
 
+### Round 16, 2026-10-07 (after the round 15 fixes and the thirteenth run)
+
+Verdict "not ready", one blocker, eight majors, five minors, one nit.
+
+1. **Blocker, the bundle lacked the Code Interpreter Terraform, the orders
+   Lambda, the exchange and the trigger.** A gap in what was sent, not in
+   the repository: those files and their tests (`agent/test_tenancy.py`,
+   `exchange/test_*.py`) exist and are in every round's bundle from here,
+   with a test that the interpreter is `SANDBOX` and that the trust
+   policies name this demo's runtime and gateway.
+2. **Major, start and stop bypassed the deadline and the admission
+   bound.** Accepted; every call to the service goes through them, a stop
+   waiting for a slot rather than being refused. Tested.
+3. **Major, a stop can race an abandoned call.** Accepted in part. The
+   sandbox records an abandoned call and the stop logs it; the prose says
+   the stop ends the code when it succeeds and the lifetime does when it
+   does not. The service has no cancel.
+4. **Major, turns for one session not serialised.** Accepted; the handler
+   holds a lock per customer and session for the turn, in a bounded
+   table, tested with two concurrent requests to one session and to two.
+5. **Major, session ids advisory and short.** Accepted in part. The agent
+   requires the runtime's own minimum of 33 characters; the post says an
+   id is a locator within the customer's namespace, not an authorisation
+   boundary, and that a client mints a random one. The fixed ids in this
+   record are for reproducibility.
+6. **Major, the printed-figures rule is not reliably followed.** Accepted
+   as prose: the post calls it an instruction the model follows most of
+   the time, with the trail as the check, and the conclusion no longer
+   lists it among the bounds. Enforcement in trusted code is not added.
+7. **Major, float arithmetic on money.** Accepted; the prompt and the tool
+   description say to load totals as `Decimal` and print to two places.
+   The turns are re-run below.
+8. **Major, trust policies on `runtime/*` and `gateway/*`.** Accepted;
+   bound to this demo's runtime and gateway name patterns. The two
+   policy-evaluation actions stay account-wide, as `gateway.tf` says.
+9. **Major, exception text logged raw.** Accepted; failures are logged as
+   class and AWS error code only, in the handler, the cleanup and the
+   exchange retry, tested with a message carrying a token, a row and code.
+10. **Minor, "executions" are attempts, and no proof the budget ends the
+    real loop.** Accepted. The wording is "attempts" throughout, and a test
+    runs the real Strands agent with a scripted model: the budget ends the
+    loop, which wraps it in `EventLoopException`. That found a bug: the
+    handler's `except BudgetExceeded` never matched live, so a spent
+    budget was a plain 502; `answer()` now unwraps the loop's exception.
+11. **Minor, the token-decoding wording.** Accepted; the post says the
+    runtime's authorizer validates the token and the agent decodes the
+    forwarded, already-authorised one. Live rejection of a malformed token
+    and of an ID token is recorded below.
+12. **Minor, "never in its context".** Accepted; the wording is what
+    trusted code does not put in the prompt, messages or tool arguments.
+13. **Minor, happy path and single subject.** Accepted in part; the
+    opening is shorter. The pretexts and the bounds stay.
+14. **Minor, learner framing in the opening.** Accepted; the recap is one
+    sentence and "works as follows" is gone.
+15. **Nit, lead-ins.** Not changed; series conventions.
+
 
 
 

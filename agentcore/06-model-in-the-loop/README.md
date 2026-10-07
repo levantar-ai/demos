@@ -16,8 +16,8 @@ where it was. The
 runtime validates the customer's token, trusted code exchanges it through
 AgentCore Identity for the five-minute token the gateway accepts, and that
 token goes into the MCP client's header. The model is told the customer's id
-in its system prompt and chooses the `customer_id` argument; it never holds
-the token. A wrong choice, its own or one a prompt talked it into, is refused
+in its system prompt and chooses the `customer_id` argument; trusted code
+gives it neither token. A wrong choice, its own or one a prompt talked it into, is refused
 by the Cedar policy at the gateway before the tool runs.
 
 Each demo in the series is independently deployable and carries the previous
@@ -103,9 +103,13 @@ ask "Which carrier has delivered most of my orders?"
 ```
 
 A session id is required, from the runtime's header or a `session` field in
-the body; there is no default, so two clients of one customer do not fall
-into one conversation by accident. Use a fresh, unguessable id for each
-conversation (the examples below are fixed only so they read well). The response carries the answer and the trail,
+the body, of at least 33 characters as the runtime itself requires; there
+is no default, so two clients of one customer do not fall into one
+conversation by accident. Use a fresh, unguessable id for each conversation
+(the examples below are fixed only so they read well). An id is a locator
+within the customer's own namespace, not an authorisation boundary, and
+turns for one customer and session run one at a time. The response carries
+the answer and the trail,
 every tool the model chose with the arguments it chose and whether the call
 succeeded:
 
@@ -173,10 +177,16 @@ stack, for looking at the minted token and calling the gateway directly.
   back to the caller, who is the customer whose orders are in it. The
   runtime's log gets a redacted line per step, the tool name, the status and
   the size of the input, never the generated code or the order rows it
-  embeds. The same hook allows eight tool executions a turn, refuses the
-  ninth with a message to answer from what it has (recorded in the trail as
-  `cancelled`), and raises on the tenth so the turn ends as a 502 rather
-  than running on. That bounds executions and model calls per turn. The
+  embeds. A failure is logged as its class and, for an AWS error, its code,
+  never its message (`trail.describe`), since a message can carry a
+  response body, a token or the model's code. The same hook allows eight
+  tool attempts a turn, counted as the model asks and whether or not the
+  tool then succeeds, refuses the ninth with a message to answer from what
+  it has (recorded in the trail as `cancelled`), and raises on the tenth so
+  the turn ends as a 502 rather than running on. Strands wraps whatever
+  ends its loop in `EventLoopException`; `answer()` unwraps it, without
+  which the handler answered a spent budget as a plain failure, which the
+  loop test found. That bounds attempts and model calls per turn. The
   prompt is capped at 4,000 characters and the restored conversation is
   windowed to the last 40 messages by Strands'
   `SlidingWindowConversationManager`, applied by trusted code before
@@ -188,13 +198,22 @@ stack, for looking at the minted token and calling the gateway directly.
   whole, as any tool result does, and the 200,000 character handoff cap
   bounds what is staged for the sandbox, not what the model sees.
   Retrieved memory records have no application-level size cap. The agent
-  gives up on a sandbox call after 180 s by its own clock (the call runs
-  on a worker thread and is abandoned at the deadline), makes one HTTP
-  attempt per call, and admits at most 8 calls in flight per process, a
-  ninth being refused rather than queued. An abandoned call keeps its slot
-  until its HTTP attempt ends, and its code may still be running until the
-  session is stopped at the end of the turn, with the session's lifetime
-  as the backstop. The service offers no cancel.
+  gives up on any call to the sandbox service, start, write, execute or
+  stop, after 180 s by its own clock (the call runs on a worker thread and
+  is abandoned at the deadline), makes one HTTP attempt per call, and
+  admits at most 8 calls in flight per process, a ninth being refused
+  rather than queued, except a stop, which waits for a slot. An abandoned
+  call keeps its slot until its HTTP attempt ends, and its code may still
+  be running; the stop at the end of the turn ends it when the stop
+  succeeds (logged as a stop with an abandoned call behind it), and the
+  session's lifetime does when it does not. The service offers no cancel.
+- The runtime and gateway execution roles trust the service only for a
+  runtime or gateway in this account whose ARN starts with this demo's name
+  (`runtime/demos_agentcore_06_model_in_the_loop-*`,
+  `gateway/demos-agentcore-06-model-in-the-loop-gw-*`); the exact ARN is not
+  known until the resource exists. `AuthorizeAction` and
+  `PartiallyAuthorizeActions` have no resource-level scoping and stay
+  account-wide, as `gateway.tf` says.
 - The sandbox tool refuses code over 20,000 characters, accumulates at most
   8,000 characters across stream events for the model, result or error,
   separators counted (each event is still materialised by boto3 before the
@@ -245,9 +264,13 @@ stack, for looking at the minted token and calling the gateway directly.
   passes the minted one to the MCP client as a header, what each hook
   does, that the window is applied before `restore()` scans the
   conversation, that a staged file is written before the first execution
-  and never again, that three concurrent calls share one session, and
-  that a ninth in-flight call is refused. The full request Strands sends
-  to Bedrock is Strands' to build and is not inspected here.
+  and never again, that three concurrent calls share one session, that a
+  ninth in-flight call is refused, and that turns for one session run one
+  at a time while a failing turn's message stays out of the log. Two tests
+  run the real Strands agent with a scripted model: the gateway result is
+  in the sandbox before the model's code runs, and the budget ends the
+  loop. The full request Strands sends to Bedrock is Strands' to build and
+  is not inspected here.
 
 ## Tear down
 

@@ -808,6 +808,53 @@ def test_a_call_within_the_deadline_returns_its_output(fake):
     assert sandbox.execute_code("s1", "print('fast')") == "fast"
 
 
+def test_starting_and_stopping_a_session_have_the_same_deadline_and_bound(monkeypatch):
+    """Every call to the service goes through the deadline and the admission
+    bound, not only write and execute; a stop waits for a slot instead of
+    being refused, so a busy process still ends its sessions."""
+    import threading
+    import time
+
+    class Slow:
+        def start_code_interpreter_session(self, **kw):
+            time.sleep(1)
+            return {"sessionId": "late"}
+
+        def stop_code_interpreter_session(self, **kw):
+            return {}
+
+    monkeypatch.setattr(sandbox, "client", lambda: Slow())
+    monkeypatch.setattr(sandbox, "WAIT_SECONDS", 0.2)
+    with pytest.raises(sandbox.Abandoned, match="startCodeInterpreterSession did not finish within"):
+        sandbox.session_for("ci-test", "analysis")
+    time.sleep(1)  # the abandoned start gives its slot back when its call ends
+    monkeypatch.setattr(sandbox, "_slots", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(sandbox, "MAX_IN_FLIGHT", 1)
+    assert sandbox._slots.acquire(blocking=False)
+    with pytest.raises(RuntimeError, match="startCodeInterpreterSession refused"):
+        sandbox.session_for("ci-test", "analysis")
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="stopCodeInterpreterSession refused"):
+        sandbox.stop_session("ci-test", "s1")
+    assert time.monotonic() - started >= 0.2  # the stop waited for a slot before giving up
+    sandbox._slots.release()
+    assert sandbox.stop_session("ci-test", "s1") is None
+
+
+def test_a_session_with_an_abandoned_call_is_stopped_and_says_so(monkeypatch, capsys):
+    stopped = []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s12"))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: (_ for _ in ()).throw(sandbox.Abandoned("executeCode did not finish"))))
+    monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(lambda i, sid: stopped.append(sid)))
+    box = sandbox.Sandbox()
+    with pytest.raises(sandbox.Abandoned):
+        box.run_python(code="while True: pass")
+    assert box.abandoned is True
+    box.close()
+    assert stopped == ["s12"] and box.session_id is None
+    assert "stopping sandbox session s12 with an abandoned call still in flight" in capsys.readouterr().out
+
+
 def test_a_call_past_the_in_flight_limit_is_refused_and_a_finished_call_frees_its_slot(fake, monkeypatch):
     """Nothing queues behind the workers: with every slot taken the call is
     refused outright, and a slot comes back when its call finishes, however
@@ -832,6 +879,155 @@ def test_closing_an_unused_sandbox_stops_nothing(monkeypatch):
     monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(lambda interpreter, sid: stopped.append(sid)))
     sandbox.Sandbox().close()
     assert stopped == []
+
+
+def test_a_failure_is_described_by_class_and_aws_code_never_by_message():
+    from botocore.exceptions import ClientError
+
+    secret = 'Bearer eyJhbGciOi.eyJzdWIi.sig {"order_id": 1033} print(total)'
+    assert trail_module.describe(RuntimeError(secret)) == "RuntimeError"
+    denied = ClientError({"Error": {"Code": "AccessDeniedException", "Message": secret}}, "InvokeCodeInterpreter")
+    assert trail_module.describe(denied) == "ClientError AccessDeniedException"
+
+
+def test_a_failing_closes_message_stays_out_of_the_log(fakes, monkeypatch, capsys):
+    def leaky_stop(interpreter, sid):
+        raise RuntimeError('Bearer eyJhbGciOi.eyJzdWIi.sig {"order_id": 1033}')
+
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s13"))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: "1"))
+    monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(leaky_stop))
+    monkeypatch.setattr(FakeAgent, "runs_python", True)
+    model.answer("hi", "c-1000", "session-1", "minted-token")
+    out = capsys.readouterr().out
+    assert "cleanup failed in Sandbox.close: RuntimeError" in out
+    assert "eyJ" not in out and "1033" not in out
+
+
+# --- the real Strands loop, with a scripted model ----------------------------
+class ScriptedModel:
+    """A Strands model that asks for the tools in its script, then answers.
+    The agent, the executor, the hooks and the tools are the real ones."""
+
+    def __init__(self, script):
+        self.script, self.calls = list(script), 0
+
+    def update_config(self, **kw):
+        pass
+
+    def get_config(self):
+        return {}
+
+    async def structured_output(self, *a, **kw):
+        raise NotImplementedError
+        yield
+
+    async def stream(self, messages, tool_specs=None, system_prompt=None, **kw):
+        self.calls += 1
+        step = self.script.pop(0) if self.script else ("text", "done")
+        yield {"messageStart": {"role": "assistant"}}
+        if step[0] == "tool":
+            yield {"contentBlockStart": {"start": {"toolUse": {"toolUseId": f"t{self.calls}", "name": step[1]}}}}
+            yield {"contentBlockDelta": {"delta": {"toolUse": {"input": json.dumps(step[2])}}}}
+            yield {"contentBlockStop": {}}
+            yield {"messageStop": {"stopReason": "tool_use"}}
+        else:
+            yield {"contentBlockDelta": {"delta": {"text": step[1]}}}
+            yield {"contentBlockStop": {}}
+            yield {"messageStop": {"stopReason": "end_turn"}}
+        yield {"metadata": {"usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2}, "metrics": {"latencyMs": 1}}}
+
+
+def _real_agent(script, box, trail):
+    from strands import Agent
+    from strands.agent.conversation_manager import SlidingWindowConversationManager
+    from strands.tools.executors import SequentialToolExecutor
+
+    return Agent(
+        model=ScriptedModel(script),
+        tools=[orders___list_orders, box.run_python],
+        hooks=[trail, handoff.Handoff(box)],
+        conversation_manager=SlidingWindowConversationManager(window_size=40, should_truncate_results=False),
+        tool_executor=SequentialToolExecutor(),
+        callback_handler=None,
+    )
+
+
+from strands import tool as _strands_tool
+
+
+@_strands_tool
+def orders___list_orders(customer_id: str) -> str:
+    """Stands in for the gateway's tool.
+
+    Args:
+        customer_id: the customer.
+    """
+    return json.dumps({"customer_id": customer_id, "orders": [{"order_id": 1033, "total": 12.0}]})
+
+
+def test_in_the_real_loop_the_gateway_result_is_in_the_sandbox_before_the_models_code_runs(monkeypatch):
+    started, puts, executes, stopped = [], [], [], []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: started.append(n) or "s20"))
+    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, text: puts.append((sid, path, text))))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: executes.append((len(puts), code)) or "12.00"))
+    monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(lambda i, sid: stopped.append(sid)))
+    box, t = sandbox.Sandbox(), trail_module.Trail()
+    agent = _real_agent([
+        ("tool", "orders___list_orders", {"customer_id": "c-1000"}),
+        ("tool", "run_python", {"code": "print(1)"}),
+        ("text", "You have spent £12.00."),
+    ], box, t)
+    result = agent("how much?")
+    assert str(result).strip() == "You have spent £12.00."
+    assert started == ["analysis"]
+    assert puts == [("s20", "orders.json", orders___list_orders(customer_id="c-1000"))]
+    assert executes == [(1, "print(1)")]  # the file was written before the code ran
+    assert [(s["tool"], s["status"]) for s in t.steps] == [("orders___list_orders", "success"), ("run_python", "success")]
+    box.close()
+    assert stopped == ["s20"]
+
+
+def test_in_the_real_loop_the_budget_ends_the_turn(monkeypatch):
+    """Strands invokes the before-tool hook outside the handler that turns a
+    tool's failure into an error result, so the hook's BudgetExceeded ends
+    the agent call rather than becoming one more tool error. The loop wraps
+    it in EventLoopException, which answer() unwraps for the handler."""
+    from strands.types.exceptions import EventLoopException
+
+    executes = []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s21"))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: executes.append(code) or "1"))
+    monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(lambda i, sid: None))
+    box, t = sandbox.Sandbox(), trail_module.Trail(max_tool_calls=2)
+    agent = _real_agent([("tool", "run_python", {"code": "print(1)"})] * 10, box, t)
+    with pytest.raises(EventLoopException) as raised:
+        agent("loop")
+    assert isinstance(raised.value.original_exception, trail_module.BudgetExceeded)
+    assert len(executes) == 2
+    assert [s.get("status") for s in t.steps] == ["success", "success", "cancelled", "cancelled"]
+    box.close()
+
+
+def test_answer_unwraps_what_the_loop_wrapped_so_the_handler_sees_the_budget(fakes, monkeypatch):
+    """Before this, a spent budget reached the handler as EventLoopException
+    and was answered as a plain failure rather than as the budget."""
+    from strands.types.exceptions import EventLoopException
+
+    def wrapped(self, prompt):
+        raise EventLoopException(trail_module.BudgetExceeded("kept asking"))
+
+    monkeypatch.setattr(FakeAgent, "__call__", wrapped)
+    with pytest.raises(trail_module.BudgetExceeded):
+        model.answer("loop", "c-1000", "session-1", "minted-token")
+    assert fakes.built[-1].cleaned is True
+
+    def throttled(self, prompt):
+        raise EventLoopException(RuntimeError("throttled"))
+
+    monkeypatch.setattr(FakeAgent, "__call__", throttled)
+    with pytest.raises(RuntimeError, match="throttled"):
+        model.answer("loop", "c-1000", "session-1", "minted-token")
 
 
 def test_run_python_is_a_tool_the_model_can_read():
