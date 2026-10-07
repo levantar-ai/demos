@@ -359,6 +359,25 @@ def test_a_failed_refresh_makes_the_tool_refuse_rather_than_read_a_stale_file(mo
     assert box.run_python(code="print(1)") == "ran"
 
 
+def test_a_failed_gateway_call_or_an_empty_result_also_withholds_the_old_file(monkeypatch):
+    """After restore() put last turn's file in place, a failed call or a
+    result with nothing in it must not leave that file readable as current."""
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s9"))
+    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, text: None))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: "ran"))
+    for result in (
+        {"status": "error", "content": [{"text": "Tool Execution Denied"}]},
+        {"status": "success", "content": [{"text": "   "}]},
+        {"status": "success", "content": [{"image": {}}]},
+    ):
+        box = sandbox.Sandbox()
+        handoff.restore(_conversation_with_a_fetch("old rows"), box)
+        assert box.run_python(code="print(1)") == "ran"
+        handoff.Handoff(box).after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"}, result))
+        with pytest.raises(RuntimeError, match="orders.json could not be written"):
+            box.run_python(code="print(1)")
+
+
 def test_the_tool_description_tells_the_model_to_read_the_file_not_embed_rows():
     description = " ".join(sandbox.Sandbox().run_python.tool_spec["description"].split())
     assert "orders.json" in description
@@ -371,9 +390,11 @@ def test_other_tools_and_failed_calls_are_not_handed_over():
     h = handoff.Handoff(box)
     h.after(_Event({"name": "run_python", "input": {"code": "print(1)"}, "toolUseId": "u1"},
                    {"status": "success", "content": [{"text": "1"}]}))
+    assert box.unavailable == set()  # an unrelated tool changes nothing
     h.after(_Event({"name": "orders___list_orders", "input": {"customer_id": "c-1001"}, "toolUseId": "u2"},
                    {"status": "error", "content": [{"text": "Tool Execution Denied"}]}))
     assert box.files == [] and h.written == []
+    assert box.unavailable == {"orders.json"}  # a failed call withholds any older copy
 
 
 def test_a_failed_handoff_is_logged_and_does_not_break_the_turn(capsys):

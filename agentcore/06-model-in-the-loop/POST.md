@@ -85,8 +85,8 @@ def answer(prompt, customer, session, gateway_token):
         closers.append(memory.close)
         orders = orders_tools(gateway_token)
         closers.append(orders.stop)
-        agent = Agent(
-            model=BedrockModel(model_id=os.environ["MODEL_ID"], region_name=region()),
+        agent = make_agent(
+            model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer),
             tools=[orders, sandbox.run_python],
             hooks=[trail, Handoff(sandbox)],
@@ -105,8 +105,10 @@ def answer(prompt, customer, session, gateway_token):
     return str(result), trail.steps
 ```
 
-Everything that gets created is closed in reverse order whether the turn
-succeeds, fails or never starts. Strands starts the MCP client while the
+`make_agent` and `make_model` are the Strands `Agent` and `BedrockModel`
+classes behind module-level names, so the tests can stand fakes in for
+them. Everything that gets created is closed in reverse order whether the
+turn succeeds, fails or never starts. Strands starts the MCP client while the
 agent is built and stops it on `agent.cleanup`, so the client has a closer
 of its own for the case where the build fails in between, and a failed
 close is logged rather than allowed to hide the answer or the error. Two
@@ -197,30 +199,38 @@ description tell the model to read that file and never to put rows in the
 code. The result is still in the model's context, as every tool result is.
 The sandbox session is new on every turn while the conversation is restored
 from memory, so before the model runs the same code writes the restored
-conversation's most recent gateway result into the fresh session too. If a
-write fails the tool refuses to run until the file is written again, so a
-copy from an earlier turn is never read as the latest result. The model
-still decides whether to compute, and what the code does with the file is
-the model's. What trusted code guarantees is that the gateway's result is
-there to be read.
+conversation's most recent gateway result into the fresh session too. Any
+call to the gateway tool withholds the file until a new result has been
+written, so a failed call, an empty result or a failed write leaves the
+sandbox tool refusing to run rather than reading a copy from an earlier
+turn as the latest. The model still decides whether to compute, and what
+the code does with the file is the model's. What trusted code guarantees is
+that the latest successfully handed-over result is there to be read.
 
 ```python
 class Handoff(HookProvider):
     def after(self, event):
-        path = self.handoffs.get(event.tool_use.get("name"))
+        name = event.tool_use.get("name")
+        path = self.handoffs.get(name)
+        if path is None:
+            return
+        self.sandbox.unavailable.add(path)
         result = event.result or {}
-        if path is None or result.get("status") != "success":
+        if result.get("status") != "success":
+            print(f"{name} did not succeed, {path} withheld")
             return
         text = _text_of(result)
         if not text.strip():
+            print(f"{name} returned no text, {path} withheld")
             return
         try:
             self.sandbox.write(path, text)
         except Exception as exc:
-            self.sandbox.unavailable.add(path)
-            print(f"handoff of {event.tool_use['name']} to {path} failed: {exc}")
+            print(f"handoff of {name} to {path} failed: {exc}")
             return
         self.sandbox.unavailable.discard(path)
+        self.written.append(path)
+        print(f"handed {name} result to the sandbox as {path} ({len(text)} chars)")
 
 
 def restore(messages, sandbox):
@@ -492,11 +502,12 @@ The model chooses code. The code runs in a session with no network and no
 credentials, so it cannot reach the gateway, the memory, the account or the
 customer's token from inside the sandbox, which is the property post 04
 probed directly. It is worth being clear about where a model's variability
-sits in this design. Once a program is written the sandbox runs it
-deterministically, and the handoff puts the gateway's exact result in front
-of that program, so the three runs after the change all read the file and
-returned the expected figures without a row passing through the model's
-typing. What the model still controls is the program itself, which rows it
+sits in this design. For these questions, running the model's program over
+the same `orders.json` produced the same figures every time, and the
+handoff puts the gateway's exact result in front of that program, so the
+three runs after the change all read the file and returned the expected
+figures without a row passing through the model's typing. What the model
+still controls is the program itself, which rows it
 uses, whether it reads the file at all, and what it says afterwards. The
 file removes the transcription step, it does not take the computation out
 of the model's hands, and a reused session in one recording showed the

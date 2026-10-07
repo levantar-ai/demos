@@ -8,9 +8,9 @@ and what it is given is the whole of the security story: it learns the
 customer's id from the system prompt, which trusted code wrote from the
 token the runtime verified, and it chooses the customer_id argument. It is
 never given the token. A wrong choice is refused at the gateway by Cedar,
-not by anything here. The gateway's result is handed to the sandbox by the
-Handoff hook, so the rows the model computes over are the rows the gateway
-returned and not a copy it typed.
+not by anything here. The gateway's result is written into the sandbox by
+the Handoff hook, so the model's code can read it there rather than carry
+the rows in its source; whether and how it reads the file is the model's.
 """
 
 import os

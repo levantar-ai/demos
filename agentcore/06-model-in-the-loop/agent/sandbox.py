@@ -151,8 +151,9 @@ class Sandbox:
         agent from the gateway's result whenever orders___list_orders has
         been called in this conversation. Read that file. Never put order
         rows into the code. Print the results you want to read. Variables
-        persist between calls within one conversation turn. A traceback is
-        returned when the code fails, so fix the code and run it again.
+        persist between calls within one conversation turn. An execution
+        error is returned when the code fails, so correct the code and run
+        it again.
 
         Args:
             code: The Python source to execute. Print anything you need back.

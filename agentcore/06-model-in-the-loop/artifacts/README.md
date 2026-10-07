@@ -185,8 +185,8 @@ Royal Mail 2, preference quoted; recall 15.4 s, 2 of 7 with Royal Mail;
 both other-customer prompts declined (5.5 s, 5.4 s); c-1001's own view 5
 orders, £355.55 (14.4 s); no token 401; the freshness question in the spend
 session re-fetched through the gateway and reported no change. The demo
-video was re-recorded against this version straight after the turns, so it
-shows the final code.
+video was re-recorded against this version straight after the turns, the
+code as of commit 32339d2.
 
 ## Change after publication: the data path, 2026-10-07
 
@@ -246,8 +246,11 @@ several fetches wins, failed calls are skipped, a failed restore is logged).
 
 ### Eighth run, image fd2cb8e (restore in place), and the video
 
-Runtime version 8, sessions `…-r9-…`. The post's section 4 is taken from
-this run and the video was re-recorded on it.
+Runtime version 8, sessions `…-r9-…`, the code as of commit fd2cb8e (the
+handoff and restore, before review round 5). The post's section 4 is taken
+from this run and the video was re-recorded on it; the round 5 and 6
+changes to the tool description and the withholding of a stale file are
+redeployed and re-run below.
 
 1. **Spend** (22.1 s): gateway then `run_python` opening `orders.json`,
    January £250.00, February £310.50, June £70.00, July £113.30, February
@@ -518,7 +521,38 @@ Verdict "not ready", two blockers, five majors, three minors, one nit.
 After the changes: ruff clean, 73 agent tests pass. Redeploy, live re-run
 and video on this code follow once credentials are refreshed.
 
-<<REVIEW_ROUND_6>>
+### Round 6, 2026-10-07 (after the round 5 fixes)
+
+Verdict "not ready", two blockers, three majors, two minors, one nit.
+
+1. **Blocker, no round 5 record.** The record had been written after the
+   review was sent; it is above.
+2. **Blocker, a failed gateway call or an empty result after a restored
+   file left the old copy readable.** Correct. Any call to a handed-over
+   tool now withholds the file first, and only a successful non-empty write
+   makes it available again; tested for an error result, a blank result
+   and a result with no text block, each after a restored file.
+3. **Major, "the sandbox runs it deterministically".** Accepted; narrowed to
+   what was observed, the same program over the same file gave the same
+   figures for these questions.
+4. **Major, module docstrings broader than the post.** Accepted; both say
+   trusted code writes the latest successfully handed-over result and the
+   model chooses whether and how to read it.
+5. **Major, excerpt fidelity.** Accepted; the `answer` excerpt uses
+   `make_agent` and `make_model` with a sentence on why, and the `Handoff`
+   excerpt is the real method.
+6. **Minor, "final code" in the run records.** Accepted; each run names its
+   commit, and the pending run is marked.
+7. **Minor, "a traceback is returned".** Accepted; the description says an
+   execution error is returned.
+8. **Nit, em dashes in two H1 titles.** Not changed; the README and
+   artifacts titles follow demos 01 to 05.
+
+After the changes: ruff clean, 74 agent tests pass. Redeploy, live re-run
+and video on this code follow once credentials are refreshed.
+
+<<REVIEW_ROUND_7>>
+
 
 
 

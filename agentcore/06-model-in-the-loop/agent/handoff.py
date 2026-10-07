@@ -13,9 +13,10 @@ earlier turn is never read as the latest result.
 
 The sandbox session is new on every turn while the conversation is restored
 from memory, so restore() does the same for the most recent gateway result
-in the restored turns before the model runs. The file the model sees is then
-always the gateway's latest result in this conversation, whichever turn
-fetched it, and a question about the current state still fetches again.
+in the restored turns before the model runs. Trusted code thus writes the
+latest successfully handed-over gateway result to the sandbox, whichever
+turn fetched it; whether and how the model's code reads it is the model's
+choice, and a question about the current state still fetches again.
 """
 
 from strands.hooks import AfterToolCallEvent, HookProvider, HookRegistry
@@ -47,18 +48,24 @@ class Handoff(HookProvider):
     def after(self, event):
         name = event.tool_use.get("name")
         path = self.handoffs.get(name)
+        if path is None:
+            return
+        # Any call to a handed-over tool invalidates the file until a new
+        # result has been written. An older copy may be in the session from
+        # restore(); a failed call, an empty result or a failed write must
+        # not leave it readable as if it were the latest.
+        self.sandbox.unavailable.add(path)
         result = event.result or {}
-        if path is None or result.get("status") != "success":
+        if result.get("status") != "success":
+            print(f"{name} did not succeed, {path} withheld")
             return
         text = _text_of(result)
         if not text.strip():
+            print(f"{name} returned no text, {path} withheld")
             return
         try:
             self.sandbox.write(path, text)
         except Exception as exc:  # noqa: BLE001 — the turn continues, but the tool will not run
-            # An older copy of the file may be in the session from restore();
-            # marking it unavailable stops run_python reading it as current.
-            self.sandbox.unavailable.add(path)
             print(f"handoff of {name} to {path} failed: {exc}")
             return
         self.sandbox.unavailable.discard(path)
