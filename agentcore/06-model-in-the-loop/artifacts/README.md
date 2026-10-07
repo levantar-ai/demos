@@ -1478,6 +1478,46 @@ Verdict "not ready", two blockers, four majors, two minors, one nit.
    trailing newline and the length bounds.
 9. **Nit, lead-ins.** Not changed; series conventions.
 
+### Round 20, 2026-10-07 (after the round 19 fixes and the nineteenth run)
+
+Verdict "not ready", two blockers, six majors, three minors, one nit.
+
+1. **Blocker, the `answer()` excerpt was stale.** Correct; it still showed
+   the username-keyed signature and two return values. The excerpt is now
+   the function as it is, without its comments.
+2. **Blocker, "all five declined" was false for this run.** Correct; the
+   merged-account story fetched the customer's own orders and answered from
+   them. The post and the README say what each pretext did, and that
+   `c-1001` reached the gateway in none.
+3. **Major, "inherits nothing" is too broad.** Correct; the orders are still
+   keyed by the username through the exchange's claim, Cedar and the
+   Lambda. The post and README say the recreated username inherits none of
+   the memory but would carry the orders, so a username is never reassigned.
+4. **Major, the scope is not a gateway control.** Accepted; the post says
+   the audience is what the gateway checks and the scope is a property of
+   the token.
+5. **Major, "the latest handed-over result is in place" overstated.**
+   Accepted; the guarantee is stated as the most recent usable result in
+   the retained conversation written before each run, or the run refused,
+   with freshness an instruction.
+6. **Major, the figures check described semantically.** Accepted; the post
+   describes the heuristic as it is and calls the output the figures the
+   check did not find.
+7. **Major, the trail returns the generated code in full.** Accepted; the
+   post and README say so and what it means.
+8. **Major, "any profile" for `model_id`.** Accepted; scoped to system
+   cross-region profiles, and the variable now validates that shape.
+9. **Minor, the forbid comment stated Cedar semantics.** Accepted; reworded
+   as the service's creation-time validation, observed on the first apply.
+10. **Minor, happy path.** Not changed further this round.
+11. **Minor, `TL;DR;` and lead-ins.** Not changed; series conventions, the
+    same heading in posts 01 to 05.
+12. **Nit, H1 dash.** Not changed; series convention.
+
+No agent code changed in this round, so the nineteenth run stands as the
+final run: `terraform plan` with the deployed image tag showed no changes
+after the variable validation and the comment were added.
+
 
 
 

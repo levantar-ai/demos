@@ -66,26 +66,28 @@ server keeps the diff between post 05 and this one about the model.
 
 ## 1 - What the model is given
 
-The whole of the handler's routing is replaced by one function. It builds
-the tools and the memory for this customer and this conversation, hands
-them to the agent with the model, runs the prompt and returns the answer
-with the trail of what the model chose.
+The whole of the handler's routing is replaced by one function, shown
+here without its comments. It builds the tools and the memory for this
+customer and this conversation, hands them to the agent with the model,
+runs the prompt and returns the answer, the trail of what the model chose
+and the figures the check after the answer did not find.
 
 <!-- cspell:ignore getattr qualname -->
 ```python
-def answer(prompt, customer, session, gateway_token):
+def answer(prompt, customer, session, gateway_token, subject):
     sandbox = Sandbox()
     trail = Trail()
     closers = [sandbox.close]
     try:
-        memory = session_manager(customer, session)
+        memory = session_manager(subject, session)
         closers.append(memory.close)
         orders = orders_tools(gateway_token)
         closers.append(lambda: orders.stop(None, None, None))
         window = SlidingWindowConversationManager(window_size=WINDOW_MESSAGES, should_truncate_results=False)
+        system_prompt = SYSTEM_PROMPT.format(customer=customer, today=today())
         agent = make_agent(
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
-            system_prompt=SYSTEM_PROMPT.format(customer=customer, today=today()),
+            system_prompt=system_prompt,
             tools=[orders, sandbox.run_python],
             hooks=[trail, Handoff(sandbox)],
             session_manager=memory,
@@ -96,20 +98,28 @@ def answer(prompt, customer, session, gateway_token):
         closers.append(agent.cleanup)
         window.apply_management(agent)
         restore(agent.messages, sandbox)
-        result = agent(prompt)
+        try:
+            result = agent(prompt)
+        except EventLoopException as exc:
+            if isinstance(exc.original_exception, Exception):
+                raise exc.original_exception from exc
+            raise
     finally:
         for close in reversed(closers):
             try:
                 close()
             except Exception as exc:
-                print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {exc}")
-    return str(result), trail.steps
+                print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {describe(exc)}")
+    text = str(result)
+    return text, trail.steps, unsupported_figures(text, trail.evidence, agent.messages, prompt, system_prompt)
 ```
 
 `make_agent`, `make_model` and `today` are the Strands `Agent` and
 `BedrockModel` classes and the clock behind module-level names, so the
 tests can stand fakes in for them, and `MCPClient.stop` takes the
-context-manager arguments, which is why its closer passes three. Tools run
+context-manager arguments, which is why its closer passes three. Strands
+wraps whatever ends its loop in its own exception, so the original is
+raised on for the handler to see what ended the turn. Tools run
 one at a time in the order the model asked for them, so a gateway result
 is in place before a `run_python` the model asked for in the same
 response, where the Strands default would run the two together. The
@@ -253,7 +263,11 @@ run as the latest, and a write that fails when the code runs is returned
 to the model as the tool's error, with nothing run, and tried again on
 its next call. The model still decides whether to compute, and what the
 code does with the file is the model's. What trusted code guarantees is
-that the latest handed-over result is in place before any code runs.
+narrower than freshness. Before each run of the model's code through the
+tool, the most recent usable result found in the retained conversation
+is written, or the run is refused while the file is withheld. Whether the
+model fetches again for the current state is instruction, not
+enforcement.
 
 ```python
 class Handoff(HookProvider):
@@ -307,9 +321,10 @@ customer's long-term records, the `USER_PREFERENCE` strategy's extractions
 in `/users/{actorId}`, and puts them in front of the message. The model does
 not call memory or choose what is retrieved. The actor is the token's
 subject, the pool's immutable id for the user, so a username deleted and
-created again for someone else inherits nothing, and the customer id the
-model is told is the username, which is what the orders service and Cedar
-know the customer by.
+created again for someone else inherits none of the memory. The customer
+id the model is told is the username, which is what the orders service
+and Cedar know the customer by, so the orders would follow a reassigned
+username, and provisioning must never give one to a second person.
 
 ```python
 def config_for(actor, session):
@@ -391,13 +406,16 @@ reproduce the gateway's rows in the source it writes. Both are
 instructions, which the model follows most of the time. What trusted code
 adds is a lexical check after the answer. Every figure in it is looked
 for, as written, in the whole of what `run_python` printed this turn,
-among the identifiers, years and amounts in the order tool's own
-results, and among the years in the prompt and the date, and any found in
-none of them is returned beside the answer as unsupported, so a count the
-model did in its head is named. Nothing else counts, not an earlier
-turn's code output, not a failed result. Being lexical, it names a day of
-the month read from a row as well, and misses a calculated figure that
-happens to equal a row's amount. The check reports and does not rewrite.
+among the tokens of three or more digits, or with a decimal part, in the
+order tool's own results, which is what identifiers, years and amounts
+look like and what a quantity or a day of the month does not, and among
+the years in the prompt and the date. Any found in none of them is
+returned beside the answer as the figures the check did not find, so a
+count the model did in its head is named. Nothing else counts, not an
+earlier turn's code output, not a failed result. Being lexical, it names
+a day of the month read from a row as well, and misses a calculated
+figure that happens to equal a row's amount. It annotates the answer. It
+establishes nothing about its correctness, and it does not rewrite.
 
 ## 3 - The model's own permission
 
@@ -436,8 +454,9 @@ The condition on the second statement is the same page's optional
 tightening, so the model can be invoked only through that profile and never
 by naming a regional model directly. The model ARNs are not a list anyone
 maintains. The `aws_bedrock_inference_profile` data source reads them from
-the profile at plan time, so naming a different profile in `model_id`
-changes the policy to match. The only other change to the role is
+the profile at plan time, so naming a different system cross-region
+profile in `model_id` changes the policy to match, and the variable
+accepts only that kind, the shape this was built and tested with. The only other change to the role is
 `bedrock-agentcore:GetEvent` on the memory, which the session manager uses
 to read a session back. No new resources are created, everything the model
 is handed already existed.
@@ -453,9 +472,13 @@ A customer signs in and asks something no earlier post could answer. The
 response carries the answer, the trail, every tool the model chose with
 the arguments it chose, whether the call succeeded and what `run_python`
 printed, which a Strands hook records as the loop runs, and the figures
-in the answer that nothing supports. The `ask` function below posts the
-prompt with the customer's token and a fixed session header, and prints
-the trail, with what the code printed, and then the answer.
+in the answer that the check did not find. The trail carries the model's
+code in full, so an instruction in a row or in a remembered preference
+that got the model to copy rows into its code would put them in the
+response as well, to the customer whose rows they are, and the runtime
+log is the redacted copy. The `ask` function below posts the prompt with
+the customer's token and a fixed session header, and prints the trail,
+with what the code printed, and then the answer.
 
 ```
 $ ask "How much have I spent with you this year, month by month, and which month was the biggest?"
@@ -591,8 +614,10 @@ you properly.
 ```
 
 The model declined, and the trail is empty, so `c-1001` never reached the
-gateway and the Cedar policy was never asked. Four other pretexts, in the
-README, went the same way. That is the right order for the controls to be
+gateway and the Cedar policy was never asked. Of four other pretexts, in
+the README, three were declined without a tool call, and a merged-account
+story fetched the customer's own orders and answered from those. In none
+did `c-1001` reach the gateway. That is the right order for the controls to be
 in, and the policy is there for the day the model is talked round. Calling
 the gateway directly with the agent's own minted token, the way post 05
 probed it, shows what the model would have been told.
@@ -621,8 +646,9 @@ agent with a model in it asks.
 
 The model chooses arguments. It cannot choose the token, which trusted code
 obtained and put in the client's header before the model ran, and it cannot
-widen it, since the exchange fixes the audience and the scope, as post 05
-showed. So a `customer_id` the model chooses wrongly, whether by mistake or
+widen it, since the exchange fixes the audience, which the gateway checks,
+and emits only the orders scope, a property of the token rather than a
+check the gateway or Cedar makes here, as post 05 showed. So a `customer_id` the model chooses wrongly, whether by mistake or
 because a prompt talked it into it, meets the same Cedar policy as before,
 and the policy compares it with the claim in the token that was actually
 presented. In the live attempts the model never put a wrong id into a call,
@@ -661,7 +687,9 @@ the ones outside the model.
 Memory is keyed by the token's subject. The session manager is built with
 that actor and a session id the caller controls, so a caller can start a
 new conversation but cannot read into another customer's, and a username
-given to someone else later carries none of it. The retrieval is semantic, so what the model sees from memory is whatever the
+given to someone else later carries none of the memory, though it would
+carry the orders, which are keyed by the customer id. The retrieval is
+semantic, so what the model sees from memory is whatever the
 strategy extracted, which is a reason to look at those records before
 trusting what the model says it remembers.
 
@@ -681,9 +709,11 @@ trail of its choices returned alongside the answer. What kept the customer
 boundary intact while the model took over the choosing is that identity
 stayed where post 05 put it. Trusted code establishes the customer and
 holds the token, the model chooses arguments and code, and Policy in
-AgentCore refuses a lookup for a wrong customer before the tool runs. All
-five live attempts to be someone else were declined by the model first,
-and the policy stayed the independent control for a mismatched argument.
+AgentCore refuses a lookup for a wrong customer before the tool runs. In
+five live attempts to be someone else, `c-1001` never reached the gateway,
+four were declined outright and one answered from the customer's own
+orders, and the policy stayed the independent control for a mismatched
+argument.
 That is what the policy covers, the order lookup. It says nothing about
 whether the code the model wrote or the sentence it produced is right. The
 bounds in section 1 limit how much the model asks for, the rule about

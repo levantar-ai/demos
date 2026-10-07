@@ -73,9 +73,12 @@ resource "aws_bedrockagentcore_policy" "deny_other_orders" {
     }
   }
 
-  # A forbid validated on its own, before any permit exists, is rejected by the
-  # engine as overly restrictive (default deny plus a forbid denies everything).
-  # So it is created after the permit, and after the target registers the action.
+  # Observed when this stack was first applied: Policy in AgentCore refused to
+  # create this forbid before the permit existed, calling a policy set of a
+  # forbid alone overly restrictive. That is the service's validation at
+  # creation time, not Cedar's semantics (default deny plus a forbid is valid
+  # Cedar). So it is created after the permit, and after the target registers
+  # the action.
   depends_on = [
     aws_bedrockagentcore_policy.own_orders,
     aws_bedrockagentcore_gateway_target.orders,
