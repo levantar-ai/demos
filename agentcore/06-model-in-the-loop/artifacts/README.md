@@ -631,7 +631,17 @@ Verdict "not ready", two blockers, two majors, one minor.
 5. **Minor, the comments stated the cause as fact.** Accepted; they state
    the observation.
 
-<<REVIEW_ROUND_11>>
+### Round 11, 2026-10-07 (after the round 10 fixes)
+
+Verdict "not ready" on one point only: the standing run on the final
+commit was a bare placeholder. Everything else checked passed, the
+structured retry predicate, the three retry tests, and the `answer` excerpt
+with the three-argument closer. The record above now marks the run as
+pending on image `5acbb89` until it completes, and is replaced by the run
+when it does.
+
+<<REVIEW_ROUND_12>>
+
 
 ### Ninth run, image 9fb948b (the code as reviewed), and the video
 
@@ -680,11 +690,35 @@ older:
   passes the three arguments, the fake has the real signature, and the
   happy-path test asserts no `cleanup failed` line is logged.
 
-Both fixes were redeployed as image `8bd7253` and the turns re-run; review
-round 10 then narrowed the retry to the structured error code and message,
-so the run that stands is the one on the commit after that, below.
+Image `8bd7253` with both fixes was deployed and its turns ran while review
+round 10 was in progress; round 10 then narrowed the retry predicate, so
+that run was superseded within minutes and is not recorded as a standing
+run. The standing run is on the commit after round 10, `5acbb89`:
 
-<<RUN_12>>
+### Tenth run, image 5acbb89 (the final commit), and the video
+
+Runtime version 11, sessions `…-r12-…`, all fresh. The post's section 4 is
+taken from this run and the video was re-recorded on it in a fresh session.
+
+1. **Spend** (19.6 s): `orders___list_orders(c-1000)` then `run_python`
+   reading `orders.json`, January £250.00, February £310.50, June £70.00,
+   July £113.30, February the biggest. Correct.
+2. **Carrier, same session** (8.9 s): `run_python` only, over the file that
+   `restore()` wrote from the previous turn's result, DPD 5, Royal Mail 2.
+   One call, no error.
+3. **Recall**, fresh session (13.3 s): gateway then `run_python` on the
+   file, 2 of 7 with Royal Mail, orders 1218 and 1242. Correct.
+4. **Other customer** (6.1 s, 8.2 s): declined, no tool call.
+5. **c-1001's own view** (12.7 s): gateway then `run_python` on the file,
+   5 orders, £355.55. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed, which refreshed the file.
+
+Every `run_python` call read `orders.json`; none held an order row. The
+runtime log for this run has no `cleanup failed` line (the stop signature
+fix) and no retry line (no exchange failure arose, so the retry path is
+covered by its tests only). The withholding paths likewise did not arise
+live, every gateway call having succeeded, and are covered by tests.
 
 
 

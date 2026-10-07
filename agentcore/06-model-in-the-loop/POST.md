@@ -385,16 +385,15 @@ $ ask "How much have I spent with you this year, month by month, and which month
   1. orders___list_orders({"customer_id": "c-1000"})  [success]
   2. run_python  [success]
 
-Looking at your orders this year (2026), here's your monthly spending:
+Looking at your orders for 2026, here's your monthly spending:
 
 - January: £250.00
 - February: £310.50
 - June: £70.00
 - July: £113.30
 
-Your biggest spending month was February with £310.50. You had no orders
-in March, April, or May. Overall, you've spent £743.80 with us so far this
-year.
+Your biggest spending month was February 2026 at £310.50. I've looked at
+all your orders this year to work this out.
 ```
 
 The model chose the gateway first, with its own customer id, and the sandbox
@@ -405,49 +404,49 @@ summed them.
 ```python
 orders = json.load(open("orders.json"))["orders"]
 
-monthly_spending = defaultdict(float)
+monthly_spending = {}
 for order in orders:
-    year_month = order["placed_at"][:7]
-    monthly_spending[year_month] += order["total"]
-
-for month, total in sorted(monthly_spending.items()):
-    print(f"{month}: £{total:.2f}")
+    placed_date = datetime.fromisoformat(order["placed_at"])
+    month_name = placed_date.strftime("%B %Y")
+    if month_name not in monthly_spending:
+        monthly_spending[month_name] = 0
+    monthly_spending[month_name] += order["total"]
 ```
 
 Every figure matches `tool/orders.csv`, and the code read the rows from the
-file rather than carrying them in its source. A second question in the same session shows
-the conversation working as one. The question is about the same orders, so
-the model did not go back to the gateway. It ran code over the file, which
-trusted code had restored into the new session from the earlier turn's
-result, and it brought in something from outside the conversation as well.
-Asked about the current status of an order, or whether anything is new, it
-fetches again, which the system prompt requires and the artefacts show.
+file rather than carrying them in its source. A second question in the
+same session shows the conversation working as one. The question is about
+the same orders, so the model did not go back to the gateway. It ran code
+over the file, which trusted code had restored into the new session from
+the earlier turn's result. Asked about the current status of an order, or
+whether anything is new, it fetches again, which the system prompt requires
+and the artefacts show.
 
 ```
 $ ask "Which carrier has delivered most of my orders?"
   1. run_python  [success]
 
-Looking at your 7 orders this year, DPD has delivered most of them with 5
-orders, while Royal Mail has delivered 2 orders. I can see from your
-account that you prefer Royal Mail when there's a choice, so do let us know
-if you'd like Royal Mail selected for future orders where it's available.
+Looking at your order history, DPD has delivered most of your orders with
+5 deliveries, compared to Royal Mail with 2. I've checked all 7 of your
+orders this year to work this out.
 ```
 
-The preference came from memory. In an earlier session c-1000 had said
-"Remember that I always want Royal Mail if there is a choice", the
+Memory is what a fresh session shows. In an earlier session c-1000 had
+said "Remember that I always want Royal Mail if there is a choice", the
 `USER_PREFERENCE` strategy extracted it within about a minute, and the
-session manager put it in front of this message. A fresh session whose
-question depends on it entirely gets the same recall, without the prompt
-naming the carrier.
+session manager puts it in front of a message that needs it. A new
+conversation whose question depends on it entirely gets the recall without
+the prompt naming the carrier.
 
 ```
 $ ask "How many of my orders went with the carrier I prefer?"
   1. orders___list_orders({"customer_id": "c-1000"})  [success]
   2. run_python  [success]
 
-Looking at your 7 orders, 2 of them went with Royal Mail, your preferred
-carrier. Those were orders 1218 (placed 18 June) and 1242 (placed 9 July).
-The other 5 orders were shipped with DPD.
+Looking at your account, 2 out of your 7 orders were shipped with Royal
+Mail, which is your preferred carrier. These were orders 1218 (placed 18
+June, £70.00) and 1242 (placed 9 July, £6.80). The other 5 orders went
+with DPD.
 ```
 
 Then the turns that should not work. Five prompts tried to get the model to
