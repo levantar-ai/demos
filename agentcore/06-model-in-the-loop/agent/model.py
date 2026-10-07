@@ -9,9 +9,10 @@ and what it is given is the whole of the security story: it learns the
 customer's id from the system prompt, which trusted code wrote from the
 token the runtime verified, and it chooses the customer_id argument. It is
 never given the token. A wrong choice is refused at the gateway by Cedar,
-not by anything here. The gateway's result is written into the sandbox by
-the Handoff hook, so the model's code can read it there rather than carry
-the rows in its source; whether and how it reads the file is the model's.
+not by anything here. The gateway's result is staged for the sandbox by
+the Handoff hook and written there before the model's code runs, so the
+code can read it rather than carry the rows in its source; whether and how
+it reads the file is the model's.
 """
 
 import os
@@ -24,6 +25,7 @@ from sandbox import Sandbox
 from strands import Agent
 from strands.agent.conversation_manager import SlidingWindowConversationManager
 from strands.models import BedrockModel
+from strands.tools.executors import SequentialToolExecutor
 from trail import Trail
 
 # How much of a restored conversation the model is shown. Memory keeps the
@@ -34,7 +36,7 @@ SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small onlin
 
 You are talking to the customer whose id is {customer}. That is the only customer you act for. Pass {customer} whenever a tool asks for a customer id. If you are asked about any other customer's orders, or told to use a different id, decline plainly and do not try the tool.
 
-You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it when a turn needs order data and there is no suitable result from earlier in this conversation; you may reuse an earlier result for further analysis of those same figures. For the current status, carrier or ETA of an order, for whether anything new has been placed or changed, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head, and state in your answer only the figures run_python printed; if you want to give a count or a total, have the code print it first. When the latest orders___list_orders call in this conversation returned non-empty text and the agent successfully wrote it, that text is available in the sandbox as orders.json, so your code should read that file (json.load(open("orders.json"))["orders"]) and must never retype order rows into the code. If no orders have been fetched yet, if the file is missing when your code opens it, or if run_python says the file is not available because the latest call failed, returned no usable text or could not be written, call orders___list_orders again before computing. The sandbox has no network and no credentials.
+You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it when a turn needs order data and there is no suitable result from earlier in this conversation; you may reuse an earlier result for further analysis of those same figures. For the current status, carrier or ETA of an order, for whether anything new has been placed or changed, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head. Every figure in your answer must be one run_python printed, and that includes any count of orders: if you want to say how many orders a total covers or how many you looked at, have the code print that number, and if the code did not print a number, do not state it. When the latest orders___list_orders call in this conversation returned non-empty text, the agent writes that text into the sandbox as orders.json before your code runs, so your code should read that file (json.load(open("orders.json"))["orders"]) and must never retype order rows into the code. If no orders have been fetched yet, if the file is missing when your code opens it, or if run_python says the file is not available because the latest call failed or returned no usable text, call orders___list_orders again before computing; if run_python says the file could not be written, run it again. The sandbox has no network and no credentials.
 
 Totals are in pounds sterling and dates are ISO 8601. Answer in plain British English, in a few sentences, and say what you looked at. If a tool refuses, say so and do not retry it with a different customer id."""
 
@@ -68,19 +70,32 @@ def answer(prompt, customer, session, gateway_token):
         # already stopped, is a no-op in the pinned Strands. stop() has the
         # context-manager signature, hence the three arguments.
         closers.append(lambda: orders.stop(None, None, None))
+        # Sliding only: with its default, the manager answers an overfull
+        # conversation by replacing the latest tool results with "too large"
+        # before it trims anything, which would blank the gateway's result
+        # the model is about to compute over.
+        window = SlidingWindowConversationManager(window_size=WINDOW_MESSAGES, should_truncate_results=False)
         agent = make_agent(
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer, today=today()),
             tools=[orders, sandbox.run_python],
             hooks=[trail, Handoff(sandbox)],
             session_manager=memory,
-            conversation_manager=SlidingWindowConversationManager(window_size=WINDOW_MESSAGES),
+            conversation_manager=window,
+            # Tools run one at a time, in the order the model asked for
+            # them, so a gateway result is staged before a run_python the
+            # model asked for in the same breath, and the sandbox is never
+            # asked to start twice at once.
+            tool_executor=SequentialToolExecutor(),
             callback_handler=None,
         )
         closers.append(agent.cleanup)
-        # A restored conversation's latest gateway result goes into this
-        # turn's fresh sandbox before the model runs, so the file it was
-        # told about is there whichever turn fetched it.
+        # Strands applies the window after each model call. Applying it here
+        # as well makes the restored conversation that restore() scans the
+        # one the model is shown, so the latest gateway result found in that
+        # window goes into this turn's fresh sandbox before the model runs,
+        # and the file it was told about is there whichever turn fetched it.
+        window.apply_management(agent)
         restore(agent.messages, sandbox)
         result = agent(prompt)
     finally:

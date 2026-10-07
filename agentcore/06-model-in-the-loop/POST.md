@@ -85,16 +85,19 @@ def answer(prompt, customer, session, gateway_token):
         closers.append(memory.close)
         orders = orders_tools(gateway_token)
         closers.append(lambda: orders.stop(None, None, None))
+        window = SlidingWindowConversationManager(window_size=WINDOW_MESSAGES, should_truncate_results=False)
         agent = make_agent(
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer, today=today()),
             tools=[orders, sandbox.run_python],
             hooks=[trail, Handoff(sandbox)],
             session_manager=memory,
-            conversation_manager=SlidingWindowConversationManager(window_size=WINDOW_MESSAGES),
+            conversation_manager=window,
+            tool_executor=SequentialToolExecutor(),
             callback_handler=None,
         )
         closers.append(agent.cleanup)
+        window.apply_management(agent)
         restore(agent.messages, sandbox)
         result = agent(prompt)
     finally:
@@ -109,15 +112,22 @@ def answer(prompt, customer, session, gateway_token):
 `make_agent`, `make_model` and `today` are the Strands `Agent` and
 `BedrockModel` classes and the clock behind module-level names, so the
 tests can stand fakes in for them, and `MCPClient.stop` takes the
-context-manager arguments, which is why its closer passes three. Closing everything that was created is
-attempted in reverse order whether the turn succeeds, fails or never
-starts, a failed close is logged rather than allowed to hide the answer,
-and the sandbox's stop retries once. What a failed close could leave
-behind is bounded by the services, a sandbox session by its lifetime and
-the memory's buffer by the turn, since nothing is batched. Strands starts the MCP client while the
-agent is built and stops it on `agent.cleanup`, so the client has a closer
-of its own for the case where the build fails in between, and a failed
-close is logged rather than allowed to hide the answer or the error. Two
+context-manager arguments, which is why its closer passes three. Tools run
+one at a time in the order the model asked for them, so a gateway result
+is in place before a `run_python` the model asked for in the same
+response, where the Strands default would run the two together. The
+window is applied to the restored conversation before `restore` scans it,
+so what it scans is what the model is shown, and it slides rather than
+truncates, because the manager's default answers an overfull
+conversation by blanking its latest tool results before it trims
+anything. Closing everything that was created is attempted in reverse
+order whether the turn succeeds, fails or never starts, with a failed
+close logged rather than allowed to hide the answer, the sandbox's stop
+retried once, and what a failed close could leave behind bounded by the
+services, a sandbox session by its lifetime and the memory's buffer by
+the turn, since nothing is batched. Strands starts the MCP client while
+the agent is built and stops it on `agent.cleanup`, so the client has a
+closer of its own for the case where the build fails in between. Two
 things in the tools list and one beside it are the series so far.
 
 The gateway arrives as an MCP server. Post 02 called a named tool from code.
@@ -168,29 +178,57 @@ class Sandbox:
         Use this for any counting, summing, averaging, sorting or date
         arithmetic over the customer's orders rather than working it out in
         your head. pandas is installed. The sandbox has no network access and
-        no credentials. The customer's orders are in the sandbox as
-        orders.json ... Read that file. Never put order rows into the code.
+        no credentials. ... the agent writes that text into the sandbox as
+        orders.json ... before your code runs. Read that file. Never put
+        order rows into the code. ... Print every figure your answer will
+        state, including how many orders a figure covers; do not state a
+        number the code did not print. ...
         """
-        if self.session_id is None:
-            self.session_id = self.start(self.interpreter, "analysis")
-        return self.execute(self.session_id, code)
+        if len(code) > MAX_CODE_CHARS:
+            raise ValueError(f"code is {len(code)} characters, the limit is {MAX_CODE_CHARS}")
+        with self._lock:
+            if self.unavailable:
+                names = ", ".join(sorted(self.unavailable))
+                raise RuntimeError(
+                    f"{names} not available this turn: the latest call that provides it did not produce a result; "
+                    "call that tool again"
+                )
+            if self.session_id is None:
+                self.session_id = self.start(self.interpreter, "analysis")
+            for path in list(self.staged):
+                try:
+                    self.put(self.session_id, path, self.staged[path])
+                except Exception as exc:
+                    raise RuntimeError(f"{path} could not be written to the sandbox: {exc}; run again to retry") from exc
+                del self.staged[path]
+                self.written.append(path)
+            return self.execute(self.session_id, code)
 ```
 
+The docstring is shortened here. The rest of it is in section 2's
+account of what the model is told.
+
 The session behind it is the Code Interpreter from post 04 in `SANDBOX`
-network mode, created the first time the model reaches for the tool and
-stopped when the answer is out, with the session's 900 second lifetime as
-the backstop if that stop fails. Variables from one `run_python` call are
-there for the next within a turn. Source over twenty thousand characters is
-refused, at most eight thousand characters of output are kept for the
-model plus a note that it was cut, the agent gives up on a call after
-three minutes by its own clock and stops the session at the end of the
-turn, and the hook that records the trail allows eight tool
-executions a turn, refuses the next with a message to answer from what it
-has, and ends the turn if the model keeps asking. Those bound what the
-model asks for in a turn. The prompt itself is capped at four thousand
-characters before the model sees it, the restored conversation is
-windowed to the last forty messages, and a handed-over result over two
-hundred thousand characters is withheld. AWS's description of the
+network mode, created the first time the model reaches for the tool, so a
+turn in which the model never runs code starts no session, and stopped
+when the answer is out, with the session's 900 second lifetime as the
+backstop if that stop fails. Variables from one `run_python` call are
+there for the next within a turn, and one lock serialises starting the
+session, writing to it, running in it and stopping it. Source over twenty
+thousand characters is refused, at most eight thousand characters of
+output are kept for the model plus a note that it was cut, the agent
+gives up on a call after three minutes by its own clock and stops the
+session at the end of the turn, at most eight calls are in flight in the
+process at once and a ninth is refused rather than queued, and the hook
+that records the trail allows eight tool executions a turn, refuses the
+next with a message to answer from what it has, and ends the turn if the
+model keeps asking. Those bound what the model asks for in a turn. The
+prompt itself is capped at four thousand characters before the model
+sees it and the restored conversation is windowed to the last forty
+messages. Neither bounds what a tool result puts in the model's context.
+The gateway's result enters it whole, as every tool result does, and the
+two hundred thousand character cap on the handoff below bounds what is
+staged for the sandbox, not the context. AWS's description of the
 capability is the reason the code the model writes can be allowed to run
 at all.
 
@@ -206,21 +244,23 @@ having to reproduce it. The sandbox has no access to the gateway, so left
 to itself the model would carry the orders across by typing them into the
 code it writes, which is fine for seven rows and is where a wrong figure
 would come from with three hundred. A second hook watches the gateway
-tool's result and writes its text, as returned, into the turn's sandbox
-session as `orders.json`, and the system prompt and the tool's own
-description tell the model to read that file and never to put rows in the
-code. The result is still in the model's context, as every tool result is.
-The sandbox session is new on every turn while the conversation is
-restored from memory, so before the model runs the same code writes the
-most recent gateway result found in the restored window into the fresh
-session too, and the prompt tells the model to fetch again if the file is
-not there. Any
-call to the gateway tool withholds the file until a new result has been
-written, so a failed call, an empty result or a failed write leaves the
+tool's result and stages its text, as returned, for the turn's sandbox
+under the name `orders.json`. The sandbox writes it into its session just
+before the model's code next runs, and the system prompt and the tool's
+own description tell the model to read that file and never to put rows in
+the code. The result is still in the model's context, as every tool
+result is. The sandbox session is new on every turn while the
+conversation is restored from memory, so before the model runs the same
+code stages the most recent gateway result found in the window for the
+fresh turn too, and the prompt tells the model to fetch again if the file
+is not there. Any call to the gateway tool withholds the file until a new
+result has been staged, so a failed call or an empty result leaves the
 sandbox tool refusing to run rather than reading a copy from an earlier
-turn as the latest. The model still decides whether to compute, and what
-the code does with the file is the model's. What trusted code guarantees is
-that the latest successfully handed-over result is there to be read.
+run as the latest, and a write that fails when the code runs is returned
+to the model as the tool's error, with nothing run, and tried again on
+its next call. The model still decides whether to compute, and what the
+code does with the file is the model's. What trusted code guarantees is
+that the latest handed-over result is in place before any code runs.
 
 ```python
 class Handoff(HookProvider):
@@ -229,7 +269,7 @@ class Handoff(HookProvider):
         path = self.handoffs.get(name)
         if path is None:
             return
-        self.sandbox.unavailable.add(path)
+        self.sandbox.withhold(path)
         result = event.result or {}
         if result.get("status") != "success":
             print(f"{name} did not succeed, {path} withheld")
@@ -238,33 +278,25 @@ class Handoff(HookProvider):
         if not text.strip():
             print(f"{name} returned no text, {path} withheld")
             return
-        try:
-            self.sandbox.write(path, text)
-        except Exception as exc:
-            print(f"handoff of {name} to {path} failed: {exc}")
+        if len(text) > MAX_HANDOFF_CHARS:
+            print(f"{name} returned {len(text)} chars, over the {MAX_HANDOFF_CHARS} limit, {path} withheld")
             return
-        self.sandbox.unavailable.discard(path)
-        self.written.append(path)
-        print(f"handed {name} result to the sandbox as {path} ({len(text)} chars)")
+        self.sandbox.stage(path, text)
+        self.staged.append(path)
+        print(f"staged {name} result for the sandbox as {path} ({len(text)} chars)")
 
 
 def restore(messages, sandbox, handoffs=None):
-    written = []
+    staged = []
     for path, text in latest_results(messages, handoffs).items():
         if text is None:
-            sandbox.unavailable.add(path)
+            sandbox.withhold(path)
             print(f"{path} withheld: the conversation's latest call for it did not produce a result")
             continue
-        try:
-            sandbox.write(path, text)
-        except Exception as exc:
-            sandbox.unavailable.add(path)
-            print(f"restore of {path} to the sandbox failed: {exc}")
-            continue
-        sandbox.unavailable.discard(path)
-        written.append(path)
-        print(f"restored {path} to the sandbox from the conversation ({len(text)} chars)")
-    return written
+        sandbox.stage(path, text)
+        staged.append(path)
+        print(f"restored {path} for the sandbox from the conversation ({len(text)} chars)")
+    return staged
 ```
 
 `latest_results` carries the latest outcome per file from the restored
@@ -325,19 +357,22 @@ different id, decline plainly and do not try the tool.
 
 Nothing else about identity is in the prompt. Trusted code gives the
 model neither the minted token nor the customer's own, and puts the
-minted one only in the MCP client's authentication header. The agent
-process holds both, as it must to call the runtime and the gateway. That is the division of labour this post is about, the model
-decides what to ask the gateway and code decides what authenticates the
-asking.
+minted one only in the MCP client's authentication header. The process
+receives the customer's token from the runtime, which validated it, as
+the subject of the exchange, and holds the minted one for the gateway.
+That is the division of labour this post is about, the model decides what
+to ask the gateway and code decides what authenticates the asking.
 
 The rest of the prompt tells the model what the tools are for, to use
-`run_python` for arithmetic rather than doing it in its head, and to read
+`run_python` for arithmetic rather than doing it in its head and to state
+only figures the code printed, a count of orders included, and to read
 `orders.json` in the sandbox, the gateway's latest result in the
-conversation, rather than retype rows. The first of those is
-the instruction that changes the shape of the answers most, because without
+conversation, rather than retype rows. The first of those is the
+instruction that changes the shape of the answers most, because without
 it a model will happily sum eight totals in prose and occasionally get one
-wrong. The second avoids asking the model to reproduce the gateway's rows
-in the source it writes.
+wrong, and a model that has printed the totals will still add a count it
+never computed unless told that counts are figures too. The second avoids
+asking the model to reproduce the gateway's rows in the source it writes.
 
 ## 3 - The model's own permission
 
@@ -550,27 +585,26 @@ sandbox or the memory, and it does not make the model's answers right.
 The model chooses code. The code runs in a session with no network and no
 credentials, so it cannot reach the gateway, the memory, the account or the
 customer's token from inside the sandbox, which is the property post 04
-probed directly. It is worth being clear about where a model's variability
-sits in this design. For these questions, running the model's program over
-the same `orders.json` produced the same figures every time, and the
-handoff puts the gateway's exact result in front of that program, so the
-three runs after the change all read the file and returned the expected
-figures without a row passing through the model's typing. What the model
-still controls is the program itself, which rows it uses, whether it reads
-the file at all, and what it says afterwards. The file removes the
+probed directly. Where a model's variability sits in this design is worth
+being precise about. Running the model's program over the same
+`orders.json` gives the same figures every time, and the handoff puts the
+gateway's exact result in front of that program. What the model still
+controls is the program itself, which rows it uses, whether it reads the
+file at all, and what it says afterwards. The file removes the
 transcription step, it does not take the computation out of the model's
-hands, and it can state a figure its program never printed, which is why
-the prompt now tells it not to. The date comes from trusted code for the
-same reason, so that "this year" is a filter the program applies rather
-than an assumption about the data. That is the reason the controls that
-must hold are outside the model. What that isolation does not bound is how much the model
-asks for, so the agent puts numbers on that itself, eight tool executions a
-turn and then the turn ends, twenty thousand characters of submitted
-source, eight thousand of result or error kept for the model, three
-minutes by the agent's own clock before it gives up on a call. Giving up
-does not stop the code. The session is stopped at the end of the turn,
-and the service's 900 second session lifetime is the backstop if that
-stop fails.
+hands, and the rule that every figure in the answer is one the code
+printed is an instruction to the model, not a control outside it. The
+date comes from trusted code for the same reason, so that "this year" is
+a filter the program applies rather than an assumption about the data.
+That is the reason the controls that must hold are outside the model.
+What the isolation does not bound is how much the model asks for, so the
+agent puts numbers on that itself, eight tool executions a turn and then
+the turn ends, twenty thousand characters of submitted source, eight
+thousand of result or error kept for the model, three minutes by the
+agent's own clock before it gives up on a call, eight calls in flight at
+once. Giving up does not stop the code. The session is stopped at the end
+of the turn, and the service's 900 second session lifetime is the backstop
+if that stop fails.
 
 The model chooses what to say, and what it says is shaped by everything in
 its context. Three of those things are untrusted, the prompt, the order rows
@@ -584,6 +618,9 @@ the ones outside the model.
 Memory is keyed by the verified customer. The session manager is built with
 the actor from the token and a session id the caller controls, so a caller
 can start a new conversation but cannot read into another customer's. The
+actor is the pool username, which is also the customer id the policy
+checks, so a username deleted and created again would inherit its
+namespace; a production system keys on the token's `sub` instead. The
 retrieval is semantic, so what the model sees from memory is whatever the
 strategy extracted, which is a reason to look at those records before
 trusting what the model says it remembers.
@@ -600,19 +637,21 @@ The agent now decides. A model is handed the gateway and the sandbox that
 posts 02 and 04 built as tools, with the memory of post 03 supplied as
 context, and it fetches, computes and
 answers a question that no code in the repository anticipated, with the
-trail of its choices returned alongside the answer. What made that safe to
-do is that identity stayed where post 05 put it. Trusted code establishes
-the customer and holds the token, the model chooses arguments and code, and
-Policy in AgentCore refuses a lookup for a wrong customer before the tool
-runs. All five live attempts to be someone else were declined by the model
-first, and the policy stayed the independent control for a mismatched
-argument. The agent's authority to read orders through the gateway is
+trail of its choices returned alongside the answer. What kept the customer
+boundary intact while the model took over the choosing is that identity
+stayed where post 05 put it. Trusted code establishes the customer and
+holds the token, the model chooses arguments and code, and Policy in
+AgentCore refuses a lookup for a wrong customer before the tool runs. All
+five live attempts to be someone else were declined by the model first,
+and the policy stayed the independent control for a mismatched argument.
+That is what the policy covers, the order lookup. It says nothing about
+whether the code the model wrote or the sentence it produced is right,
+which is what the bounds in section 1 and the rule about printed figures
+are for, and what the trail returned with every answer lets a caller
+check. The agent's authority to read orders through the gateway is
 unchanged and still bound to the customer in the presented token. What is
 new is what the model may decide within that, which arguments, which code,
 how many calls, and those have their own bounds.
-
-What the model adds is a component whose behaviour cannot be read from the
-source, which is what the next post, on tracing, is for.
 
 References:
 

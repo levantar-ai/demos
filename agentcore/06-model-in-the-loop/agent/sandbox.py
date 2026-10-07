@@ -12,6 +12,7 @@ is bounded in what it can send and read back.
 """
 
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 
@@ -25,9 +26,14 @@ _client = None
 # here by running the call on a worker thread and abandoning it at the
 # deadline. The code may still be running in the session after that; the
 # session is stopped at the end of the turn, which ends it. One HTTP attempt
-# per call, so a slow call is not silently made twice.
+# per call, so a slow call is not silently made twice. At most MAX_IN_FLIGHT
+# calls are in flight in the process at once, admitted by a semaphore the
+# worker releases when its call finishes, so nothing queues behind the
+# workers: a call that finds every slot taken is refused outright.
 WAIT_SECONDS = 180
-_calls = ThreadPoolExecutor(max_workers=8, thread_name_prefix="sandbox-call")
+MAX_IN_FLIGHT = 8
+_calls = ThreadPoolExecutor(max_workers=MAX_IN_FLIGHT, thread_name_prefix="sandbox-call")
+_slots = threading.BoundedSemaphore(MAX_IN_FLIGHT)
 
 
 def client():
@@ -107,9 +113,26 @@ def _invoke(session_id, name, arguments):
     return _consume(response)
 
 
+def _held(session_id, name, arguments):
+    """Run the call on the worker and give the slot back when it is over,
+    however it ended, so an abandoned call holds its slot only as long as
+    its HTTP attempt lasts."""
+    try:
+        return _invoke(session_id, name, arguments)
+    finally:
+        _slots.release()
+
+
 def _call(session_id, name, **arguments):
-    """Run one interpreter call with a wall-clock deadline."""
-    future = _calls.submit(_invoke, session_id, name, arguments)
+    """Run one interpreter call with a wall-clock deadline, one of at most
+    MAX_IN_FLIGHT in the process."""
+    if not _slots.acquire(blocking=False):
+        raise RuntimeError(f"{name} refused: the sandbox already has {MAX_IN_FLIGHT} calls in flight; try again")
+    try:
+        future = _calls.submit(_held, session_id, name, arguments)
+    except BaseException:
+        _slots.release()
+        raise
     try:
         return future.result(timeout=WAIT_SECONDS)
     except FutureTimeout:
@@ -147,8 +170,12 @@ class Sandbox:
     The model sees a single tool, run_python. The session behind it is
     created on the first call, kept for the rest of the invocation so
     variables survive between calls, and closed by whoever created this
-    object. The seams are class attributes so the tests can stand in for
-    the service without touching AWS.
+    object. Files that trusted code stages for the session are written
+    into it just before the first call's code runs, so a turn in which the
+    model never runs code starts no session. One lock serialises starting
+    the session, writing to it, running in it and stopping it. The seams
+    are class attributes so the tests can stand in for the service without
+    touching AWS.
     """
 
     start = staticmethod(session_for)
@@ -159,9 +186,14 @@ class Sandbox:
     def __init__(self, interpreter=None):
         self.interpreter = interpreter or os.environ.get("CODE_INTERPRETER_ID", "")
         self.session_id = None
-        # Files a handoff failed to write or refresh. While any is listed the
-        # tool refuses to run, so code cannot read a stale copy from an
-        # earlier turn as if it were the latest result.
+        self._lock = threading.Lock()
+        # Files held for the session, path to text, written before the next
+        # run and forgotten once written. Trusted code puts them here.
+        self.staged = {}
+        self.written = []
+        # Files whose latest providing call produced nothing to stage. While
+        # any is listed the tool refuses to run, so code cannot read a copy
+        # from an earlier turn as if it were the latest result.
         self.unavailable = set()
 
     @tool
@@ -172,49 +204,69 @@ class Sandbox:
         arithmetic over the customer's orders rather than working it out in
         your head. pandas is installed. The sandbox has no network access and
         no credentials. When the latest orders___list_orders call in this
-        conversation returned non-empty text and the agent successfully
-        wrote it, that text is available as orders.json, a JSON object with
-        an "orders" list. Read that file. Never put order rows into the
-        code. If the latest call failed, returned no usable text or could
-        not be written, this tool refuses to run until orders___list_orders
-        is called again and succeeds. Print the results you want to read.
-        Variables
-        persist between calls within one conversation turn. An execution
-        error is returned when the code fails, so correct the code and run
-        it again.
+        conversation returned non-empty text, the agent writes that text
+        into the sandbox as orders.json, a JSON object with an "orders"
+        list, before your code runs. Read that file. Never put order rows
+        into the code. If the latest call failed or returned no usable
+        text, this tool refuses to run until orders___list_orders is called
+        again and succeeds; if the file could not be written, the error
+        says so and running again writes it again. Print every figure your
+        answer will state, including how many orders a figure covers; do
+        not state a number the code did not print. Variables persist
+        between calls within one conversation turn. An execution error is
+        returned when the code fails, so correct the code and run it again.
 
         Args:
             code: The Python source to execute. Print anything you need back.
         """
         if len(code) > MAX_CODE_CHARS:
             raise ValueError(f"code is {len(code)} characters, the limit is {MAX_CODE_CHARS}")
-        if self.unavailable:
-            names = ", ".join(sorted(self.unavailable))
-            raise RuntimeError(f"{names} could not be written to the sandbox this turn; call the tool that provides it again")
-        if self.session_id is None:
-            self.session_id = self.start(self.interpreter, "analysis")
-        return self.execute(self.session_id, code)
+        with self._lock:
+            if self.unavailable:
+                names = ", ".join(sorted(self.unavailable))
+                raise RuntimeError(
+                    f"{names} not available this turn: the latest call that provides it did not produce a result; "
+                    "call that tool again"
+                )
+            if self.session_id is None:
+                self.session_id = self.start(self.interpreter, "analysis")
+            for path in list(self.staged):
+                try:
+                    self.put(self.session_id, path, self.staged[path])
+                except Exception as exc:
+                    raise RuntimeError(f"{path} could not be written to the sandbox: {exc}; run again to retry") from exc
+                del self.staged[path]
+                self.written.append(path)
+            return self.execute(self.session_id, code)
 
-    def write(self, path, text):
-        """Put a file into this turn's session, starting it if needed.
+    def stage(self, path, text):
+        """Hold a file for this turn's session. It is written just before
+        the model's code next runs, by run_python, so staging starts no
+        session. Called by trusted code, not by the model: the handoff hook
+        stages the gateway's result here so the model computes over the
+        rows the gateway returned rather than over a copy it typed into its
+        code."""
+        with self._lock:
+            self.staged[path] = text
+            self.unavailable.discard(path)
 
-        Called by trusted code, not by the model: the handoff hook writes
-        the gateway's result here so the model computes over the rows the
-        gateway returned rather than over a copy it typed into its code.
-        """
-        if self.session_id is None:
-            self.session_id = self.start(self.interpreter, "analysis")
-        self.put(self.session_id, path, text)
+    def withhold(self, path):
+        """Forget anything staged under this path and refuse to run until
+        it is staged again."""
+        with self._lock:
+            self.staged.pop(path, None)
+            self.unavailable.add(path)
 
     def close(self):
         """Stop the session, retrying once. The id is forgotten only once the
         stop succeeded; if both attempts fail the error reaches the caller,
         and the service's 900 second session lifetime is the backstop."""
-        if self.session_id is None:
-            return
-        try:
-            self.stop(self.interpreter, self.session_id)
-        except Exception as exc:  # noqa: BLE001 — one retry, then the caller hears about it
-            print(f"stopping sandbox session {self.session_id} failed once, retrying: {exc}")
-            self.stop(self.interpreter, self.session_id)
-        self.session_id = None
+        with self._lock:
+            if self.session_id is None:
+                return
+            try:
+                self.stop(self.interpreter, self.session_id)
+            except Exception as exc:  # noqa: BLE001 — one retry, then the caller hears about it
+                print(f"stopping sandbox session {self.session_id} failed once, retrying: {exc}")
+                self.stop(self.interpreter, self.session_id)
+            self.session_id = None

@@ -18,8 +18,7 @@ model could keep asking and each ask is another model invocation.
 """
 
 
-class BudgetExceeded(RuntimeError):
-    """The model kept asking for tools after being told the budget was spent."""
+import threading
 
 from strands.hooks import (
     AfterToolCallEvent,
@@ -32,9 +31,18 @@ ERROR_PREVIEW = 300
 MAX_TOOL_CALLS = 8
 
 
+class BudgetExceeded(RuntimeError):
+    """The model kept asking for tools after being told the budget was spent."""
+
+
 def _text_of(result):
+    """The text of a result, or nothing for a malformed one, so a tool
+    failure the hook is recording is not turned into a failed turn."""
+    content = result.get("content") if isinstance(result, dict) else None
+    if not isinstance(content, list):
+        return ""
     return " ".join(
-        item["text"] for item in result.get("content", []) if isinstance(item, dict) and "text" in item
+        item["text"] for item in content if isinstance(item, dict) and isinstance(item.get("text"), str)
     ).strip()
 
 
@@ -52,12 +60,24 @@ class Trail(HookProvider):
         self.max_tool_calls = max_tool_calls
         self.executed = 0
         self._open = {}
+        # The count and the open steps are shared by every tool call's
+        # hooks; the agent runs tools one at a time, and the lock keeps the
+        # budget exact if that ever changes.
+        self._lock = threading.Lock()
 
     def register_hooks(self, registry: HookRegistry, **kwargs) -> None:
         registry.add_callback(BeforeToolCallEvent, self.before)
         registry.add_callback(AfterToolCallEvent, self.after)
 
     def before(self, event):
+        with self._lock:
+            self._before(event)
+
+    def after(self, event):
+        with self._lock:
+            self._after(event)
+
+    def _before(self, event):
         use = event.tool_use
         step = {"tool": use["name"], "input": use.get("input", {})}
         if self.executed >= self.max_tool_calls:
@@ -79,7 +99,7 @@ class Trail(HookProvider):
         self._open[use.get("toolUseId")] = step
         print(f"model chose {use['name']} (input {_size_of(step['input'])} chars)")
 
-    def after(self, event):
+    def _after(self, event):
         use = event.tool_use
         step = self._open.pop(use.get("toolUseId"), None)
         if step is None:

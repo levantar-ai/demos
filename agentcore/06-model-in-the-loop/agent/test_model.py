@@ -71,6 +71,7 @@ class FakeResult:
 class FakeAgent:
     built: ClassVar[list] = []
     restored_messages: ClassVar[list] = []
+    runs_python: ClassVar[bool] = False  # when set, the fake model calls run_python once
 
     def __init__(self, **kw):
         self.kw = kw
@@ -83,6 +84,9 @@ class FakeAgent:
 
     def __call__(self, prompt):
         self.prompt = prompt
+        if FakeAgent.runs_python:
+            run = next(t for t in self.kw["tools"] if getattr(t, "tool_name", None) == "run_python")
+            self.ran = run(code="print(1)")
         return FakeResult(f"answered: {prompt}")
 
     def cleanup(self):
@@ -116,6 +120,35 @@ def test_the_restored_conversation_is_windowed(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     manager = fakes.built[-1].kw["conversation_manager"]
     assert manager.window_size == model.WINDOW_MESSAGES
+    # sliding, not truncating: the default would blank the latest tool
+    # results of an overfull conversation before trimming anything
+    assert manager.should_truncate_results is False
+
+
+def _filler(n):
+    return [{"role": ("user", "assistant")[i % 2], "content": [{"text": f"m{i}"}]} for i in range(n)]
+
+
+def test_the_window_is_applied_before_restore_scans_the_conversation(fakes, monkeypatch):
+    """What restore() scans is what the model is shown: a gateway result
+    that has slid out of the window is not restored, one inside it is."""
+    staged = []
+    monkeypatch.setattr(sandbox.Sandbox, "stage", lambda self, path, text: staged.append(path))
+    monkeypatch.setattr(FakeAgent, "restored_messages", _conversation_with_a_fetch("rows") + _filler(model.WINDOW_MESSAGES))
+    model.answer("hello", "c-1000", "session-1", "minted-token")
+    assert staged == []
+    assert len(fakes.built[-1].messages) <= model.WINDOW_MESSAGES
+    monkeypatch.setattr(FakeAgent, "restored_messages", _filler(model.WINDOW_MESSAGES - 6) + _conversation_with_a_fetch("rows"))
+    model.answer("hello", "c-1000", "session-1", "minted-token")
+    assert staged == ["orders.json"]
+    assert len(fakes.built[-1].messages) == model.WINDOW_MESSAGES
+
+
+def test_tools_run_one_at_a_time_in_the_order_the_model_asked(fakes):
+    from strands.tools.executors import SequentialToolExecutor
+
+    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    assert isinstance(fakes.built[-1].kw["tool_executor"], SequentialToolExecutor)
 
 
 def test_the_model_learns_the_customer_from_trusted_code(fakes):
@@ -265,10 +298,12 @@ def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "orders.json" in prompt and "never retype order rows" in prompt
-    assert "returned non-empty text and the agent successfully wrote it" in prompt
+    assert "the agent writes that text into the sandbox as orders.json before your code runs" in prompt
     assert "call orders___list_orders again before computing" in prompt
     assert "if the file is missing when your code opens it" in prompt
-    assert "state in your answer only the figures run_python printed" in prompt
+    assert "if run_python says the file could not be written, run it again" in prompt
+    assert "Every figure in your answer must be one run_python printed, and that includes any count of orders" in prompt
+    assert "if the code did not print a number, do not state it" in prompt
 
 
 def _conversation_with_a_fetch(text):
@@ -282,20 +317,31 @@ def _conversation_with_a_fetch(text):
     ]
 
 
-def test_a_restored_conversations_latest_fetch_is_put_in_the_sandbox_before_the_model_runs(fakes, monkeypatch):
+def test_a_restored_conversations_latest_fetch_is_written_before_the_models_code_runs(fakes, monkeypatch):
     """The live run's second turn read orders.json before fetching and found
     nothing, because the sandbox session is new each turn. Trusted code now
-    restores the last gateway result into it first."""
+    restores the last gateway result for it, and the sandbox writes the file
+    just before the model's code first runs; a turn in which the model never
+    runs code starts no session."""
     text = '{"customer_id": "c-1000", "orders": [{"order_id": 1033, "total": 12.0}]}'
-    puts = []
-    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s5"))
-    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, t: puts.append((path, t))))
+    started, puts, executes = [], [], []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: started.append(n) or "s5"))
+    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, t: puts.append((sid, path, t))))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: executes.append(len(puts)) or "1"))
     monkeypatch.setattr(FakeAgent, "restored_messages", _conversation_with_a_fetch(text))
-    try:
-        model.answer("which carrier?", "c-1000", "session-1", "minted-token")
-    finally:
-        monkeypatch.setattr(FakeAgent, "restored_messages", [])
-    assert puts == [("orders.json", text)]
+    model.answer("thanks", "c-1000", "session-1", "minted-token")
+    assert started == [] and puts == []
+    monkeypatch.setattr(FakeAgent, "runs_python", True)
+    model.answer("which carrier?", "c-1000", "session-1", "minted-token")
+    assert started == ["analysis"]
+    assert puts == [("s5", "orders.json", text)]
+    assert executes == [1]  # the file was in place before the code ran
+
+
+def test_restore_stages_the_file_and_starts_no_session():
+    box = _Box()
+    assert handoff.restore(_conversation_with_a_fetch("rows"), box) == ["orders.json"]
+    assert box.staged == {"orders.json": "rows"} and box.unavailable == set()
 
 
 def test_the_latest_outcome_wins_whether_it_succeeded_or_not():
@@ -332,7 +378,7 @@ def test_a_failed_or_empty_latest_call_stays_withheld_on_the_next_turn(latest, m
     box = sandbox.Sandbox()
     assert handoff.restore(msgs, box) == []
     assert puts == [] and box.unavailable == {"orders.json"}
-    with pytest.raises(RuntimeError, match="orders.json could not be written"):
+    with pytest.raises(RuntimeError, match="orders.json not available this turn"):
         box.run_python(code="print(1)")
     later = msgs + [
         {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t6", "name": "orders___list_orders", "input": {}}}]},
@@ -341,6 +387,7 @@ def test_a_failed_or_empty_latest_call_stays_withheld_on_the_next_turn(latest, m
     box2 = sandbox.Sandbox()
     assert handoff.restore(later, box2) == ["orders.json"]
     assert box2.unavailable == set() and box2.run_python(code="print(1)") == "ran"
+    assert puts == ["orders.json"]  # the restored result was written before the code ran
 
 
 def test_blocks_without_a_tool_use_id_are_never_matched():
@@ -354,30 +401,30 @@ def test_blocks_without_a_tool_use_id_are_never_matched():
     assert handoff.latest_results(msgs) == {}
 
 
-def test_a_failed_restore_is_logged_and_the_turn_goes_on(capsys):
-    assert handoff.restore(_conversation_with_a_fetch("x"), _Box(fail=True)) == []
-    assert "restore of orders.json to the sandbox failed" in capsys.readouterr().out
-
-
 # --- the handoff: the gateway's result reaches the sandbox untouched ---------
 class _Box:
-    def __init__(self, fail=False):
-        self.files, self.fail, self.unavailable = [], fail, set()
+    """A sandbox that records what trusted code staged or withheld."""
 
-    def write(self, path, text):
-        if self.fail:
-            raise RuntimeError("session unavailable")
-        self.files.append((path, text))
+    def __init__(self):
+        self.staged, self.unavailable = {}, set()
+
+    def stage(self, path, text):
+        self.staged[path] = text
+        self.unavailable.discard(path)
+
+    def withhold(self, path):
+        self.staged.pop(path, None)
+        self.unavailable.add(path)
 
 
-def test_a_successful_gateway_result_is_written_to_the_sandbox_exactly_as_returned(capsys):
+def test_a_successful_gateway_result_is_staged_for_the_sandbox_exactly_as_returned(capsys):
     box = _Box()
     h = handoff.Handoff(box)
     text = '  {"customer_id": "c-1000", "orders": [{"order_id": 1033, "total": 12.0}]}\n'
     h.after(_Event({"name": "orders___list_orders", "input": {"customer_id": "c-1000"}, "toolUseId": "u1"},
                    {"status": "success", "content": [{"text": text}]}))
-    assert box.files == [("orders.json", text)]  # whitespace and all
-    assert h.written == ["orders.json"]
+    assert box.staged == {"orders.json": text}  # whitespace and all
+    assert h.staged == ["orders.json"]
     assert "1033" not in capsys.readouterr().out  # the log line carries the size, not the rows
 
 
@@ -385,13 +432,32 @@ def test_several_text_blocks_are_joined_and_other_content_dropped():
     box = _Box()
     handoff.Handoff(box).after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"},
                                       {"status": "success", "content": [{"text": "a"}, {"image": {}}, {"text": "b"}]}))
-    assert box.files == [("orders.json", "a\nb")]
+    assert box.staged == {"orders.json": "a\nb"}
 
 
-def test_a_failed_refresh_makes_the_tool_refuse_rather_than_read_a_stale_file(monkeypatch):
-    """restore() put last turn's file in place; the new gateway result could
-    not be written; run_python must not compute over the old copy."""
-    puts, attempts = [], []
+@pytest.mark.parametrize("content", [None, "text", 7, [{"text": None}], [{"text": 3}, {"text": ""}]])
+def test_a_malformed_result_reads_as_no_text_in_both_hooks(content):
+    """A provider result whose content is not a list, or whose text is not a
+    string, must not raise inside a hook and turn a reportable tool failure
+    into a failed turn."""
+    assert handoff._text_of({"status": "success", "content": content}) == ""
+    assert trail_module._text_of({"status": "error", "content": content}) == ""
+    box = _Box()
+    handoff.Handoff(box).after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"},
+                                      {"status": "success", "content": content}))
+    assert box.staged == {} and box.unavailable == {"orders.json"}
+    t = trail_module.Trail()
+    use = {"name": "orders___list_orders", "input": {}, "toolUseId": "u1"}
+    t.before(_Event(use))
+    t.after(_Event(use, {"status": "error", "content": content}))
+    assert t.steps[-1]["status"] == "error" and t.steps[-1]["error"] == ""
+
+
+def test_a_write_that_fails_when_the_code_runs_is_reported_and_tried_again(monkeypatch):
+    """The staged file is written just before the code runs. If that write
+    fails the model sees the error and nothing ran; the file stays staged
+    and the next call writes it again."""
+    puts, attempts, executes = [], [], []
 
     def flaky_put(sid, path, text):
         attempts.append(text)
@@ -401,26 +467,26 @@ def test_a_failed_refresh_makes_the_tool_refuse_rather_than_read_a_stale_file(mo
 
     monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s8"))
     monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(flaky_put))
-    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: "ran"))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: executes.append(code) or "ran"))
     box = sandbox.Sandbox()
     assert handoff.restore(_conversation_with_a_fetch("old rows"), box) == ["orders.json"]
+    assert box.run_python(code="print(1)") == "ran" and puts == [("orders.json", "old rows")]
     h = handoff.Handoff(box)
     h.after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u9"},
                    {"status": "success", "content": [{"text": "new rows"}]}))
-    assert box.unavailable == {"orders.json"}
-    with pytest.raises(RuntimeError, match="orders.json could not be written"):
-        box.run_python(code="print(1)")
-    h.after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u10"},
-                   {"status": "success", "content": [{"text": "new rows"}]}))
-    assert box.unavailable == set() and puts[-1] == ("orders.json", "new rows")
-    assert box.run_python(code="print(1)") == "ran"
+    with pytest.raises(RuntimeError, match="orders.json could not be written to the sandbox: write failed"):
+        box.run_python(code="print(2)")
+    assert executes == ["print(1)"]  # nothing ran over the old copy
+    assert box.staged == {"orders.json": "new rows"} and box.unavailable == set()
+    assert box.run_python(code="print(3)") == "ran"
+    assert puts[-1] == ("orders.json", "new rows") and box.written == ["orders.json", "orders.json"]
 
 
-def test_an_oversized_result_is_withheld_not_written(monkeypatch):
+def test_an_oversized_result_is_withheld_not_staged(monkeypatch):
     box = _Box()
     handoff.Handoff(box).after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"},
                                       {"status": "success", "content": [{"text": "x" * (handoff.MAX_HANDOFF_CHARS + 1)}]}))
-    assert box.files == [] and box.unavailable == {"orders.json"}
+    assert box.staged == {} and box.unavailable == {"orders.json"}
     msgs = _conversation_with_a_fetch("y" * (handoff.MAX_HANDOFF_CHARS + 1))
     assert handoff.latest_results(msgs) == {"orders.json": None}
 
@@ -440,7 +506,7 @@ def test_a_failed_gateway_call_or_an_empty_result_also_withholds_the_old_file(mo
         handoff.restore(_conversation_with_a_fetch("old rows"), box)
         assert box.run_python(code="print(1)") == "ran"
         handoff.Handoff(box).after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"}, result))
-        with pytest.raises(RuntimeError, match="orders.json could not be written"):
+        with pytest.raises(RuntimeError, match="orders.json not available this turn"):
             box.run_python(code="print(1)")
 
 
@@ -448,8 +514,10 @@ def test_the_tool_description_tells_the_model_to_read_the_file_not_embed_rows():
     description = " ".join(sandbox.Sandbox().run_python.tool_spec["description"].split())
     assert "orders.json" in description
     assert "Never put order rows into the code" in description
-    assert "returned non-empty text and the agent successfully wrote it" in description
+    assert "the agent writes that text into the sandbox as orders.json" in description
     assert "refuses to run until orders___list_orders is called again" in description
+    assert "Print every figure your answer will state, including how many orders a figure covers" in description
+    assert "do not state a number the code did not print" in description
     assert "list of dicts" not in description and "into the code itself" not in description
 
 
@@ -461,26 +529,53 @@ def test_other_tools_and_failed_calls_are_not_handed_over():
     assert box.unavailable == set()  # an unrelated tool changes nothing
     h.after(_Event({"name": "orders___list_orders", "input": {"customer_id": "c-1001"}, "toolUseId": "u2"},
                    {"status": "error", "content": [{"text": "Tool Execution Denied"}]}))
-    assert box.files == [] and h.written == []
+    assert box.staged == {} and h.staged == []
     assert box.unavailable == {"orders.json"}  # a failed call withholds any older copy
 
 
-def test_a_failed_handoff_is_logged_and_does_not_break_the_turn(capsys):
-    h = handoff.Handoff(_Box(fail=True))
-    h.after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"},
-                   {"status": "success", "content": [{"text": "{}"}]}))
-    assert h.written == []
-    assert "handoff of orders___list_orders to orders.json failed" in capsys.readouterr().out
-
-
-def test_sandbox_write_starts_the_session_and_puts_the_file(monkeypatch):
-    started, puts = [], []
+def test_a_staged_file_is_written_once_before_the_first_run_and_not_again(monkeypatch):
+    started, puts, executes = [], [], []
     monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: started.append(n) or "s3"))
     monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, text: puts.append((sid, path, text))))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: executes.append(len(puts)) or "ok"))
     box = sandbox.Sandbox()
-    box.write("orders.json", "{}")
-    box.write("orders.json", "{}")
-    assert started == ["analysis"] and puts == [("s3", "orders.json", "{}")] * 2
+    box.stage("orders.json", "{}")
+    box.stage("orders.json", "{}")
+    assert started == [] and puts == []
+    box.run_python(code="print(1)")
+    box.run_python(code="print(2)")
+    assert started == ["analysis"] and puts == [("s3", "orders.json", "{}")] and executes == [1, 1]
+
+
+def test_concurrent_calls_share_one_session_and_run_one_at_a_time(monkeypatch):
+    """Two run_python calls arriving together must not each start a session
+    and leak one; the lock makes the second wait for the first."""
+    import threading
+    import time
+
+    started, running, overlap = [], [], []
+
+    def slow_start(i, n):
+        time.sleep(0.05)
+        started.append(n)
+        return f"s{len(started)}"
+
+    def execute(sid, code):
+        running.append(sid)
+        overlap.append(len(running))
+        time.sleep(0.05)
+        running.remove(sid)
+        return "ok"
+
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(slow_start))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(execute))
+    box = sandbox.Sandbox()
+    threads = [threading.Thread(target=box.run_python, kwargs={"code": "print(1)"}) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert started == ["analysis"] and max(overlap) == 1
 
 
 # --- the trail records the model's choices in order --------------------------
@@ -711,6 +806,25 @@ def test_a_call_that_outlives_the_deadline_is_abandoned_with_an_error(monkeypatc
 def test_a_call_within_the_deadline_returns_its_output(fake):
     fake.streams = [[_text_event("fast")]]
     assert sandbox.execute_code("s1", "print('fast')") == "fast"
+
+
+def test_a_call_past_the_in_flight_limit_is_refused_and_a_finished_call_frees_its_slot(fake, monkeypatch):
+    """Nothing queues behind the workers: with every slot taken the call is
+    refused outright, and a slot comes back when its call finishes, however
+    it ended."""
+    import threading
+
+    monkeypatch.setattr(sandbox, "_slots", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(sandbox, "MAX_IN_FLIGHT", 1)
+    assert sandbox._slots.acquire(blocking=False)  # someone else's call is in flight
+    with pytest.raises(RuntimeError, match="executeCode refused: the sandbox already has 1 calls in flight"):
+        sandbox.execute_code("s1", "print(1)")
+    sandbox._slots.release()
+    fake.streams = [[_text_event("one")], [_text_event("NameError", is_error=True)], [_text_event("three")]]
+    assert sandbox.execute_code("s1", "print(1)") == "one"
+    with pytest.raises(RuntimeError, match="NameError"):
+        sandbox.execute_code("s1", "nope")
+    assert sandbox.execute_code("s1", "print(3)") == "three"  # both earlier calls gave their slot back
 
 
 def test_closing_an_unused_sandbox_stops_nothing(monkeypatch):

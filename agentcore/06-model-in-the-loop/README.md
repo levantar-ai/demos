@@ -11,7 +11,8 @@ customer's long-term preferences are put in front of the model. Asked a question
 the orders, writes the code itself, the sandbox runs it, and the answer
 comes back with the trail of what it chose.
 
-Identity is unchanged from demo 05 and is the reason this is safe to do. The
+Identity is unchanged from demo 05 and is what keeps the customer boundary
+where it was. The
 runtime validates the customer's token, trusted code exchanges it through
 AgentCore Identity for the five-minute token the gateway accepts, and that
 token goes into the MCP client's header. The model is told the customer's id
@@ -140,8 +141,9 @@ stack, for looking at the minted token and calling the gateway directly.
 ## Notes kept out of the post
 
 - The order fixture has three orders from 2025 (998 and 999 for c-1000, 997
-  for c-1001) on top of the 300 the series shares, so "this year" has
-  something to exclude. The 2026 figures the post quotes are unchanged.
+  for c-1001) on top of the 300 rows across all customers it has had since
+  post 02, so "this year" has something to exclude. c-1000 has nine orders
+  in it, seven of them in 2026, and c-1001 six.
 - The model is Claude Sonnet 4.5 through the `us.` cross-region inference
   profile, the default of `var.model_id`. The IAM statement names the profile and the foundation-model ARNs the
   `aws_bedrock_inference_profile` data source reports for it, because
@@ -154,10 +156,17 @@ stack, for looking at the minted token and calling the gateway directly.
   does the same job and would replace `main.py`'s server loop.
 - One sandbox session per invocation, created when the model first calls
   `run_python` and stopped when the answer is out, so no session is left
-  running to block a later destroy. Variables from one `run_python` call are
-  available to the next within a turn, not between turns. The sandbox has no
-  access to the gateway itself; the handoff hook is what puts the gateway's
-  result there.
+  running to block a later destroy, and a turn in which the model never
+  runs code starts none, because the handoff stages the file and
+  `run_python` writes it just before the first execution. Variables from
+  one `run_python` call are available to the next within a turn, not
+  between turns. The sandbox has no access to the gateway itself; the
+  handoff hook is what puts the gateway's result there. Tools run one at a
+  time in the order the model asked (`SequentialToolExecutor`; the pinned
+  Strands defaults to concurrent), so a gateway result is staged before a
+  `run_python` asked for in the same model response, and the sandbox's own
+  lock serialises start, write, run and stop, so two calls arriving
+  together cannot each start a session.
 - The trail is a Strands hook, `trail.py`. It records tool name, arguments
   and status and the first 300 characters of any error, which is what would
   show Cedar's refusal if the model asked for the wrong customer. It goes
@@ -167,15 +176,25 @@ stack, for looking at the minted token and calling the gateway directly.
   embeds. The same hook allows eight tool executions a turn, refuses the
   ninth with a message to answer from what it has (recorded in the trail as
   `cancelled`), and raises on the tenth so the turn ends as a 502 rather
-  than running on. That bounds executions and model calls per turn, not
-  context: the prompt is capped at 4,000 characters, the restored
-  conversation is windowed to the last 40 messages by Strands'
-  `SlidingWindowConversationManager`, and a handed-over result over 200,000
-  characters is withheld. The agent gives up on a sandbox call after 180 s by its own clock (the
-  call runs on a worker thread and is abandoned at the deadline) and makes
-  one HTTP attempt per call; abandoned code may still be running until the
-  session is stopped at the end of the turn, with the session's lifetime as
-  the backstop.
+  than running on. That bounds executions and model calls per turn. The
+  prompt is capped at 4,000 characters and the restored conversation is
+  windowed to the last 40 messages by Strands'
+  `SlidingWindowConversationManager`, applied by trusted code before
+  `restore()` scans the conversation as well as by Strands after each
+  model call, and constructed with `should_truncate_results=False`,
+  because the default answers an overfull conversation by replacing its
+  latest tool results with "too large" before trimming anything. Neither
+  is a bound on context: a gateway result enters the model's context
+  whole, as any tool result does, and the 200,000 character handoff cap
+  bounds what is staged for the sandbox, not what the model sees.
+  Retrieved memory records have no application-level size cap. The agent
+  gives up on a sandbox call after 180 s by its own clock (the call runs
+  on a worker thread and is abandoned at the deadline), makes one HTTP
+  attempt per call, and admits at most 8 calls in flight per process, a
+  ninth being refused rather than queued. An abandoned call keeps its slot
+  until its HTTP attempt ends, and its code may still be running until the
+  session is stopped at the end of the turn, with the session's lifetime
+  as the backstop. The service offers no cancel.
 - The sandbox tool refuses code over 20,000 characters, accumulates at most
   8,000 characters across stream events for the model, result or error,
   separators counted (each event is still materialised by boto3 before the
@@ -187,20 +206,27 @@ stack, for looking at the minted token and calling the gateway directly.
   abandoned session if the stop fails, not a running call.
 - The gateway's result is handed to the sandbox by trusted code. `handoff.py`
   is a second Strands hook: on a successful `orders___list_orders` result it
-  writes the result's text, as returned, into the turn's sandbox session as
-  `orders.json`, and the system prompt and the tool's description tell the
-  model to read that file and never put rows in the code. Because the
-  sandbox session is new each turn, `restore()` writes the restored
-  conversation's latest gateway result into it before the model runs, so a
-  second question in a conversation finds the file without fetching again
-  (a question about current state still fetches, and the fetch refreshes
-  the file). A failed write marks the file unavailable and `run_python`
-  refuses to run until it is written again, so a stale copy from an earlier
-  turn is never read as current. The result also remains in the model's
-  context, as any tool result does. What this guarantees is that the
-  gateway's result is in the sandbox to be read; what the model's code does
-  with it is still the model's choice, which the live runs show it making
-  correctly and a reused session once showed it not.
+  stages the result's text, as returned, for the turn's sandbox as
+  `orders.json`, and `run_python` writes it into the session just before
+  the model's code runs. The system prompt and the tool's description tell
+  the model to read that file and never put rows in the code. Because the
+  sandbox session is new each turn, `restore()` stages the restored
+  conversation's latest gateway result before the model runs, so a second
+  question in a conversation finds the file without fetching again (a
+  question about current state still fetches, and the fetch refreshes the
+  file). A failed or empty call withholds the file and `run_python`
+  refuses to run until it is staged again, so a stale copy from an
+  earlier run is never read as current. A write that fails when the code
+  runs is the tool's error to the model, nothing runs, and the next call
+  writes it again. The result also remains in the model's context, as any
+  tool result does. What this guarantees is that the gateway's result is
+  in the sandbox before any code runs. What the model's code does with it
+  is still the model's choice.
+- Memory is keyed by the pool username, which is the customer id Cedar
+  checks. A username deleted and created again would inherit the former
+  account's namespace and could try its session ids. A production system
+  keys on the token's `sub`, or an internal id bound to it, and keeps the
+  customer id as an attribute.
 - The gateway client loads only the tools named in `gateway.py`'s
   `ALLOWED_TOOLS`, so a target added to the gateway later is not handed to
   the model until the agent is changed to name it. Cedar is default deny for
@@ -216,9 +242,12 @@ stack, for looking at the minted token and calling the gateway directly.
   model, the agent, the MCP client and the memory manager are replaced by
   fakes that record how they were built. They check that the customer id and the date reach the model's system
   prompt as text, that trusted code gives the model neither token and
-  passes the minted one to the MCP client as a header, and what each hook
-  does. The full request Strands sends to
-  Bedrock is Strands' to build and is not inspected here.
+  passes the minted one to the MCP client as a header, what each hook
+  does, that the window is applied before `restore()` scans the
+  conversation, that a staged file is written before the first execution
+  and never again, that three concurrent calls share one session, and
+  that a ninth in-flight call is refused. The full request Strands sends
+  to Bedrock is Strands' to build and is not inspected here.
 
 ## Tear down
 

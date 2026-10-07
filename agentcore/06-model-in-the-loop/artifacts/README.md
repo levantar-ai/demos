@@ -827,7 +827,54 @@ Verdict "not ready", two blockers, four majors, five minors, one nit.
     one-line pointer to the next post.
 12. **Nit, lead-ins and H1 dashes.** Not changed; series conventions.
 
-<<REVIEW_ROUND_15>>
+### Round 15, 2026-10-07 (after the round 14 fixes and the twelfth run)
+
+Verdict "not ready", one blocker, seven majors, five minors.
+
+1. **Blocker, the spend answer still carried a wrong count.** Accepted.
+   The prompt and the tool description now say every figure in the answer
+   must be one the code printed, counts of orders included, and that a
+   number the code did not print is not stated. The turn is re-run below.
+2. **Major, the executor's queue was unbounded and abandoned work was not
+   cancelled.** Accepted in part. A semaphore admits at most eight calls
+   in flight per process and a ninth is refused rather than queued, so
+   nothing waits behind the workers; tested. An abandoned call is not
+   cancelled, the service has no cancel, and the stop of the session at
+   the end of the turn is what ends its code; the sandbox's lock makes
+   that stop wait for an in-flight call, which the deadline bounds.
+3. **Major, restoring a conversation started a sandbox before the model
+   ran.** Accepted. The handoff and `restore()` stage the file and
+   `run_python` writes it just before the first execution, so a turn in
+   which the model runs no code starts no session. Tested, including a
+   write that fails at run time being the tool's error and retried.
+4. **Major, the window and the handoff cap are not a context bound.**
+   Accepted; the post and README say so, the gateway's result enters the
+   context whole and the cap bounds what is staged for the sandbox.
+5. **Major, `restore()` scanned `agent.messages` before any windowing.**
+   Accepted. Trusted code applies the window before `restore()` scans the
+   conversation, tested with a result outside and inside it. Doing so
+   showed that the manager's default replaces the latest tool results of
+   an overfull conversation with "too large" before trimming anything, so
+   it is now constructed with `should_truncate_results=False`.
+6. **Major, session creation unsynchronised.** Accepted. Tools run one at
+   a time (`SequentialToolExecutor`; the pinned Strands defaults to
+   concurrent) and the sandbox's lock serialises start, write, run and
+   stop, tested with three concurrent calls. The trail's counter has a
+   lock too.
+7. **Major, "safe" and "no code anticipated" overstated.** Accepted; the
+   conclusion and README scope the identity claim to the order lookup.
+8. **Major, not happy-path only.** Accepted in part. The wrong-count
+   discussion, the run history and the next-post pointer are out of the
+   post; the pretexts and the bounds stay, being what the post is about.
+9. **Minor, "the 300 the series shares".** Reworded; the fixture has 300
+   rows across all customers, nine of them c-1000's.
+10. **Minor, "holds both, as it must to call the runtime".** Accepted.
+11. **Minor, memory keyed by username not `sub`.** Stated in the post and
+    the README as a limitation of the demo.
+12. **Minor, `_text_of` on malformed content.** Accepted in both hooks,
+    tested with `None`, a string, a number and non-string text.
+13. **Minor, lead-ins and H1 dashes.** Not changed; series conventions
+    the site build reads.
 
 
 

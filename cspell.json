@@ -225,7 +225,9 @@
     "artefacts",
     "defaultdict",
     "fromisoformat",
-    "strptime"
+    "strptime",
+    "serialises",
+    "unsynchronised"
   ],
   "ignorePaths": [
     "node_modules/**",
