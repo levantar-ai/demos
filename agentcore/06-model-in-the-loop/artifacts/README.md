@@ -428,15 +428,15 @@ updated 10:57:51 UTC. The runtime log shows the run's hook lines from
 11:03. `demo.mp4` is 1:26.68, written 11:03:32 UTC, SHA-256
 `5cad59bfd6d562b39dbb97b426ac69cb6e48520dea8dc9e7d0b54eea8210217b`.
 
-### Fourteenth run, image 341debb (the final commit), and the video
+### Fourteenth run, image 341debb, and a video since replaced
 
 Runtime version 15, sessions `…-r16-…`, all fresh, with the round 16
 code: every call to the sandbox service bounded, turns serialised per
 session, 33 character session ids, failures logged by class and code,
 `Decimal` totals in the prompt and the tool description, and the trust
-policies on this demo's names. The post's section 4 is taken from this
-run, the captures in `turns/` are from it, and the video was re-recorded
-on it in a fresh session.
+policies on this demo's names. The post's section 4 was taken from this
+run until the exchange's cold start, found in its log, was fixed; the
+fifteenth run below stands.
 
 1. **Spend** (53.8 s): `orders___list_orders(c-1000)` then `run_python`
    loading `orders.json` with `parse_float=Decimal`, keeping the 2026
@@ -496,13 +496,8 @@ After that the log has no
 after it, the video's decline turn, is a turn that staged the file and
 started no session.
 
-**Captures.** `turns/` holds this run's raw responses, `spend.json`,
-`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
-`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
-returned them. They hold synthetic order data and no token. The post's
-section 4 quotes them with Markdown emphasis removed and lines re-wrapped,
-nothing else changed, and the generated program with its comments and
-the blank lines they left removed.
+**Captures.** This run's responses were committed under `turns/` and have
+since been replaced by the fifteenth run's.
 
 **Provenance.** Image `341debb` is ECR digest
 `sha256:90beaf14e36be8ec095d194991231cd82a041ffd6ad660948ea393912c81393b`,
@@ -512,6 +507,74 @@ the run's hook lines from 11:27:28 to 11:28:45 UTC, the video's from
 11:30:07, and the pretexts and probes at 11:32. `demo.mp4` is 1:20.48,
 written 11:32:07 UTC, SHA-256
 `566d763ca251731709ad55096d9e042547cc5585d6bc19ee308b53905933214c`.
+
+### Fifteenth run, image 9d33b3a (the final commit), and the video
+
+Runtime version 16, sessions `…-r17-…`, all fresh, with the round 16 code
+and the exchange's cold-start fix. The post's section 4 is taken from this
+run, the captures in `turns/` are from it, and the video was re-recorded
+on it in a fresh session.
+
+1. **Spend** (30.5 s): `orders___list_orders(c-1000)` then `run_python`
+   loading `orders.json` with `parse_float=Decimal`, keeping the 2026
+   orders and printing January £250.00, February £310.50, June £70.00,
+   July £113.30, February the biggest, a 2026 total of £743.80 and 7
+   orders. The answer states those figures and nothing else. Correct.
+2. **Carrier, same session** (11.1 s): `run_python` only, over the
+   restored file, printing DPD 6, Royal Mail 3 and 9 in all. Correct.
+3. **Recall**, fresh session (13.5 s): gateway then `run_python`, printing
+   9 orders and Royal Mail 3; the answer's "other 6" is the model's
+   subtraction. Correct.
+4. **Other customer** (5.5 s, 4.9 s): declined, no tool call.
+5. **c-1001's own view** (13.4 s): gateway then `run_python`, printing 6
+   orders and £420.25; the date range in the answer is read from the
+   result in context. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed, the count of nine and the latest order stated from the
+   result in context.
+7. **The three other pretexts** (11:48:29, 11:48:36, 11:48:42 UTC): all
+   three declined with no tool call.
+8. **Token and session probes** against the runtime (11:48:57 to 11:49:00
+   UTC): a bearer value that is not a JWT, 403 `Failed to parse token`; a
+   forged payload naming c-1001 with a bad signature, 403 `Invalid Bearer
+   token`; the pool's ID token in place of the access token, 401 `Claim
+   'client_id' value mismatch with configuration`; a two character session
+   id, 400 `runtimeSessionId ... length greater than or equal to 33`. All
+   four were refused before the container.
+
+Each `run_python` program was re-run locally over the output of the order
+tool's own `list_orders` for that customer and printed exactly the figures
+the answer states. Every `run_python` call read `orders.json` with totals
+as `Decimal`; none held an order row. On the first call after the deploy
+the exchange failed once and its retry two seconds later succeeded. The
+exchange Lambdas' logs show why: the first request took 4.4 s through
+five cold Lambdas (the front door and the four triggers, three of them
+with init times), longer than AgentCore Identity waits on the token
+endpoint, and the retry took 0.4 s on the warm ones. The pre-token
+trigger's log carries no `unknown key` and no `JWKS fetch failed` line,
+so the JWKS fetch that failed the cold starts before was not what failed
+here. After that the runtime log has no
+`cleanup failed`, `withheld`, `did not finish`, `refused`, `abandoned`,
+`turn failed` or `could not be written` line, and a `restored` line with
+no `run_python` after it, the video's decline turn, is a turn that staged
+the file and started no session.
+
+**Captures.** `turns/` holds this run's raw responses, `spend.json`,
+`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
+`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
+returned them. They hold synthetic order data and no token. The post's
+section 4 quotes them with lines re-wrapped and nothing else changed, and
+the generated program with its comments and the blank lines they left
+removed.
+
+**Provenance.** Image `9d33b3a` is ECR digest
+`sha256:2e0f37d0ae15d4689f13f39f0e46dcc41fb373a425f99a88c42efe8731ac7489`,
+pushed 11:41:32 UTC. `GetAgentRuntime` reports version 16, `READY`, last
+updated 11:42:42 UTC. The runtime log shows the retry at 11:43:18, the
+run's hook lines from 11:43:25 to 11:44:38 UTC, the video's from
+11:45:59, and the pretexts and probes at 11:48 and 11:49. `demo.mp4` is
+1:26.36, written 11:48:18 UTC, SHA-256
+`c743b388b1c193e5bdde950c53f4add34c6502c3b45e47f7486eef35a66de401`.
 
 ## Memory
 
