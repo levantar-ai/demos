@@ -286,6 +286,17 @@ def test_the_latest_of_several_fetches_wins_and_failures_are_skipped():
     assert handoff.latest_results(_conversation_with_a_fetch("")) == {}
 
 
+def test_blocks_without_a_tool_use_id_are_never_matched():
+    msgs = [
+        {"role": "assistant", "content": [{"toolUse": {"name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": {"status": "success", "content": [{"text": "rows"}]}}]},
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "", "name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "", "status": "success", "content": [{"text": "rows"}]}}]},
+        {"role": "user", "content": ["not a block", {"text": "plain"}]},
+    ]
+    assert handoff.latest_results(msgs) == {}
+
+
 def test_a_failed_restore_is_logged_and_the_turn_goes_on(capsys):
     assert handoff.restore(_conversation_with_a_fetch("x"), _Box(fail=True)) == []
     assert "restore of orders.json to the sandbox failed" in capsys.readouterr().out
@@ -294,7 +305,7 @@ def test_a_failed_restore_is_logged_and_the_turn_goes_on(capsys):
 # --- the handoff: the gateway's result reaches the sandbox untouched ---------
 class _Box:
     def __init__(self, fail=False):
-        self.files, self.fail = [], fail
+        self.files, self.fail, self.unavailable = [], fail, set()
 
     def write(self, path, text):
         if self.fail:
@@ -302,15 +313,57 @@ class _Box:
         self.files.append((path, text))
 
 
-def test_a_successful_gateway_result_is_written_to_the_sandbox_byte_for_byte(capsys):
+def test_a_successful_gateway_result_is_written_to_the_sandbox_exactly_as_returned(capsys):
     box = _Box()
     h = handoff.Handoff(box)
-    text = '{"customer_id": "c-1000", "orders": [{"order_id": 1033, "total": 12.0}]}'
+    text = '  {"customer_id": "c-1000", "orders": [{"order_id": 1033, "total": 12.0}]}\n'
     h.after(_Event({"name": "orders___list_orders", "input": {"customer_id": "c-1000"}, "toolUseId": "u1"},
                    {"status": "success", "content": [{"text": text}]}))
-    assert box.files == [("orders.json", text)]
+    assert box.files == [("orders.json", text)]  # whitespace and all
     assert h.written == ["orders.json"]
     assert "1033" not in capsys.readouterr().out  # the log line carries the size, not the rows
+
+
+def test_several_text_blocks_are_joined_and_other_content_dropped():
+    box = _Box()
+    handoff.Handoff(box).after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"},
+                                      {"status": "success", "content": [{"text": "a"}, {"image": {}}, {"text": "b"}]}))
+    assert box.files == [("orders.json", "a\nb")]
+
+
+def test_a_failed_refresh_makes_the_tool_refuse_rather_than_read_a_stale_file(monkeypatch):
+    """restore() put last turn's file in place; the new gateway result could
+    not be written; run_python must not compute over the old copy."""
+    puts, attempts = [], []
+
+    def flaky_put(sid, path, text):
+        attempts.append(text)
+        if len(attempts) == 2:
+            raise RuntimeError("write failed")
+        puts.append((path, text))
+
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s8"))
+    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(flaky_put))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: "ran"))
+    box = sandbox.Sandbox()
+    assert handoff.restore(_conversation_with_a_fetch("old rows"), box) == ["orders.json"]
+    h = handoff.Handoff(box)
+    h.after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u9"},
+                   {"status": "success", "content": [{"text": "new rows"}]}))
+    assert box.unavailable == {"orders.json"}
+    with pytest.raises(RuntimeError, match="orders.json could not be written"):
+        box.run_python(code="print(1)")
+    h.after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u10"},
+                   {"status": "success", "content": [{"text": "new rows"}]}))
+    assert box.unavailable == set() and puts[-1] == ("orders.json", "new rows")
+    assert box.run_python(code="print(1)") == "ran"
+
+
+def test_the_tool_description_tells_the_model_to_read_the_file_not_embed_rows():
+    description = " ".join(sandbox.Sandbox().run_python.tool_spec["description"].split())
+    assert "orders.json" in description
+    assert "Never put order rows into the code" in description
+    assert "list of dicts" not in description and "into the code itself" not in description
 
 
 def test_other_tools_and_failed_calls_are_not_handed_over():

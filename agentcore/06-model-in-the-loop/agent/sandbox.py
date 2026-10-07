@@ -134,25 +134,34 @@ class Sandbox:
     def __init__(self, interpreter=None):
         self.interpreter = interpreter or os.environ.get("CODE_INTERPRETER_ID", "")
         self.session_id = None
+        # Files a handoff failed to write or refresh. While any is listed the
+        # tool refuses to run, so code cannot read a stale copy from an
+        # earlier turn as if it were the latest result.
+        self.unavailable = set()
 
     @tool
     def run_python(self, code: str) -> str:
         """Run Python code in an isolated sandbox and return what it prints.
 
-        Use this for any calculation, aggregation, date arithmetic or
-        comparison over the customer's orders rather than working it out in
+        Use this for any counting, summing, averaging, sorting or date
+        arithmetic over the customer's orders rather than working it out in
         your head. pandas is installed. The sandbox has no network access and
-        no credentials, so put the data you need into the code itself, for
-        example as a list of dicts from an earlier tool result, and print the
-        results you want to read. Variables persist between calls within one
-        conversation turn. A traceback is returned when the code fails, so
-        fix the code and run it again.
+        no credentials. The customer's orders are in the sandbox as
+        orders.json, a JSON object with an "orders" list, written by the
+        agent from the gateway's result whenever orders___list_orders has
+        been called in this conversation. Read that file. Never put order
+        rows into the code. Print the results you want to read. Variables
+        persist between calls within one conversation turn. A traceback is
+        returned when the code fails, so fix the code and run it again.
 
         Args:
             code: The Python source to execute. Print anything you need back.
         """
         if len(code) > MAX_CODE_CHARS:
             raise ValueError(f"code is {len(code)} characters, the limit is {MAX_CODE_CHARS}")
+        if self.unavailable:
+            names = ", ".join(sorted(self.unavailable))
+            raise RuntimeError(f"{names} could not be written to the sandbox this turn; call the tool that provides it again")
         if self.session_id is None:
             self.session_id = self.start(self.interpreter, "analysis")
         return self.execute(self.session_id, code)

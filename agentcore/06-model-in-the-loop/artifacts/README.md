@@ -199,12 +199,14 @@ orders into the sandbox by retyping them into its code, which is fine for
 seven rows and is where a wrong figure would come from with three hundred.
 
 `handoff.py` is a second Strands hook. On a successful `orders___list_orders`
-result it writes the result text into the turn's sandbox session as
-`orders.json`, byte for byte, and the system prompt tells the model to read
-that file and never retype rows. A failed handoff is logged and the turn
-continues with the result in the model's context. Six tests cover the
-hook (byte-for-byte write, other tools and failed calls ignored, failure
-logged) and the sandbox's `write`.
+result it writes the result's text, as returned, into the turn's sandbox
+session as `orders.json`, and the system prompt and the tool description
+tell the model to read that file and never put rows in the code. A failed
+write is logged, marks the file unavailable so `run_python` refuses to run
+until it is written again, and the turn continues with the result in the
+model's context. Tests cover the write (whitespace preserved, several text
+blocks joined, other content dropped), other tools and failed calls being
+ignored, the refusal after a failed refresh, and the sandbox's `write`.
 
 ### Sixth run, image b25fa14 (handoff in place)
 

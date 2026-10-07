@@ -4,10 +4,12 @@ The model fetches orders through the gateway and then computes over them in
 the sandbox. Left to itself it would carry the rows across by typing them
 into the code it writes, which is where a wrong figure would come from with
 three hundred rows rather than seven. This hook watches the gateway tool's
-result and writes it, byte for byte, into the turn's sandbox session as
-orders.json, so the model's code reads the file and the data path never
-passes through the model. A failed handoff is logged and the turn goes on;
-the model still has the result in its context.
+result and writes its text, as returned, into the turn's sandbox session as
+orders.json, so the model's code can read the file instead of reproducing
+the rows in source. The result is still in the model's context, as any tool
+result is. A failed write is logged, the turn goes on, and the sandbox tool
+refuses to run until the file is written again, so a stale copy from an
+earlier turn is never read as the latest result.
 
 The sandbox session is new on every turn while the conversation is restored
 from memory, so restore() does the same for the most recent gateway result
@@ -23,9 +25,14 @@ HANDOFFS = {"orders___list_orders": "orders.json"}
 
 
 def _text_of(result):
-    return "\n".join(
-        item["text"] for item in result.get("content", []) if isinstance(item, dict) and "text" in item
-    ).strip()
+    """The text content of a tool result, exactly as returned.
+
+    The gateway returns one text block holding the tool's JSON; that block
+    is written without alteration. Several text blocks are joined with
+    newlines; non-text content is not carried.
+    """
+    texts = [item["text"] for item in result.get("content", []) if isinstance(item, dict) and "text" in item]
+    return texts[0] if len(texts) == 1 else "\n".join(texts)
 
 
 class Handoff(HookProvider):
@@ -44,13 +51,17 @@ class Handoff(HookProvider):
         if path is None or result.get("status") != "success":
             return
         text = _text_of(result)
-        if not text:
+        if not text.strip():
             return
         try:
             self.sandbox.write(path, text)
-        except Exception as exc:  # noqa: BLE001 — the turn continues without the file
+        except Exception as exc:  # noqa: BLE001 — the turn continues, but the tool will not run
+            # An older copy of the file may be in the session from restore();
+            # marking it unavailable stops run_python reading it as current.
+            self.sandbox.unavailable.add(path)
             print(f"handoff of {name} to {path} failed: {exc}")
             return
+        self.sandbox.unavailable.discard(path)
         self.written.append(path)
         print(f"handed {name} result to the sandbox as {path} ({len(text)} chars)")
 
@@ -60,16 +71,21 @@ def latest_results(messages, handoffs=None):
     restored conversation in Bedrock's message format."""
     handoffs = HANDOFFS if handoffs is None else handoffs
     uses, found = {}, {}
+
+    def _id(block):
+        value = block.get("toolUseId")
+        return value if isinstance(value, str) and value else None
+
     for message in messages or []:
         for block in message.get("content", []) or []:
             use = block.get("toolUse") if isinstance(block, dict) else None
-            if use and use.get("name") in handoffs:
-                uses[use.get("toolUseId")] = use["name"]
+            if use and use.get("name") in handoffs and _id(use):
+                uses[_id(use)] = use["name"]
             result = block.get("toolResult") if isinstance(block, dict) else None
-            if result and result.get("status") == "success" and result.get("toolUseId") in uses:
+            if result and result.get("status") == "success" and _id(result) in uses:
                 text = _text_of(result)
-                if text:
-                    found[handoffs[uses[result["toolUseId"]]]] = text
+                if text.strip():
+                    found[handoffs[uses[_id(result)]]] = text
     return found
 
 
@@ -80,7 +96,8 @@ def restore(messages, sandbox, handoffs=None):
     for path, text in latest_results(messages, handoffs).items():
         try:
             sandbox.write(path, text)
-        except Exception as exc:  # noqa: BLE001 — the turn continues without the file
+        except Exception as exc:  # noqa: BLE001 — the turn continues, but the tool will not run
+            sandbox.unavailable.add(path)
             print(f"restore of {path} to the sandbox failed: {exc}")
             continue
         written.append(path)

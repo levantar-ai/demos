@@ -179,16 +179,20 @@ stack, for looking at the minted token and calling the gateway directly.
   abandoned session if the stop fails, not a running call.
 - The gateway's result is handed to the sandbox by trusted code. `handoff.py`
   is a second Strands hook: on a successful `orders___list_orders` result it
-  writes the result text into the turn's sandbox session as `orders.json`,
-  and the system prompt tells the model to read that file and never retype
-  rows. Because the sandbox session is new each turn, `restore()` writes the
-  restored conversation's latest gateway result into it before the model
-  runs, so a second question in a conversation finds the file without
-  fetching again (a question about current state still fetches, and the
-  fetch refreshes the file). The model still decides whether and how to
-  compute; the rows it computes over are the gateway's. A failed handoff or
-  restore is logged and the turn continues with the result in the model's
-  context.
+  writes the result's text, as returned, into the turn's sandbox session as
+  `orders.json`, and the system prompt and the tool's description tell the
+  model to read that file and never put rows in the code. Because the
+  sandbox session is new each turn, `restore()` writes the restored
+  conversation's latest gateway result into it before the model runs, so a
+  second question in a conversation finds the file without fetching again
+  (a question about current state still fetches, and the fetch refreshes
+  the file). A failed write marks the file unavailable and `run_python`
+  refuses to run until it is written again, so a stale copy from an earlier
+  turn is never read as current. The result also remains in the model's
+  context, as any tool result does. What this guarantees is that the
+  gateway's result is in the sandbox to be read; what the model's code does
+  with it is still the model's choice, which the live runs show it making
+  correctly and a reused session once showed it not.
 - The gateway client loads only the tools named in `gateway.py`'s
   `ALLOWED_TOOLS`, so a target added to the gateway later is not handed to
   the model until the agent is changed to name it. Cedar is default deny for

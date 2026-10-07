@@ -89,11 +89,12 @@ def answer(prompt, customer, session, gateway_token):
             model=BedrockModel(model_id=os.environ["MODEL_ID"], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer),
             tools=[orders, sandbox.run_python],
-            hooks=[trail],
+            hooks=[trail, Handoff(sandbox)],
             session_manager=memory,
             callback_handler=None,
         )
         closers.append(agent.cleanup)
+        restore(agent.messages, sandbox)
         result = agent(prompt)
     finally:
         for close in reversed(closers):
@@ -159,7 +160,8 @@ class Sandbox:
         Use this for any counting, summing, averaging, sorting or date
         arithmetic over the customer's orders rather than working it out in
         your head. pandas is installed. The sandbox has no network access and
-        no credentials, so put the data you need into the code itself ...
+        no credentials. The customer's orders are in the sandbox as
+        orders.json ... Read that file. Never put order rows into the code.
         """
         if self.session_id is None:
             self.session_id = self.start(self.interpreter, "analysis")
@@ -184,17 +186,23 @@ reason the code the model writes can be allowed to run at all.
 
 https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html
 
-The data the model computes over does not pass through the model. The
-sandbox has no access to the gateway, so left to itself the model would
-carry the orders across by typing them into the code it writes, which is
-fine for seven rows and is where a wrong figure would come from with three
-hundred. A second hook watches the gateway tool's result and writes it,
-unchanged, into the turn's sandbox session as `orders.json`, and the system
-prompt tells the model to read that file and never to retype rows. The
-sandbox session is new on every turn while the conversation is restored
+The data the model computes over reaches the sandbox without the model
+having to reproduce it. The sandbox has no access to the gateway, so left
+to itself the model would carry the orders across by typing them into the
+code it writes, which is fine for seven rows and is where a wrong figure
+would come from with three hundred. A second hook watches the gateway
+tool's result and writes its text, as returned, into the turn's sandbox
+session as `orders.json`, and the system prompt and the tool's own
+description tell the model to read that file and never to put rows in the
+code. The result is still in the model's context, as every tool result is.
+The sandbox session is new on every turn while the conversation is restored
 from memory, so before the model runs the same code writes the restored
-conversation's most recent gateway result into the fresh session too. The
-model still decides whether to compute and how. The rows are the gateway's.
+conversation's most recent gateway result into the fresh session too. If a
+write fails the tool refuses to run until the file is written again, so a
+copy from an earlier turn is never read as the latest result. The model
+still decides whether to compute, and what the code does with the file is
+the model's; what trusted code guarantees is that the gateway's result is
+there to be read.
 
 ```python
 class Handoff(HookProvider):
@@ -203,12 +211,25 @@ class Handoff(HookProvider):
         result = event.result or {}
         if path is None or result.get("status") != "success":
             return
-        self.sandbox.write(path, _text_of(result))
+        text = _text_of(result)
+        if not text.strip():
+            return
+        try:
+            self.sandbox.write(path, text)
+        except Exception as exc:
+            self.sandbox.unavailable.add(path)
+            print(f"handoff of {event.tool_use['name']} to {path} failed: {exc}")
+            return
+        self.sandbox.unavailable.discard(path)
 
 
 def restore(messages, sandbox):
     for path, text in latest_results(messages).items():
-        sandbox.write(path, text)
+        try:
+            sandbox.write(path, text)
+        except Exception as exc:
+            sandbox.unavailable.add(path)
+            print(f"restore of {path} to the sandbox failed: {exc}")
 ```
 
 And the memory arrives beside the tools rather than as one. Post 03 stored
@@ -272,8 +293,8 @@ The rest of the prompt tells the model what the tools are for, to use
 conversation, rather than retype rows. The first of those is
 the instruction that changes the shape of the answers most, because without
 it a model will happily sum eight totals in prose and occasionally get one
-wrong. The second is what keeps the figures the gateway's rather than the
-model's.
+wrong. The second avoids asking the model to reproduce the gateway's rows
+in the source it writes.
 
 ## 3 - The model's own permission
 
@@ -369,8 +390,8 @@ for month, amount in sorted(monthly_spending.items()):
     print(f"{month}: £{amount:.2f}")
 ```
 
-Every figure matches `tool/orders.csv`, and no order row passed through the
-model on its way to that code. A second question in the same session shows
+Every figure matches `tool/orders.csv`, and the code read the rows from the
+file rather than carrying them in its source. A second question in the same session shows
 the conversation working as one. The question is about the same orders, so
 the model did not go back to the gateway. It ran code over the file, which
 trusted code had restored into the new session from the earlier turn's
@@ -471,13 +492,17 @@ The model chooses code. The code runs in a session with no network and no
 credentials, so it cannot reach the gateway, the memory, the account or the
 customer's token from inside the sandbox, which is the property post 04
 probed directly. It is worth being clear about where a model's variability
-sits in this design, because it is not in the arithmetic. The same question
-produced a pandas groupby on one run and a plain dictionary count on
-another, and the figures were the same each time, because once the code is
-written the sandbox runs it deterministically, and because the rows it runs
-over came from the gateway by way of the handoff and not by way of the
-model. What varies is the route and the wording. That is the part the evals
-in a later post measure, and the part a support conversation can bear. What that isolation does not bound is how much the model
+sits in this design. Once a program is written the sandbox runs it
+deterministically, and the handoff puts the gateway's exact result in front
+of that program, so the three runs after the change all read the file and
+returned the expected figures without a row passing through the model's
+typing. What the model still controls is the program itself, which rows it
+uses, whether it reads the file at all, and what it says afterwards. The
+file removes the transcription step, it does not take the computation out
+of the model's hands, and a reused session in one recording showed the
+model following the shape of earlier turns over the instruction. That is
+what the evals in a later post measure, and it is the reason the controls
+that must hold are outside the model. What that isolation does not bound is how much the model
 asks for, so the agent puts numbers on that itself, eight tool executions a
 turn and then the turn ends, twenty thousand characters of submitted
 source, eight thousand of result or error kept for the model. It puts no
