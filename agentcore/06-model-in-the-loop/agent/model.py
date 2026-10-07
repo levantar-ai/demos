@@ -56,8 +56,9 @@ def answer(prompt, customer, session, gateway_token):
         # Strands starts the client while the agent is built and stops it on
         # agent.cleanup(); if the build fails in between, this stop is what
         # closes it. Stopping a client that never started, or that the agent
-        # already stopped, is a no-op in the pinned Strands.
-        closers.append(orders.stop)
+        # already stopped, is a no-op in the pinned Strands. stop() has the
+        # context-manager signature, hence the three arguments.
+        closers.append(lambda: orders.stop(None, None, None))
         agent = make_agent(
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer),

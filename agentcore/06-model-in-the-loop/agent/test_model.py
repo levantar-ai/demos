@@ -51,7 +51,10 @@ class FakeClient:
         self.started = False
         self.stopped = 0
 
-    def stop(self, *args):
+    def stop(self, exc_type, exc_val, exc_tb):
+        """Same signature as strands MCPClient.stop, which has no defaults;
+        a closer that calls it without arguments is a bug the live log
+        showed as 'cleanup failed' on every turn."""
         if self.started:
             self.stopped += 1
             self.started = False
@@ -86,7 +89,7 @@ class FakeAgent:
         self.cleaned = True
         for t in self.kw.get("tools", []):
             if isinstance(t, FakeClient):
-                t.stop()
+                t.stop(None, None, None)
 
 
 @pytest.fixture
@@ -201,10 +204,11 @@ def test_the_mcp_client_is_stopped_when_the_agent_fails_after_starting_it(fakes,
     assert clients[-1].stopped == 1 and clients[-1].started is False
 
 
-def test_the_mcp_client_is_stopped_once_on_the_happy_path(fakes):
+def test_the_mcp_client_is_stopped_once_on_the_happy_path_and_nothing_fails_to_close(fakes, capsys):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     client = next(t for t in fakes.built[-1].kw["tools"] if isinstance(t, FakeClient))
     assert client.stopped == 1  # agent.cleanup stopped it; the extra stop was a no-op
+    assert "cleanup failed" not in capsys.readouterr().out
 
 
 def test_everything_created_is_closed_when_the_agent_cannot_be_built(fakes, monkeypatch):

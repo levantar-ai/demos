@@ -15,10 +15,19 @@ the customer, from the token's customer_id claim.
 """
 
 import os
+import time
 
 import boto3
+from botocore.exceptions import ClientError
 
 _agentcore = None
+
+# The exchange front door is a Lambda behind an HTTP API; its first call
+# after idling can exceed AgentCore Identity's timeout on the token
+# endpoint, which comes back as a ValidationException naming the endpoint.
+# One retry after a pause is enough, the second call reaches a warm function.
+RETRY_AFTER_SECONDS = 2
+_TRANSIENT = "Token endpoint"
 
 
 def _client():
@@ -44,12 +53,20 @@ def orders_token(inbound_jwt: str) -> str:
         userToken=inbound_jwt,
     )["workloadAccessToken"]
 
-    result = client.get_resource_oauth2_token(
-        workloadIdentityToken=workload_token,
-        resourceCredentialProviderName=os.environ["OBO_PROVIDER_NAME"],
-        scopes=[os.environ["ORDERS_SCOPE"]],
-        oauth2Flow="ON_BEHALF_OF_TOKEN_EXCHANGE",
-    )
+    request = {
+        "workloadIdentityToken": workload_token,
+        "resourceCredentialProviderName": os.environ["OBO_PROVIDER_NAME"],
+        "scopes": [os.environ["ORDERS_SCOPE"]],
+        "oauth2Flow": "ON_BEHALF_OF_TOKEN_EXCHANGE",
+    }
+    try:
+        result = client.get_resource_oauth2_token(**request)
+    except ClientError as exc:
+        if _TRANSIENT not in str(exc):
+            raise
+        print(f"exchange failed once, retrying in {RETRY_AFTER_SECONDS}s: {exc}")
+        time.sleep(RETRY_AFTER_SECONDS)
+        result = client.get_resource_oauth2_token(**request)
     token = result.get("accessToken")
     if not isinstance(token, str) or not token.strip():
         # This provider performs a back-channel exchange and returns no consent

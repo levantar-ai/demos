@@ -36,7 +36,7 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 3s
-Type `ask() { curl -s "$INVOKE_URL" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -H "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION" -d "$(jq -cn --arg p "$1" '{prompt: $p}')" | python3 show_turn.py; }`
+Type `ask() { curl -s "$INVOKE_URL" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -H "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION" -d "$(jq -cn --arg p "$1" '{prompt: $p}')" --max-time 300 | python3 show_turn.py; }`
 Enter
 Type `mint() { curl -s -u "brightwell-orders-agent:$SECRET" "$ISSUER/token" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" --data-urlencode "subject_token=$1" --data-urlencode "subject_token_type=urn:ietf:params:oauth:token-type:jwt" | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])'; }`
 Enter

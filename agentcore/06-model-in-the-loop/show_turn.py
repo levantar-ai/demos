@@ -7,7 +7,15 @@ shows the model's choices as a short list rather than a wall of JSON.
 import json
 import sys
 
-turn = json.load(sys.stdin)
+raw = sys.stdin.read()
+try:
+    turn = json.loads(raw)
+except ValueError:
+    print(f"no JSON in the response: {raw[:300]!r}")
+    sys.exit(0)
+if not isinstance(turn, dict):
+    print(f"unexpected response: {raw[:300]!r}")
+    sys.exit(0)
 if "error" in turn:
     print(f"error: {turn['error']}")
     sys.exit(0)

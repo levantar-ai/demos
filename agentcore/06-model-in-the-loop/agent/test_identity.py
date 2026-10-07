@@ -42,3 +42,42 @@ def test_orders_token_fails_closed_without_a_token(monkeypatch):
     import pytest
     with pytest.raises(RuntimeError):
         identity.orders_token("inbound-jwt")
+
+
+def test_a_transient_exchange_failure_is_retried_once(monkeypatch):
+    from botocore.exceptions import ClientError
+
+    fake = FakeAgentCore()
+    calls = []
+
+    def flaky(**kw):
+        calls.append(kw)
+        if len(calls) == 1:
+            raise ClientError({"Error": {"Code": "ValidationException",
+                                         "Message": "HTTP request failed against Token endpoint"}},
+                              "GetResourceOauth2Token")
+        return {"accessToken": "minted-789"}
+
+    fake.get_resource_oauth2_token = flaky
+    monkeypatch.setattr(identity, "_client", lambda: fake)
+    monkeypatch.setattr(identity, "RETRY_AFTER_SECONDS", 0)
+    assert identity.orders_token("inbound-jwt") == "minted-789"
+    assert len(calls) == 2 and calls[0] == calls[1]
+
+
+def test_other_exchange_errors_are_not_retried(monkeypatch):
+    import pytest
+    from botocore.exceptions import ClientError
+
+    fake = FakeAgentCore()
+    calls = []
+
+    def denied(**kw):
+        calls.append(kw)
+        raise ClientError({"Error": {"Code": "AccessDeniedException", "Message": "no"}}, "GetResourceOauth2Token")
+
+    fake.get_resource_oauth2_token = denied
+    monkeypatch.setattr(identity, "_client", lambda: fake)
+    with pytest.raises(ClientError):
+        identity.orders_token("inbound-jwt")
+    assert len(calls) == 1

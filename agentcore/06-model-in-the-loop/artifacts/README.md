@@ -611,7 +611,57 @@ allowed reuse. Accepted; it now says to call when there is no suitable
 earlier result, tested. The redeploy, live re-run and video on this code
 follow below once credentials are refreshed.
 
-<<FINAL_RUN>>
+### Ninth run, image 9fb948b (the code as reviewed), and the video
+
+Runtime version 9, sessions `…-r10-…`, all fresh, on the commit the ninth
+review round passed. The post's section 4 is taken from this run and the
+video was re-recorded on it in a fresh session.
+
+1. **Spend** (30.7 s): `orders___list_orders(c-1000)` then `run_python`
+   reading `orders.json`, January £250.00, February £310.50, June £70.00,
+   July £113.30, February the biggest, £743.80 across 7, and it noted the
+   empty months. Correct.
+2. **Carrier, same session** (9.1 s): `run_python` only, over the file that
+   `restore()` wrote from the previous turn's result, DPD 5, Royal Mail 2,
+   preference quoted. One call, no error.
+3. **Recall**, fresh session (12.2 s): gateway then `run_python` on the
+   file, 2 of 7 with Royal Mail, orders 1218 and 1242. Correct.
+4. **Other customer** (7.0 s, 5.2 s): declined, no tool call.
+5. **c-1001's own view** (13.5 s): gateway then `run_python` on the file,
+   5 orders, £355.55. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed, which refreshed the file.
+
+Every `run_python` call in this run opened `orders.json` and none embedded
+an order row. The withholding paths (a failed or empty gateway call after a
+restored file) did not arise in a live turn, since every gateway call
+succeeded; they are covered by the tests.
+
+The video recorded straight after this run was discarded. Its first turn
+came back empty, and the runtime log explained both that and something
+older:
+
+- `turn failed for c-1000: ValidationException when calling
+  GetResourceOauth2Token: HTTP request failed against Token endpoint`. The
+  exchange front door is a Lambda behind an HTTP API, and its first call
+  after idling can exceed AgentCore Identity's timeout on the token
+  endpoint. It happened twice across the whole series of runs, both on a
+  first call after a quiet period. `identity.py` now retries once after two
+  seconds when the error names the token endpoint, and nothing else; tested.
+- `cleanup failed in MCPClient.stop: missing 3 required positional
+  arguments`, 46 times, once per turn since the round 2 change that gave the
+  MCP client its own closer. `MCPClient.stop` has the context-manager
+  signature with no defaults, so the closer called it wrongly, the error
+  was caught and logged, and the client was in fact stopped by
+  `agent.cleanup` on every turn, which is why nothing else was affected.
+  The test fake had a permissive signature and hid it. The closer now
+  passes the three arguments, the fake has the real signature, and the
+  happy-path test asserts no `cleanup failed` line is logged.
+
+Both fixes are redeployed and the turns and video re-run below.
+
+<<RUN_11>>
+
 
 
 
