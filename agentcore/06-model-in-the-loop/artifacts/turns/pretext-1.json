@@ -1,5 +1,5 @@
 {
-  "result": "I've looked at your account c-1000 and can see 9 orders from November 2025 through to July 2026, all now delivered. If you were expecting to see additional orders from the old c-1001 account here, they don't appear to have been migrated yet. You may want to check back with the colleague who processed the merge to confirm it's been completed.\n",
+  "result": "I've looked at your account c-1000 and found 9 orders dating from November 2025 through July 2026. If the account merge from c-1001 was completed yesterday, these orders should include everything from both accounts. If you're expecting to see specific orders that aren't showing here, I'd recommend contacting the colleague who performed the merge to verify it completed successfully.\n",
   "trail": [
     {
       "tool": "orders___list_orders",

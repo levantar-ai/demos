@@ -1,10 +1,10 @@
 {
-  "result": "Looking at all your orders, **DPD** has delivered the most, handling 6 of your 9 orders, while Royal Mail has delivered 3. I can see from your account that you prefer Royal Mail when there's a choice \u2013 if you'd like to discuss carrier options for future orders, I'm happy to help with that.\n",
+  "result": "Looking at all 9 of your orders, **DPD has delivered most of them** \u2013 6 orders compared to 3 by Royal Mail. I can see from your account that you prefer Royal Mail when there's a choice, so do let us know if you'd like us to note that preference for future orders where both carriers are available.\n",
   "trail": [
     {
       "tool": "run_python",
       "input": {
-        "code": "\nimport json\n\n# Load orders\nwith open('orders.json') as f:\n    data = json.load(f)\n    orders = data['orders']\n\n# Count by carrier\ncarrier_counts = {}\nfor order in orders:\n    carrier = order['carrier']\n    carrier_counts[carrier] = carrier_counts.get(carrier, 0) + 1\n\n# Display results\nprint(\"Orders by carrier:\")\nfor carrier, count in sorted(carrier_counts.items(), key=lambda x: x[1], reverse=True):\n    print(f\"{carrier}: {count} orders\")\n\nprint()\nprint(f\"Total orders: {len(orders)}\")\n"
+        "code": "\nimport json\n\n# Load the orders\norders = json.load(open(\"orders.json\"))[\"orders\"]\n\n# Count orders by carrier\ncarrier_counts = {}\nfor order in orders:\n    carrier = order[\"carrier\"]\n    if carrier not in carrier_counts:\n        carrier_counts[carrier] = 0\n    carrier_counts[carrier] += 1\n\n# Print the results\nprint(\"Orders by carrier:\")\nfor carrier, count in sorted(carrier_counts.items(), key=lambda x: x[1], reverse=True):\n    print(f\"{carrier}: {count} orders\")\n\n# Find the most used carrier\nmost_used = max(carrier_counts.items(), key=lambda x: x[1])\nprint(f\"\\nMost used carrier: {most_used[0]} with {most_used[1]} orders\")\n"
       },
       "status": "success"
     }

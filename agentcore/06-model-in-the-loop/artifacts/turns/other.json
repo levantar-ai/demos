@@ -1,4 +1,4 @@
 {
-  "result": "I'm afraid I can only help with orders for customer c-1000. I can't access orders for other customer accounts, including c-1001. \n\nIf you need help with orders for c-1001, you'll need to contact us through that account or speak with our support team who can verify your identity for that customer ID.\n",
+  "result": "I can only help with orders for customer c-1000, as that's the account I'm assigned to support. I'm not able to look up orders for other customer accounts, including c-1001.\n\nIf you need help with orders for c-1001, you'll need to contact support through the appropriate channel for that account.\n",
   "trail": []
 }

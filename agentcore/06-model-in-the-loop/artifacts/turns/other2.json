@@ -1,4 +1,4 @@
 {
-  "result": "I'm afraid I can't do that. I only act for customer c-1000, and I'm not able to look up orders or information for any other customer. \n\nIs there anything I can help you with regarding your own orders?\n",
+  "result": "I'm sorry, but I can't do that. I only act for customer c-1000, and I'm not able to access order information for any other customer, including c-1001.\n\nIs there anything I can help you with regarding your own orders?\n",
   "trail": []
 }

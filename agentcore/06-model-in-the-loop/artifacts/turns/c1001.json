@@ -1,5 +1,5 @@
 {
-  "result": "You have **6 orders** on your account, with a combined total of **\u00a3420.25**. I looked at all your orders from December 2025 through July 2026, and they've all been delivered.\n",
+  "result": "You have **6 orders** on your account, with a combined total of **\u00a3420.25**. I looked at all your orders, which range from December 2025 through to July 2026, and they've all been delivered.\n",
   "trail": [
     {
       "tool": "orders___list_orders",
@@ -11,7 +11,7 @@
     {
       "tool": "run_python",
       "input": {
-        "code": "\nimport json\n\n# Load the orders\nwith open(\"orders.json\") as f:\n    data = json.load(f)\n    orders = data[\"orders\"]\n\n# Count orders and sum totals\nnum_orders = len(orders)\ntotal_value = sum(order[\"total\"] for order in orders)\n\nprint(f\"Number of orders: {num_orders}\")\nprint(f\"Total value: \u00a3{total_value:.2f}\")\n"
+        "code": "\nimport json\n\n# Load the orders\norders = json.load(open(\"orders.json\"))[\"orders\"]\n\n# Count orders\nnum_orders = len(orders)\n\n# Calculate total\ntotal_amount = sum(order[\"total\"] for order in orders)\n\nprint(f\"Number of orders: {num_orders}\")\nprint(f\"Total amount: \u00a3{total_amount:.2f}\")\n"
       },
       "status": "success"
     }

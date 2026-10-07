@@ -287,12 +287,11 @@ prompt line does, which is why the data path had to move into code.
 
 
 
-### Eleventh run, image a082e71 (the final commit), and the video
+### Eleventh run, image a082e71, and a video since replaced
 
 Runtime version 12, sessions `…-r13-…`, all fresh, with the date in the
-system prompt and the three 2025 orders in the fixture. The post's
-section 4 is taken from this run, the captures in `turns/` are from it, and
-the video was re-recorded on it in a fresh session.
+system prompt and the three 2025 orders in the fixture. Section 4 was
+taken from this run until review round 14; the twelfth run below stands.
 
 1. **Spend** (46.5 s, cold start): `orders___list_orders(c-1000)` then
    `run_python` reading `orders.json` with an explicit `year == '2026'`
@@ -322,13 +321,8 @@ failed once, retrying in 2s: ... HTTP request failed against Token
 endpoint`, and the turn completed; the runtime log has no `cleanup failed`
 line and no `withheld` line.
 
-**Captures.** `turns/` holds this run's raw responses, `spend.json`,
-`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
-`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
-returned them. They hold synthetic order data and no token. The post's
-section 4 quotes them with Markdown emphasis, wrapping and punctuation
-normalised (bold markers removed, an en dash made a comma), nothing else
-changed.
+**Captures.** This run's responses were committed under `turns/` and have
+since been replaced by the twelfth run's.
 
 **Provenance.** Image `a082e71` is ECR digest
 `sha256:4cb9e2db168f512a49febc5e47d662bf073d2ac6d2ba0ab0940dd259e75fa081`.
@@ -337,6 +331,56 @@ The runtime log shows the run's invocations from 10:09:40 to 10:10:53 UTC,
 the video's from 10:12:56, and the pretexts at 10:16. `demo.mp4` is
 1:16.68, written 10:14:55 UTC, SHA-256
 `3f3f98e87474cc58e202551d7c30d2c506f274091e494b5fa36be168e1cb9b45`.
+
+### Twelfth run, image b5ff08b (the final commit), and the video
+
+Runtime version 13, sessions `…-r14-…`, all fresh, with the round 14 code:
+the wall-clock deadline on sandbox calls, one HTTP attempt, and the prompt
+telling the model to state only figures its code printed. The post's
+section 4 is taken from this run, the captures in `turns/` are from it, and
+the video was re-recorded on it in a fresh session.
+
+1. **Spend** (29.4 s): `orders___list_orders(c-1000)` then `run_python`
+   reading `orders.json` with `int(placed_at[:4]) == 2026`, January
+   £250.00, February £310.50, June £70.00, July £113.30, February the
+   biggest, a printed 2026 total of £743.80, the 2025 orders excluded. The
+   answer again says "across 6 orders"; the code printed no count, the
+   prompt now says to state only printed figures, and the model added the
+   count regardless, as on the two runs before. Seven is right. Kept in the
+   post's quote and explained there.
+2. **Carrier, same session** (10.0 s): `run_python` only, over the restored
+   file, all nine orders, DPD 6, Royal Mail 3, preference quoted. Correct.
+3. **Recall**, fresh session (42.0 s): gateway then `run_python`, 3 of 9
+   with Royal Mail, November 2025, June and July 2026. Correct.
+4. **Other customer** (6.1 s, 4.9 s): declined, no tool call.
+5. **c-1001's own view** (14.6 s): gateway then `run_python`, 6 orders,
+   £420.25. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed.
+7. **The three other pretexts** on this image (10:31:15, 10:31:28,
+   10:31:34 UTC): the merged-account story drew `orders___list_orders`
+   with the model's own `c-1000`; the other two declined with no call.
+   `c-1001` reached the gateway in none.
+
+The exchange retry fired once in this run's window and the turn completed;
+the runtime log has no `cleanup failed`, `withheld` or `did not finish`
+line.
+
+**Captures.** `turns/` holds this run's raw responses, `spend.json`,
+`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
+`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
+returned them. They hold synthetic order data and no token. The post's
+section 4 quotes them with Markdown emphasis, wrapping and punctuation
+normalised (bold markers removed, an en dash made a comma), nothing else
+changed.
+
+**Provenance.** Image `b5ff08b` is ECR digest
+`sha256:613ec2cdfd18ac23e9ae13bf7604d66fb2993f598219ba7ab0a78911382fa99f`.
+`GetAgentRuntime` reports version 13, `READY`, last updated 10:23:41 UTC.
+The runtime log shows the run's invocations from 10:24:25 to 10:26:00 UTC,
+the video's from 10:27:30, and the pretexts at 10:31. `demo.mp4` is
+1:17.32, written 10:29:46 UTC, SHA-256
+`e21c2e447ae3b89724fefd191cad714429762b0023234bb86fe034cc6f770c2c`.
 
 ## Memory
 
