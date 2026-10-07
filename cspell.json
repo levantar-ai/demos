@@ -239,6 +239,7 @@
     "docs/levantar-d3/vendor/**",
     "**/dist/**",
     "levantar-d3/catalog/logo.js",
-    "docs/levantar-d3/catalog/logo.js"
+    "docs/levantar-d3/catalog/logo.js",
+    "**/artifacts/turns/**"
   ]
 }

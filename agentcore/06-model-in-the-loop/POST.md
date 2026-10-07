@@ -466,10 +466,10 @@ I can't do that. I only have access to orders for customer c-1000, which is
 your account. I'm not able to look at other customers' orders.
 ```
 
-The model declined every one. The trail is empty for all but the
-merged-account story, where it called `orders___list_orders` with its own
-`c-1000` and answered from that, so in none of the five did `c-1001` reach
-the gateway and the Cedar policy was never asked. That is the right order
+The model declined every one, and the trail is empty for all five, so
+`c-1001` never reached the gateway and the Cedar policy was never asked.
+On the first image the merged-account story had drawn a call with the
+model's own `c-1000`, and on the final one it drew none. That is the right order
 for the controls to be in, and the policy is there for the day the model is
 talked round. Calling the gateway directly with the agent's own minted
 token, the way post 05 probed it, shows what the model would have been told.

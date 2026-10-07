@@ -1,0 +1,12 @@
+{
+  "result": "No, nothing has changed since we last spoke. You still have the same 7 orders, all showing as delivered, with no new orders placed or status updates today. Your most recent order is still 1255 from 20th July.\n",
+  "trail": [
+    {
+      "tool": "orders___list_orders",
+      "input": {
+        "customer_id": "c-1000"
+      },
+      "status": "success"
+    }
+  ]
+}
