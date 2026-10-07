@@ -109,15 +109,17 @@ conversation by accident. Use a fresh, unguessable id for each conversation
 (the examples below are fixed only so they read well). An id is a locator
 within the customer's own namespace, not an authorisation boundary, and
 turns for one customer and session run one at a time. The response carries
-the answer and the trail,
-every tool the model chose with the arguments it chose and whether the call
-succeeded:
+the answer, the trail, every tool the model chose with the arguments it
+chose, whether the call succeeded and what `run_python` printed, and the
+figures in the answer that no tool result, the prompt or the date
+contains, as written:
 
 ```json
 {"result": "...", "trail": [
   {"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}, "status": "success"},
-  {"tool": "run_python", "input": {"code": "import json\nwith open('orders.json') as f:\n..."}, "status": "success"}
-]}
+  {"tool": "run_python", "input": {"code": "import json\nwith open('orders.json') as f:\n..."}, "status": "success",
+   "output": "Total orders: 9\nRoyal Mail orders: 3"}
+], "unsupported_figures": ["6"]}
 ```
 
 Two more prompts show the parts that are not the model's to decide. Ask for
@@ -159,8 +161,10 @@ stack, for looking at the minted token and calling the gateway directly.
   still the hand-rolled server from post 01; the SDK's `BedrockAgentCoreApp`
   does the same job and would replace `main.py`'s server loop.
 - One sandbox session per invocation, created when the model first calls
-  `run_python` and stopped when the answer is out, so no session is left
-  running to block a later destroy, and a turn in which the model never
+  `run_python`, with a stop attempted when the answer is out, twice if need
+  be; a failed stop or an abandoned call leaves a session to its 900 s
+  lifetime, and a start the agent gave up waiting on is stopped by the
+  worker when it does come back. A turn in which the model never
   runs code starts none, because the handoff stages the file and
   `run_python` writes it just before the first execution. Variables from
   one `run_python` call are available to the next within a turn, not
@@ -174,7 +178,13 @@ stack, for looking at the minted token and calling the gateway directly.
 - The trail is a Strands hook, `trail.py`. It records tool name, arguments
   and status and the first 300 characters of any error, which is what would
   show Cedar's refusal if the model asked for the wrong customer. It goes
-  back to the caller, who is the customer whose orders are in it. The
+  back to the caller, who is the customer whose orders are in it, and a
+  `run_python` step carries up to 2,000 characters of what the code
+  printed; the gateway's result is not carried, being rows rather than
+  evidence of a sum. After the answer, trusted code lists every figure in
+  it that is not written, as is, in a tool result of the conversation, the
+  prompt, the date or the system prompt (`model.unsupported_figures`),
+  returned as `unsupported_figures`; it reports, it does not rewrite. The
   runtime's log gets a redacted line per step, the tool name, the status and
   the size of the input, never the generated code or the order rows it
   embeds. A failure is logged as its class and, for an AWS error, its code,
@@ -199,14 +209,17 @@ stack, for looking at the minted token and calling the gateway directly.
   bounds what is staged for the sandbox, not what the model sees.
   Retrieved memory records have no application-level size cap. The agent
   gives up on any call to the sandbox service, start, write, execute or
-  stop, after 180 s by its own clock (the call runs on a worker thread and
-  is abandoned at the deadline), makes one HTTP attempt per call, and
-  admits at most 8 calls in flight per process, a ninth being refused
-  rather than queued, except a stop, which waits for a slot. An abandoned
-  call keeps its slot until its HTTP attempt ends, and its code may still
-  be running; the stop at the end of the turn ends it when the stop
-  succeeds (logged as a stop with an abandoned call behind it), and the
-  session's lifetime does when it does not. The service offers no cancel.
+  stop, 180 s after it asked (the call runs on a worker thread and is
+  abandoned at the deadline, and a wait for a slot counts within the same
+  180 s), makes one HTTP attempt per call, and admits at most 8 calls in
+  flight per process, a ninth being refused rather than queued, except a
+  stop, which waits for a slot; cleanup is two stop attempts, 360 s at the
+  outside. An abandoned call keeps its slot until its HTTP attempt ends,
+  and its code may still be running; the stop at the end of the turn ends
+  it when the stop succeeds (logged as a stop with an abandoned call behind
+  it), and the session's lifetime does when it does not. A start the agent
+  gave up on may still create a session, which the worker stops the moment
+  the start returns. The service offers no cancel.
 - The exchange's pre-token trigger fetches the customer pool's JWKS on a
   cold instance. Its first fetch failing used to be swallowed, and the 30 s
   minimum gap between refreshes then refused every token for that long,
@@ -220,7 +233,16 @@ stack, for looking at the minted token and calling the gateway directly.
   `gateway/demos-agentcore-06-model-in-the-loop-gw-*`); the exact ARN is not
   known until the resource exists. `AuthorizeAction` and
   `PartiallyAuthorizeActions` have no resource-level scoping and stay
-  account-wide, as `gateway.tf` says.
+  account-wide, as `gateway.tf` says. The runtime role writes logs only
+  under this runtime's own log-group prefix, and the orders Lambda has its
+  own log group, created with retention and the demo key, and an inline
+  policy for that group alone.
+- The exchange is post 05's and follows the AWS sample it was built on,
+  which carries the customer's token to the exchange pool's triggers in
+  Cognito's `ClientMetadata`, a field AWS's API reference says not to use
+  for sensitive data. The triggers verify it and never log it, but it is
+  a compromise the sample makes and this demo inherits; a production
+  exchange would pass a single-use handle and keep the token elsewhere.
 - The sandbox tool refuses code over 20,000 characters, accumulates at most
   8,000 characters across stream events for the model, result or error,
   separators counted (each event is still materialised by boto3 before the
@@ -272,8 +294,11 @@ stack, for looking at the minted token and calling the gateway directly.
   does, that the window is applied before `restore()` scans the
   conversation, that a staged file is written before the first execution
   and never again, that three concurrent calls share one session, that a
-  ninth in-flight call is refused, and that turns for one session run one
-  at a time while a failing turn's message stays out of the log. Two tests
+  ninth in-flight call is refused, that turns for one session run one at
+  a time with the table holding an entry exactly while a turn holds or
+  waits for it, that a start the agent gave up on is stopped when it comes
+  back, that a failing turn's message stays out of the log, and what the
+  figures check does and does not support. Two tests
   run the real Strands agent with a scripted model: the gateway result is
   in the sandbox before the model's code runs, and the budget ends the
   loop. The full request Strands sends to Bedrock is Strands' to build and

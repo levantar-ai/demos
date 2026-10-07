@@ -29,9 +29,17 @@ for i, step in enumerate(turn.get("trail", []), 1):
         if len(lines) > 8:
             shown += f"\n      ... ({len(lines) - 8} more lines)"
         print(f"  {i}. run_python  [{step.get('status', '?')}]\n{shown}")
+        if step.get("output"):
+            printed = step["output"].strip().splitlines()
+            print("      printed:")
+            print("\n".join(f"        {line}" for line in printed[:8]))
+            if len(printed) > 8:
+                print(f"        ... ({len(printed) - 8} more lines)")
     else:
         print(f"  {i}. {step['tool']}({json.dumps(args)})  [{step.get('status', '?')}]")
     if step.get("error"):
         print(f"      {step['error']}")
+if turn.get("unsupported_figures"):
+    print(f"  figures in the answer no tool printed: {', '.join(turn['unsupported_figures'])}")
 print()
 print(turn.get("result", ""))

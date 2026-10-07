@@ -1131,6 +1131,48 @@ failure, diagnosed above under that run and fixed in `exchange/subject.py`,
 with a test. The `describe()` line also says a modelled error's code once,
 since botocore names the class after it.
 
+### Round 17, 2026-10-07 (after the round 16 fixes and the fifteenth run)
+
+Verdict "not ready", one blocker, seven majors, four minors, one nit.
+
+1. **Blocker, the per-session lock table was racy and unbounded.** Correct;
+   an idle entry could be dropped between lookup and acquire. Accepted.
+   Entries are counted in and out under the guard, as a context manager,
+   so one exists exactly while a turn holds or waits for it; tested with a
+   waiter present and with many conversations in flight.
+2. **Major, an abandoned start leaks an untracked session.** Accepted. A
+   start the agent gave up on stops its session from the worker when the
+   start comes back, and every sandbox operation sets the abandoned mark;
+   tested.
+3. **Major, a stop could wait twice the deadline.** Accepted; one deadline
+   spans the wait for a slot and the call, and the prose says cleanup is
+   two attempts, six minutes at the outside.
+4. **Major, the trail does not carry what the code printed.** Accepted; a
+   `run_python` step carries up to 2,000 characters of what it printed,
+   and the claim is worded to that.
+5. **Major, the printed-figures rule is not a guarantee.** Accepted both
+   ways. The instruction is narrowed to calculated figures, and trusted
+   code checks every figure in the answer, as written, against the
+   conversation's tool results, the prompt, the date and the system
+   prompt, returning the unsupported ones beside the answer. It reports;
+   it does not rewrite.
+6. **Major, the subject token travels in Cognito's `ClientMetadata`.**
+   Inherited from post 05 and the AWS sample it follows; disclosed in the
+   post and the README rather than re-architected here.
+7. **Major, "stopped when the answer is out" is categorical.** Accepted;
+   stopping is attempted, twice, and the session's lifetime ends what a
+   failed stop or an abandoned call left.
+8. **Major, happy path.** Accepted in part again; the cleanup detail is
+   out of section 1.
+9. **Minor, the tool Lambda's managed logging policy.** Accepted; its log
+   group is created with retention and the demo key, and the role may
+   write to it alone.
+10. **Minor, the runtime role's log resource.** Accepted; scoped to this
+    runtime's own groups.
+11. **Minor, "nothing is batched".** Removed with the cleanup trim.
+12. **Minor, lead-ins.** Not changed; series conventions.
+13. **Nit, H1 dashes.** Not changed; series conventions.
+
 
 
 

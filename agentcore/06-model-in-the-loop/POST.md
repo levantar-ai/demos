@@ -117,15 +117,10 @@ window is applied to the restored conversation before `restore` scans it,
 so what it scans is what the model is shown, and it slides rather than
 truncates, because the manager's default answers an overfull
 conversation by blanking its latest tool results before it trims
-anything. Closing everything that was created is attempted in reverse
-order whether the turn succeeds, fails or never starts, with a failed
-close logged rather than allowed to hide the answer, the sandbox's stop
-retried once, and what a failed close could leave behind bounded by the
-services, a sandbox session by its lifetime and the memory's buffer by
-the turn, since nothing is batched. Strands starts the MCP client while
-the agent is built and stops it on `agent.cleanup`, so the client has a
-closer of its own for the case where the build fails in between. Two
-things in the tools list and one beside it are the series so far.
+anything. Everything created for the turn is closed in reverse order
+when it ends, a failed close logged rather than allowed to hide the
+answer. Two things in the tools list and one beside it are the series so
+far.
 
 The gateway arrives as an MCP server. Post 02 called a named tool from code.
 Here the gateway is connected as a server and whatever tools it lists are
@@ -209,17 +204,20 @@ account of what the model is told.
 The session behind it is the Code Interpreter from post 04 in `SANDBOX`
 network mode, created the first time the model reaches for the tool, so a
 turn in which the model never runs code starts no session, and stopped
-when the answer is out, with the session's 900 second lifetime as the
-backstop if that stop fails. Variables from one `run_python` call are
+when the answer is out, with a second attempt if the first fails and the
+session's 900 second lifetime ending whatever a failed stop or an
+abandoned call left. Variables from one `run_python` call are
 there for the next within a turn, and one lock serialises starting the
 session, writing to it, running in it and stopping it. Source over twenty
 thousand characters is refused, at most eight thousand characters of
 output are kept for the model plus a note that it was cut, the agent
 gives up on any call to the sandbox service, starting, writing, running or
-stopping, after three minutes by its own clock and stops the session at
-the end of the turn, at most eight such calls are in flight in the process
-at once and a ninth is refused rather than queued, a stop waiting for a
-slot instead so that a busy process still ends its sessions, and the hook
+stopping, three minutes after it asked, a wait for a slot counted within
+that, so cleanup is six minutes at the outside, at most eight such calls
+are in flight in the process at once and a ninth is refused rather than
+queued, a stop waiting for a slot instead so that a busy process still
+ends its sessions, a session whose start the agent gave up waiting on is
+stopped by the worker when the start does come back, and the hook
 that records the trail allows eight tool attempts a turn, counted as the
 model asks, refuses the next with a message to answer from what it has,
 and ends the turn if the model keeps asking. Those bound what the model
@@ -368,8 +366,12 @@ model neither the minted token nor the customer's own, and puts the
 minted one only in the MCP client's authentication header. The process
 receives the customer's token from the runtime, which validated it, as
 the subject of the exchange, and holds the minted one for the gateway.
-That is the division of labour this post is about, the model decides what
-to ask the gateway and code decides what authenticates the asking.
+The exchange is post 05's and follows the AWS sample it was built on,
+which carries the customer's token to the exchange pool's triggers in
+Cognito's `ClientMetadata`, a field AWS says not to use for sensitive
+data. This post inherits that compromise and does not remove it. That is
+the division of labour this post is about, the model decides what to ask
+the gateway and code decides what authenticates the asking.
 
 The rest of the prompt tells the model what the tools are for, to use
 `run_python` for arithmetic rather than doing it in its head, with totals
@@ -382,9 +384,12 @@ eight totals in prose and occasionally get one wrong, and a model that has
 printed the totals will still add a count it never computed unless told
 that counts are figures too. The second avoids asking the model to
 reproduce the gateway's rows in the source it writes. Both are
-instructions. The model follows them most of the time, the trail returned
-with every answer shows when it has not, and nothing outside the model
-enforces either.
+instructions, which the model follows most of the time. What trusted code
+adds is a check after the answer. Every figure in it is looked for, as
+written, in the tool results of the conversation, the prompt, the date
+and the system prompt, and any found in none of them is returned beside
+the answer as unsupported, so a count the model did in its head is named
+as such. The check reports and does not rewrite.
 
 ## 3 - The model's own permission
 
@@ -437,11 +442,12 @@ model chooses, and the gateway decides whether what it chose is allowed.
 ![One turn: trusted code establishes the customer and the token, the model chooses the tools and the arguments, Cedar at the gateway decides whether a chosen customer_id is allowed](sequence.png)
 
 A customer signs in and asks something no earlier post could answer. The
-response carries the answer and the trail, every tool the model chose with
-the arguments it chose and whether the call succeeded, which a Strands hook
-records as the loop runs. The `ask` function below posts the prompt with the
-customer's token and a fixed session header, and prints the trail and then
-the answer.
+response carries the answer, the trail, every tool the model chose with
+the arguments it chose, whether the call succeeded and what `run_python`
+printed, which a Strands hook records as the loop runs, and the figures
+in the answer that nothing supports. The `ask` function below posts the
+prompt with the customer's token and a fixed session header, and prints
+the trail, with what the code printed, and then the answer.
 
 ```
 $ ask "How much have I spent with you this year, month by month, and which month was the biggest?"
@@ -608,8 +614,10 @@ gateway's exact result in front of that program. What the model still
 controls is the program itself, which rows it uses, whether it reads the
 file at all, and what it says afterwards. The file removes the
 transcription step, it does not take the computation out of the model's
-hands, and the rule that every figure in the answer is one the code
-printed is an instruction to the model, not a control outside it. The
+hands, the rule that a calculated figure in the answer is one the code
+printed is an instruction to the model, and the check that names any
+figure nothing supports is the control outside it, one that reports
+rather than blocks. The
 date comes from trusted code for the same reason, so that "this year" is
 a filter the program applies rather than an assumption about the data.
 That is the reason the controls that must hold are outside the model.
@@ -664,7 +672,8 @@ That is what the policy covers, the order lookup. It says nothing about
 whether the code the model wrote or the sentence it produced is right. The
 bounds in section 1 limit how much the model asks for, the rule about
 printed figures is an instruction it follows most of the time, and the
-trail returned with every answer is what lets a caller check. The agent's
+trail with what the code printed, and the figures named as unsupported,
+returned with every answer, are what let a caller check. The agent's
 authority to read orders through the gateway is
 unchanged and still bound to the customer in the presented token. What is
 new is what the model may decide within that, which arguments, which code,

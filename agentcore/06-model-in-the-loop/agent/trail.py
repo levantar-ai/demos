@@ -33,6 +33,11 @@ from strands.hooks import (
 )
 
 ERROR_PREVIEW = 300
+# A step for one of these tools carries what the tool returned, cut to the
+# preview, so the caller can see what the model's code printed. The gateway's
+# result is not carried: it is the customer's rows, not evidence of a sum.
+OUTPUT_PREVIEW = 2_000
+OUTPUTS_FOR = frozenset({"run_python"})
 MAX_TOOL_CALLS = 8
 
 
@@ -122,4 +127,6 @@ class Trail(HookProvider):
         step["status"] = result.get("status", "unknown")
         if step["status"] != "success":
             step["error"] = _text_of(result)[:ERROR_PREVIEW]
+        elif use["name"] in OUTPUTS_FOR:
+            step["output"] = _text_of(result)[:OUTPUT_PREVIEW]
         print(f"{use['name']} returned {step['status']}")

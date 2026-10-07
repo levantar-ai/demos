@@ -67,7 +67,10 @@ resource "aws_iam_role_policy" "runtime" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/bedrock-agentcore/*"
+        # The service creates this runtime's groups under its own name, so
+        # the role is scoped to that prefix rather than to every AgentCore
+        # group in the account.
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/bedrock-agentcore/runtimes/${local.runtime_name}-*"
       },
       {
         Sid    = "Tracing"

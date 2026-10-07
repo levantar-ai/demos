@@ -13,6 +13,7 @@ is bounded in what it can send and read back.
 
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 
@@ -31,7 +32,8 @@ _client = None
 # flight in the process at once, admitted by a semaphore the worker releases
 # when its call finishes, so nothing queues behind the workers: a call that
 # finds every slot taken is refused outright, except a stop, which waits for
-# a slot so that a busy process still ends its sessions.
+# a slot so that a busy process still ends its sessions; the wait counts
+# within the same deadline.
 WAIT_SECONDS = 180
 MAX_IN_FLIGHT = 8
 _calls = ThreadPoolExecutor(max_workers=MAX_IN_FLIGHT, thread_name_prefix="sandbox-call")
@@ -145,10 +147,14 @@ def _held(fn, args):
         _slots.release()
 
 
-def _call(name, fn, *args, wait=False):
+def _call(name, fn, *args, wait=False, late=None):
     """Run one service call with a wall-clock deadline, one of at most
     MAX_IN_FLIGHT in the process. A call that finds no free slot is refused,
-    unless it asked to wait, which a stop does."""
+    unless it asked to wait, which a stop does; the deadline is one span
+    from the ask, the wait for a slot counted within it. A call given up on
+    may still complete on its worker, and `late`, if given, is handed its
+    future then."""
+    deadline = time.monotonic() + WAIT_SECONDS
     admitted = _slots.acquire(timeout=WAIT_SECONDS) if wait else _slots.acquire(blocking=False)
     if not admitted:
         raise RuntimeError(f"{name} refused: the sandbox already has {MAX_IN_FLIGHT} calls in flight; try again")
@@ -158,11 +164,27 @@ def _call(name, fn, *args, wait=False):
         _slots.release()
         raise
     try:
-        return future.result(timeout=WAIT_SECONDS)
+        return future.result(timeout=max(0.0, deadline - time.monotonic()))
     except FutureTimeout:
+        if late is not None:
+            future.add_done_callback(late)
         raise Abandoned(
             f"{name} did not finish within {WAIT_SECONDS} seconds; the session will be stopped at the end of the turn"
         ) from None
+
+
+def _stop_late(interpreter, future):
+    """A start the agent gave up on may still create a session. Nothing
+    tracks it, so the worker that sees it come back stops it at once, with
+    one attempt on the client's own timeout."""
+    if future.exception() is not None:
+        return
+    session_id = future.result()
+    try:
+        _stop(interpreter, session_id)
+        print(f"stopped sandbox session {session_id}, created after its start was abandoned")
+    except Exception as exc:  # noqa: BLE001 — the session's lifetime is the backstop
+        print(f"stopping late sandbox session {session_id} failed: {type(exc).__name__}")
 
 
 def write_files(session_id, path, text):
@@ -174,7 +196,8 @@ def execute_code(session_id, code, language="python"):
 
 
 def session_for(interpreter, name):
-    return _call("startCodeInterpreterSession", _start, interpreter, name)
+    return _call("startCodeInterpreterSession", _start, interpreter, name,
+                 late=lambda future: _stop_late(interpreter, future))
 
 
 def stop_session(interpreter, session_id):
@@ -233,10 +256,11 @@ class Sandbox:
         tool refuses to run until orders___list_orders is called again and
         succeeds; if the file could not be written, the error says so and
         running again writes it again. Print every figure your answer will
-        state, including how many orders a figure covers; do not state a
-        number the code did not print. Variables persist between calls
-        within one conversation turn. An execution error is returned when
-        the code fails, so correct the code and run it again.
+        calculate, a total, a count, an average, a difference, including
+        how many orders a figure covers; do not state a calculated number
+        the code did not print. Variables persist between calls within one
+        conversation turn. An execution error is returned when the code
+        fails, so correct the code and run it again.
 
         Args:
             code: The Python source to execute. Print anything you need back.
@@ -250,16 +274,18 @@ class Sandbox:
                     f"{names} not available this turn: the latest call that provides it did not produce a result; "
                     "call that tool again"
                 )
-            if self.session_id is None:
-                self.session_id = self.start(self.interpreter, "analysis")
-            for path in list(self.staged):
-                try:
-                    self.put(self.session_id, path, self.staged[path])
-                except Exception as exc:
-                    raise RuntimeError(f"{path} could not be written to the sandbox: {exc}; run again to retry") from exc
-                del self.staged[path]
-                self.written.append(path)
             try:
+                if self.session_id is None:
+                    self.session_id = self.start(self.interpreter, "analysis")
+                for path in list(self.staged):
+                    try:
+                        self.put(self.session_id, path, self.staged[path])
+                    except Abandoned:
+                        raise
+                    except Exception as exc:
+                        raise RuntimeError(f"{path} could not be written to the sandbox: {exc}; run again to retry") from exc
+                    del self.staged[path]
+                    self.written.append(path)
                 return self.execute(self.session_id, code)
             except Abandoned:
                 self.abandoned = True

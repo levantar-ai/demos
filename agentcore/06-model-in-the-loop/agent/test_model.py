@@ -152,7 +152,7 @@ def test_tools_run_one_at_a_time_in_the_order_the_model_asked(fakes):
 
 
 def test_the_model_learns_the_customer_from_trusted_code(fakes):
-    text, steps = model.answer("how much have I spent?", "c-1000", "session-1", "minted-token")
+    text, steps, _ = model.answer("how much have I spent?", "c-1000", "session-1", "minted-token")
     agent = fakes.built[-1]
     assert text == "answered: how much have I spent?"
     assert steps == []
@@ -281,7 +281,7 @@ def test_everything_created_is_closed_when_the_agent_cannot_be_built(fakes, monk
 
 def test_a_failing_close_does_not_stop_the_others_or_mask_the_answer(fakes, monkeypatch, capsys):
     monkeypatch.setattr(FakeManager, "close", lambda self: (_ for _ in ()).throw(RuntimeError("flush failed")))
-    text, _ = model.answer("my orders", "c-1000", "session-1", "minted-token")
+    text, _, _ = model.answer("my orders", "c-1000", "session-1", "minted-token")
     assert text == "answered: my orders"
     assert fakes.built[-1].cleaned is True
     assert "cleanup failed" in capsys.readouterr().out
@@ -302,8 +302,9 @@ def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
     assert "call orders___list_orders again before computing" in prompt
     assert "if the file is missing when your code opens it" in prompt
     assert "if run_python says the file could not be written, run it again" in prompt
-    assert "Every figure in your answer must be one run_python printed, and that includes any count of orders" in prompt
-    assert "if the code did not print a number, do not state it" in prompt
+    assert "Every figure you calculate over the orders, a total, a count, an average, a difference, must be one run_python printed" in prompt
+    assert "do not state a calculated number the code did not print" in prompt
+    assert "Order numbers, dates and statuses you may read from the gateway's result as they are" in prompt
 
 
 def _conversation_with_a_fetch(text):
@@ -516,8 +517,8 @@ def test_the_tool_description_tells_the_model_to_read_the_file_not_embed_rows():
     assert "Never put order rows into the code" in description
     assert "the agent writes that text into the sandbox as orders.json" in description
     assert "refuses to run until orders___list_orders is called again" in description
-    assert "Print every figure your answer will state, including how many orders a figure covers" in description
-    assert "do not state a number the code did not print" in description
+    assert "Print every figure your answer will calculate, a total, a count, an average, a difference" in description
+    assert "do not state a calculated number the code did not print" in description
     assert "list of dicts" not in description and "into the code itself" not in description
 
 
@@ -593,12 +594,54 @@ def test_the_trail_records_each_call_with_its_arguments_and_outcome():
     use2 = {"name": "run_python", "input": {"code": "print(1)"}, "toolUseId": "u2"}
     t.before(_Event(use2))
     t.after(_Event(use2, {"status": "success", "content": [{"text": "1"}]}))
+    use3 = {"name": "orders___list_orders", "input": {"customer_id": "c-1000"}, "toolUseId": "u3"}
+    t.before(_Event(use3))
+    t.after(_Event(use3, {"status": "success", "content": [{"text": '{"orders": [{"order_id": 1033}]}'}]}))
     assert t.steps == [
         {"tool": "orders___list_orders", "input": {"customer_id": "c-1001"}, "status": "error",
          "error": "Tool Execution Denied: policy"},
-        {"tool": "run_python", "input": {"code": "print(1)"}, "status": "success"},
+        {"tool": "run_python", "input": {"code": "print(1)"}, "status": "success", "output": "1"},
+        {"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}, "status": "success"},  # rows are not carried
     ]
     assert json.dumps(t.steps)  # what the handler returns must serialise
+
+
+def test_what_the_code_printed_is_carried_in_the_trail_up_to_the_preview():
+    t = trail_module.Trail()
+    use = {"name": "run_python", "input": {"code": "print('x' * 5000)"}, "toolUseId": "u1"}
+    t.before(_Event(use))
+    t.after(_Event(use, {"status": "success", "content": [{"text": "x" * 5000}]}))
+    assert len(t.steps[0]["output"]) == trail_module.OUTPUT_PREVIEW
+
+
+def test_figures_in_the_answer_are_checked_against_what_the_tools_returned():
+    """A figure is supported as written by any tool result in the
+    conversation, the prompt, the date or the system prompt; a count or a
+    difference the model worked out in its head is not."""
+    messages = [
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text":
+            '{"orders": [{"order_id": 1033, "placed_at": "2026-06-18", "total": 6.80, "items": 1083}]}'}]}}]},
+        {"role": "assistant", "content": [{"text": "There were 12 of them."}]},  # the model's own words support nothing
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t2", "status": "success", "content": [{"text":
+            "Total orders: 9\nRoyal Mail orders: 3\nTotal: £743.80"}]}}]},
+    ]
+    answer = ("Looking at your 9 orders, 3 went with Royal Mail and the other 6 with DPD, £743.80 in all; "
+              "order 1033 on 18 June 2026 had 1,083 items, 12 in 2025, and 743.8 is not how the code wrote it.")
+    assert model.unsupported_figures(answer, messages, "what about 2025?", "Today is 2026-10-07") == ["12", "6", "743.8"]
+    assert model.unsupported_figures("No figures here.", messages) == []
+    assert model.unsupported_figures("", []) == []
+
+
+def test_answer_returns_the_figures_nothing_supports(fakes, monkeypatch):
+    class Counted(FakeResult):
+        pass
+
+    monkeypatch.setattr(FakeAgent, "restored_messages", [
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": "Total: 9"}]}}]},
+    ])
+    monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: Counted("9 orders, 6 of them DPD, placed since 2025."))
+    _, _, unsupported = model.answer("how many since 2025?", "c-1000", "session-1", "minted-token")
+    assert unsupported == ["6"]  # 9 is a tool result's, 2025 is the prompt's, 6 is the model's
 
 
 def test_the_runtime_log_never_carries_the_tool_input(capsys):
@@ -839,6 +882,67 @@ def test_starting_and_stopping_a_session_have_the_same_deadline_and_bound(monkey
     assert time.monotonic() - started >= 0.2  # the stop waited for a slot before giving up
     sandbox._slots.release()
     assert sandbox.stop_session("ci-test", "s1") is None
+
+
+def test_one_deadline_spans_the_wait_for_a_slot_and_the_call(monkeypatch):
+    """A stop that waited for a slot does not then get a whole deadline for
+    the call as well: six minutes of cleanup is not three."""
+    import threading
+    import time
+
+    monkeypatch.setattr(sandbox, "_slots", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(sandbox, "MAX_IN_FLIGHT", 1)
+    monkeypatch.setattr(sandbox, "WAIT_SECONDS", 0.3)
+    assert sandbox._slots.acquire(blocking=False)
+    threading.Timer(0.15, sandbox._slots.release).start()  # a slot comes free half way through
+
+    class SlowStop:
+        def stop_code_interpreter_session(self, **kw):
+            time.sleep(0.5)
+            return {}
+
+    monkeypatch.setattr(sandbox, "client", lambda: SlowStop())
+    started = time.monotonic()
+    with pytest.raises(sandbox.Abandoned, match="stopCodeInterpreterSession did not finish"):
+        sandbox.stop_session("ci-test", "s1")
+    elapsed = time.monotonic() - started
+    assert 0.25 <= elapsed < 0.45  # one deadline from the ask, not one per phase
+    time.sleep(0.5)
+
+
+def test_a_start_the_agent_gave_up_on_is_stopped_when_it_comes_back(monkeypatch, capsys):
+    """Nothing tracks a session created after its start was abandoned, so
+    the worker that sees it come back stops it at once."""
+    import time
+
+    stopped = []
+
+    class LateStart:
+        def start_code_interpreter_session(self, **kw):
+            time.sleep(0.3)
+            return {"sessionId": "late-session"}
+
+        def stop_code_interpreter_session(self, **kw):
+            stopped.append(kw["sessionId"])
+            return {}
+
+    monkeypatch.setattr(sandbox, "client", lambda: LateStart())
+    monkeypatch.setattr(sandbox, "WAIT_SECONDS", 0.1)
+    with pytest.raises(sandbox.Abandoned):
+        sandbox.session_for("ci-test", "analysis")
+    time.sleep(0.5)
+    assert stopped == ["late-session"]
+    assert "stopped sandbox session late-session, created after its start was abandoned" in capsys.readouterr().out
+
+
+def test_an_abandoned_write_marks_the_sandbox_too(monkeypatch):
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s14"))
+    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, text: (_ for _ in ()).throw(sandbox.Abandoned("writeFiles did not finish"))))
+    box = sandbox.Sandbox()
+    box.stage("orders.json", "{}")
+    with pytest.raises(sandbox.Abandoned):
+        box.run_python(code="print(1)")
+    assert box.abandoned is True and box.staged == {"orders.json": "{}"}
 
 
 def test_a_session_with_an_abandoned_call_is_stopped_and_says_so(monkeypatch, capsys):

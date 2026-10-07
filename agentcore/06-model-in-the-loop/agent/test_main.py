@@ -26,7 +26,7 @@ class StubHandler(Handler):
     exchange = staticmethod(lambda inbound: f"obo:{inbound}")
     respond = staticmethod(
         lambda prompt, customer, session, token: turns.append((prompt, customer, session, token))
-        or (f"answer for {customer}", [{"tool": "orders___list_orders", "input": {"customer_id": customer}}])
+        or (f"answer for {customer}", [{"tool": "orders___list_orders", "input": {"customer_id": customer}}], [])
     )
 
 
@@ -128,6 +128,7 @@ def test_a_prompt_goes_to_the_model_as_the_verified_customer(server_url):
     assert body == {
         "result": "answer for c-1000",
         "trail": [{"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}}],
+        "unsupported_figures": [],
     }
     assert turns == [("how much have I spent?", "c-1000", sid("conv-1"), f"obo:{bearer_for('c-1000')}")]
 
@@ -188,7 +189,7 @@ def test_turns_in_one_conversation_run_one_at_a_time(server_url):
         started = time.monotonic()
         time.sleep(0.3)
         spans.append((session, started, time.monotonic()))
-        return "ok", []
+        return "ok", [], []
 
     original = StubHandler.respond
     StubHandler.respond = staticmethod(slow)
@@ -206,6 +207,49 @@ def test_turns_in_one_conversation_run_one_at_a_time(server_url):
             assert overlapped is (not same)
     finally:
         StubHandler.respond = original
+
+
+def test_a_turns_entry_exists_exactly_while_a_turn_holds_or_waits_for_it():
+    """The table cannot drop an entry from under a waiter, and holds one
+    entry per conversation with a turn in flight, however many there are."""
+    import time
+
+    key = ("c-1000", sid("same"))
+    seen = {}
+
+    def first():
+        with main.one_turn(*key):
+            time.sleep(0.3)
+            seen["while first holds"] = (main._turns[key][1], main._turns[key][0].locked())
+
+    def second():
+        with main.one_turn(*key):
+            seen["while second holds"] = (main._turns[key][1], main._turns[key][0].locked())
+
+    a = threading.Thread(target=first)
+    a.start()
+    time.sleep(0.05)
+    b = threading.Thread(target=second)
+    b.start()
+    time.sleep(0.1)
+    assert main._turns[key][1] == 2  # the waiter is counted, so the entry cannot be dropped
+    a.join()
+    b.join()
+    assert seen["while first holds"] == (2, True)
+    assert seen["while second holds"] == (1, True)
+    assert key not in main._turns  # and nothing is kept once the turns are over
+
+    def hold(n):
+        with main.one_turn("c-1000", sid(f"many-{n}")):
+            time.sleep(0.2)
+            seen["in flight"] = max(seen.get("in flight", 0), len(main._turns))
+
+    threads = [threading.Thread(target=hold, args=(n,)) for n in range(40)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert seen["in flight"] == 40 and main._turns == {}
 
 
 def test_a_failing_turns_message_stays_out_of_the_log(server_url, capsys):

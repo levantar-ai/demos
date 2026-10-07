@@ -18,6 +18,7 @@ import base64
 import json
 import re
 import threading
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from identity import orders_token
@@ -46,21 +47,29 @@ SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{32,127}$")
 # Turns in one conversation run one at a time. The server answers requests
 # concurrently, and two turns restoring and appending to the same
 # conversation at once would interleave its history, so a second request
-# for the same customer and session waits for the first to finish.
-MAX_TURN_LOCKS = 1024
+# for the same customer and session waits for the first to finish. An
+# entry is counted in and out under the guard, so it exists exactly while
+# a turn holds or waits for it, cannot be dropped from under a waiter, and
+# the table holds one entry per conversation with a turn in flight.
 _turns = {}
 _turns_guard = threading.Lock()
 
 
-def turn_lock(customer, session):
-    """The lock for one conversation, created on first use. Idle entries are
-    dropped when the table is full, so it is bounded without ever dropping
-    a lock that is held."""
+@contextmanager
+def one_turn(customer, session):
+    """Hold the conversation's turn for the block."""
+    key = (customer, session)
     with _turns_guard:
-        if len(_turns) >= MAX_TURN_LOCKS:
-            for key in [k for k, lock in _turns.items() if not lock.locked()]:
+        entry = _turns.setdefault(key, [threading.Lock(), 0])
+        entry[1] += 1
+    try:
+        with entry[0]:
+            yield
+    finally:
+        with _turns_guard:
+            entry[1] -= 1
+            if entry[1] == 0:
                 del _turns[key]
-        return _turns.setdefault((customer, session), threading.Lock())
 
 
 def claims_from(headers):
@@ -160,13 +169,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "a session id is required"})
             return
         try:
-            with turn_lock(customer, session):
+            with one_turn(customer, session):
                 # Trusted code gets the token for the order service, on behalf
                 # of the customer, before the model runs. The model chooses
                 # what to ask the gateway; it never holds what authenticates
                 # the asking.
                 gateway_token = self.exchange(bearer_from(self.headers))
-                result, trail = self.respond(prompt, customer, session, gateway_token)
+                result, trail, unsupported = self.respond(prompt, customer, session, gateway_token)
         except BudgetExceeded as exc:
             print(f"turn ended for {customer}: {exc}")
             self._send(502, {"error": "the model exceeded its tool budget for this turn"})
@@ -177,7 +186,10 @@ class Handler(BaseHTTPRequestHandler):
             print(f"turn failed for {customer}: {describe(exc)}")
             self._send(502, {"error": "request failed"})
             return
-        self._send(200, {"result": result, "trail": trail})
+        # The trail is the route the model took and what its code printed;
+        # unsupported_figures lists any figure in the answer that no tool
+        # result in the conversation, the prompt or the date contains.
+        self._send(200, {"result": result, "trail": trail, "unsupported_figures": unsupported})
 
     def _send(self, status, body):
         data = json.dumps(body).encode()
