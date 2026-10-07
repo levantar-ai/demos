@@ -93,7 +93,11 @@ def latest_results(messages, handoffs=None):
     way the turn that saw the failure did. Tools never called are absent.
     """
     handoffs = HANDOFFS if handoffs is None else handoffs
-    uses, found = {}, {}
+    # Every tool use is tracked, not only the handed-over ones, and a use is
+    # forgotten once its result is consumed, so an identifier that a later
+    # call of another tool happens to reuse cannot hand that tool's result
+    # over under the earlier call's name.
+    pending, found = {}, {}
 
     def _id(block):
         value = block.get("toolUseId")
@@ -102,11 +106,14 @@ def latest_results(messages, handoffs=None):
     for message in messages or []:
         for block in message.get("content", []) or []:
             use = block.get("toolUse") if isinstance(block, dict) else None
-            if use and use.get("name") in handoffs and _id(use):
-                uses[_id(use)] = use["name"]
+            if use and _id(use):
+                pending[_id(use)] = use.get("name")
             result = block.get("toolResult") if isinstance(block, dict) else None
-            if result and _id(result) in uses:
-                path = handoffs[uses[_id(result)]]
+            if result and _id(result) in pending:
+                name = pending.pop(_id(result))
+                if name not in handoffs:
+                    continue
+                path = handoffs[name]
                 text = _text_of(result) if result.get("status") == "success" else ""
                 found[path] = text if text.strip() and len(text) <= MAX_HANDOFF_CHARS else None
     return found

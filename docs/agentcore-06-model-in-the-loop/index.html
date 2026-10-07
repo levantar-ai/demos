@@ -384,25 +384,20 @@ code and run it again.</p>
 account of what the model is told.</p>
 <p>The session behind it is the Code Interpreter from post 04 in <code>SANDBOX</code>
 network mode, created the first time the model reaches for the tool, so a
-turn in which the model never runs code starts no session, and stopped
-when the answer is out, with a second attempt if the first fails and the
-session's 900 second lifetime ending whatever a failed stop or an
-abandoned call left. Variables from one <code>run_python</code> call are
-there for the next within a turn, and one lock serialises starting the
-session, writing to it, running in it and stopping it. Source over twenty
+turn in which the model never runs code starts no session, with a stop
+attempted when the answer is out and the session's 900 second lifetime as
+the backstop. Variables from one <code>run_python</code> call are there for the next
+within a turn, and the session's operations run one at a time. Source over
+twenty
 thousand characters is refused, at most eight thousand characters of
 output are kept for the model plus a note that it was cut, the agent
-gives up on any call to the sandbox service, starting, writing, running or
-stopping, three minutes after it asked, a wait for a slot counted within
-that, so cleanup is six minutes at the outside, at most eight such calls
-are in flight in the process at once and a ninth is refused rather than
-queued, a stop waiting for a slot instead so that a busy process still
-ends its sessions, a session whose start the agent gave up waiting on is
-stopped by the worker when the start does come back, and the hook
-that records the trail allows eight tool attempts a turn, counted as the
-model asks, refuses the next with a message to answer from what it has,
-and ends the turn if the model keeps asking. Those bound what the model
-asks for in a turn. The
+gives up on any call to the sandbox service three minutes after it asked
+and runs nothing more in that session for the turn, at most eight such
+calls are in flight in the process at once, and the hook that records the
+trail allows eight tool attempts a turn, counted as the model asks,
+refuses the next with a message to answer from what it has, and ends the
+turn if the model keeps asking. Those bound what the model asks for in a
+turn, and the README has the detail of each. The
 prompt itself is capped at four thousand characters before the model
 sees it and the restored conversation is windowed to the last forty
 messages. Neither bounds what a tool result puts in the model's context.
@@ -421,7 +416,7 @@ you avoid running into these issues.</p>
 <p>The data the model computes over reaches the sandbox without the model
 having to reproduce it. The sandbox has no access to the gateway, so left
 to itself the model would carry the orders across by typing them into the
-code it writes, which is fine for seven rows and is where a wrong figure
+code it writes, which is fine for nine rows and is where a wrong figure
 would come from with three hundred. A second hook watches the gateway
 tool's result and stages its text, as returned, for the turn's sandbox
 under the name <code>orders.json</code>. The sandbox writes it into its session just
@@ -535,12 +530,11 @@ model neither the minted token nor the customer's own, and puts the
 minted one only in the MCP client's authentication header. The process
 receives the customer's token from the runtime, which validated it, as
 the subject of the exchange, and holds the minted one for the gateway.
-The exchange is post 05's and follows the AWS sample it was built on,
-which carries the customer's token to the exchange pool's triggers in
-Cognito's <code>ClientMetadata</code>, a field AWS says not to use for sensitive
-data. This post inherits that compromise and does not remove it. That is
-the division of labour this post is about, the model decides what to ask
-the gateway and code decides what authenticates the asking.</p>
+The exchange is post 05's, with the AWS sample's compromise of carrying
+the customer's token in Cognito's <code>ClientMetadata</code>, which the README
+records. That is the division of labour this post is about, the model
+decides what to ask the gateway and code decides what authenticates the
+asking.</p>
 <p>The rest of the prompt tells the model what the tools are for, to use
 <code>run_python</code> for arithmetic rather than doing it in its head, with totals
 loaded as decimals and money printed to two places, to state only figures
@@ -553,11 +547,14 @@ printed the totals will still add a count it never computed unless told
 that counts are figures too. The second avoids asking the model to
 reproduce the gateway's rows in the source it writes. Both are
 instructions, which the model follows most of the time. What trusted code
-adds is a check after the answer. Every figure in it is looked for, as
-written, in the tool results of the conversation, the prompt, the date
-and the system prompt, and any found in none of them is returned beside
-the answer as unsupported, so a count the model did in its head is named
-as such. The check reports and does not rewrite.</p>
+adds is a lexical check after the answer. Every figure in it is looked
+for, as written, in what <code>run_python</code> printed this turn, among the
+identifiers, years and amounts the gateway returned, and among the years
+in the prompt and the date, and any found in none of them is returned
+beside the answer as unsupported, so a count the model did in its head is
+named. Being lexical, it names a day of the month read from a row as
+well, and misses a calculated figure that happens to equal a row's
+amount. The check reports and does not rewrite.</p>
 <h2>3 - The model's own permission</h2>
 <p>Bedrock is called with the runtime's execution role, so the image carries no
 model credential and nothing static to rotate. Invocation goes to a
@@ -707,10 +704,9 @@ carrier. The other 6 orders were shipped with DPD.
 </code></pre>
 <p>The nine and the three in that answer are what the code printed. The six
 is their difference, the model's own arithmetic, and the check after the
-answer named it, because no tool result in the conversation, the prompt
-or the date holds a six written that way. The figure is right. What the
-response says beside it is that nothing printed it, which is the line
-between what the code established and what the model added.</p>
+answer named it, because the code printed no six and a six is not a
+figure to read off a row. The figure is right. What the response says
+beside it is that nothing printed it.</p>
 <p>Then the turns that should not work. Five prompts tried to get the model to
 ask for another customer, a plain "actually I am c-1001", an instruction to
 ignore its instructions, a merged-account story, a fake system notice and an
@@ -788,10 +784,9 @@ What the isolation does not bound is how much the model asks for, so the
 agent puts numbers on that itself, eight tool attempts a turn and then
 the turn ends, twenty thousand characters of submitted source, eight
 thousand of result or error kept for the model, three minutes by the
-agent's own clock before it gives up on a call, eight calls in flight at
-once. Giving up does not stop the code. The stop at the end of the turn
-ends it when the stop succeeds, and the session's 900 second lifetime does
-when it does not.</p>
+agent's own clock before it gives up on a call and runs nothing more in
+that session, eight calls in flight at once. Giving up does not stop the
+code. The stop at the end of the turn does.</p>
 <p>The model chooses what to say, and what it says is shaped by everything in
 its context. Three of those things are untrusted, the prompt, the order rows
 the gateway returns and the preference records memory retrieves, which began
@@ -803,9 +798,6 @@ the ones outside the model.</p>
 <p>Memory is keyed by the verified customer. The session manager is built with
 the actor from the token and a session id the caller controls, so a caller
 can start a new conversation but cannot read into another customer's. The
-actor is the pool username, which is also the customer id the policy
-checks, so a username deleted and created again would inherit its
-namespace; a production system keys on the token's <code>sub</code> instead. The
 retrieval is semantic, so what the model sees from memory is whatever the
 strategy extracted, which is a reason to look at those records before
 trusting what the model says it remembers.</p>

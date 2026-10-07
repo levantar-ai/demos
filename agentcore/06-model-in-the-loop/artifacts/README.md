@@ -1251,6 +1251,39 @@ Verdict "not ready", one blocker, seven majors, four minors, one nit.
 12. **Minor, lead-ins.** Not changed; series conventions.
 13. **Nit, H1 dashes.** Not changed; series conventions.
 
+### Round 18, 2026-10-07 (after the round 17 fixes and the seventeenth run)
+
+Verdict "not ready", one blocker, five majors, two minors.
+
+1. **Blocker, an abandoned call left the session open to another, and the
+   late stop bypassed the bound.** Correct. Accepted: after a call the
+   agent gave up on, the sandbox refuses to run again that turn, and a
+   late stop runs on a worker of its own through the same admission bound
+   and deadline as any call, never from inside the pool's callback.
+   Tested both ways.
+2. **Major, a reused tool-use id could hand another tool's result over.**
+   Accepted; `latest_results` tracks every use and forgets it once its
+   result is consumed. Tested with a reused id.
+3. **Major, the figures check is lexical and too generous.** Accepted. What
+   `run_python` printed this turn supports any figure; a gateway result
+   supports only what is read from a row (three or more digits or a
+   decimal part); the prompt and the date support years only. The post
+   and README call it a lexical check with its known false positives and
+   gap.
+4. **Major, "seven rows" and `allowed: 7 orders` are stale.** Correct;
+   nine rows, and the probe is re-run on the final image and quoted as
+   it returned.
+5. **Major, abandoned operations could accumulate; "cleanup is six
+   minutes" was too broad.** Accepted with the blocker's fix; the README
+   says the two sandbox stop attempts wait at most 360 s in total and the
+   other closers have no application deadline.
+6. **Major, happy path.** Accepted further: the bounds paragraph is one
+   sentence with the README for detail, the `ClientMetadata` compromise
+   is one clause, the username-reuse note is README only.
+7. **Minor, lead-ins and H1 dashes.** Not changed; series conventions.
+8. **Minor, `_consume` raised before draining.** Accepted; the stream is
+   read to its end and the first failure raised after. Tested.
+
 
 
 

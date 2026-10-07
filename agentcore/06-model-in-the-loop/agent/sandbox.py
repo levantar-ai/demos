@@ -38,6 +38,11 @@ WAIT_SECONDS = 180
 MAX_IN_FLIGHT = 8
 _calls = ThreadPoolExecutor(max_workers=MAX_IN_FLIGHT, thread_name_prefix="sandbox-call")
 _slots = threading.BoundedSemaphore(MAX_IN_FLIGHT)
+# Late stops, for sessions created after their start was abandoned, run on
+# their own single worker, through the same admission bound and deadline as
+# every other call, so a completion callback never waits on the pool it is
+# running in.
+_late = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sandbox-late")
 
 
 def client():
@@ -65,17 +70,21 @@ def _consume(response):
     # separators counted. Each event is materialised by boto3 before it gets
     # here, so the bound is on what the agent accumulates, not on what the
     # service sends.
-    out, err = _Bounded(), _Bounded()
+    out, err, failure = _Bounded(), _Bounded(), None
     for event in response.get("stream", []):
         result = event.get("result")
         if not result:
-            kinds = ", ".join(sorted(event)) or "empty event"
-            detail = next((v.get("message") for v in event.values() if isinstance(v, dict) and v.get("message")), "")
-            raise RuntimeError(f"code interpreter stream error ({kinds}) {detail[:MAX_OUTPUT_CHARS]}".strip())
+            if failure is None:
+                kinds = ", ".join(sorted(event)) or "empty event"
+                detail = next((v.get("message") for v in event.values() if isinstance(v, dict) and v.get("message")), "")
+                failure = f"code interpreter stream error ({kinds}) {detail[:MAX_OUTPUT_CHARS]}".strip()
+            continue  # the stream is read to its end before the first failure is raised
         target = err if result.get("isError") else out
         for item in result.get("content", []):
             if item.get("type") == "text":
                 target.add(item.get("text", ""))
+    if failure is not None:
+        raise RuntimeError(failure)
     if err.seen:
         raise RuntimeError(err.text() or "code interpreter tool failed")
     return out.text()
@@ -175,16 +184,20 @@ def _call(name, fn, *args, wait=False, late=None):
 
 def _stop_late(interpreter, future):
     """A start the agent gave up on may still create a session. Nothing
-    tracks it, so the worker that sees it come back stops it at once, with
-    one attempt on the client's own timeout."""
+    tracks it, so when the start comes back its session is stopped, through
+    the same bound and deadline as any call, on the late worker."""
     if future.exception() is not None:
         return
     session_id = future.result()
-    try:
-        _stop(interpreter, session_id)
-        print(f"stopped sandbox session {session_id}, created after its start was abandoned")
-    except Exception as exc:  # noqa: BLE001 — the session's lifetime is the backstop
-        print(f"stopping late sandbox session {session_id} failed: {type(exc).__name__}")
+
+    def stop():
+        try:
+            stop_session(interpreter, session_id)
+            print(f"stopped sandbox session {session_id}, created after its start was abandoned")
+        except Exception as exc:  # noqa: BLE001 — the session's lifetime is the backstop
+            print(f"stopping late sandbox session {session_id} failed: {type(exc).__name__}")
+
+    _late.submit(stop)
 
 
 def write_files(session_id, path, text):
@@ -227,8 +240,9 @@ class Sandbox:
         self.interpreter = interpreter or os.environ.get("CODE_INTERPRETER_ID", "")
         self.session_id = None
         self._lock = threading.Lock()
-        # Set when a call was given up on at the deadline: the service may
-        # still be running it when the session is stopped.
+        # Set when a call was given up on at the deadline. The service may
+        # still be running it, so the tool refuses to run again this turn
+        # and the stop at the end of the turn is what ends the session.
         self.abandoned = False
         # Files held for the session, path to text, written before the next
         # run and forgotten once written. Trusted code puts them here.
@@ -268,6 +282,11 @@ class Sandbox:
         if len(code) > MAX_CODE_CHARS:
             raise ValueError(f"code is {len(code)} characters, the limit is {MAX_CODE_CHARS}")
         with self._lock:
+            if self.abandoned:
+                # The call given up on may still be running in the session;
+                # nothing else runs in it this turn, and the stop at the end
+                # of the turn is what ends it.
+                raise RuntimeError("the sandbox gave up waiting on an earlier call this turn and will not run again; answer with what you have")
             if self.unavailable:
                 names = ", ".join(sorted(self.unavailable))
                 raise RuntimeError(

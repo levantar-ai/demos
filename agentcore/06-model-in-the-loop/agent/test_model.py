@@ -391,6 +391,21 @@ def test_a_failed_or_empty_latest_call_stays_withheld_on_the_next_turn(latest, m
     assert puts == ["orders.json"]  # the restored result was written before the code ran
 
 
+def test_a_reused_tool_use_id_cannot_hand_another_tools_result_over():
+    """An identifier a later run_python call happens to share with an old
+    gateway call must not make that call's output the orders file."""
+    msgs = _conversation_with_a_fetch("rows") + [
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t1", "name": "run_python", "input": {"code": "print(1)"}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": "python output"}]}}]},
+    ]
+    assert handoff.latest_results(msgs) == {"orders.json": "rows"}
+    later = msgs + [
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t1", "name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": "newer rows"}]}}]},
+    ]
+    assert handoff.latest_results(later) == {"orders.json": "newer rows"}
+
+
 def test_blocks_without_a_tool_use_id_are_never_matched():
     msgs = [
         {"role": "assistant", "content": [{"toolUse": {"name": "orders___list_orders", "input": {}}}]},
@@ -614,22 +629,35 @@ def test_what_the_code_printed_is_carried_in_the_trail_up_to_the_preview():
     assert len(t.steps[0]["output"]) == trail_module.OUTPUT_PREVIEW
 
 
-def test_figures_in_the_answer_are_checked_against_what_the_tools_returned():
-    """A figure is supported as written by any tool result in the
-    conversation, the prompt, the date or the system prompt; a count or a
-    difference the model worked out in its head is not."""
+def test_figures_in_the_answer_are_checked_against_what_the_code_printed_and_the_rows_hold():
+    """What run_python printed this turn supports any figure; a gateway row
+    supports only what is read from it, an identifier, a year or an amount;
+    the prompt and the date support years. A count or a difference the
+    model worked out in its head is left standing, and so, the check being
+    lexical, is a day of the month read from a row."""
+    this_turn = [
+        {"tool": "orders___list_orders", "input": {}, "status": "success"},
+        {"tool": "run_python", "input": {"code": "..."}, "status": "success",
+         "output": "Total orders: 9\nRoyal Mail orders: 3\nTotal: £743.80"},
+    ]
     messages = [
         {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text":
-            '{"orders": [{"order_id": 1033, "placed_at": "2026-06-18", "total": 6.80, "items": 1083}]}'}]}}]},
+            '{"orders": [{"order_id": 1033, "placed_at": "2026-06-18", "total": 6.80, "items": 6}]}'}]}}]},
         {"role": "assistant", "content": [{"text": "There were 12 of them."}]},  # the model's own words support nothing
-        {"role": "user", "content": [{"toolResult": {"toolUseId": "t2", "status": "success", "content": [{"text":
-            "Total orders: 9\nRoyal Mail orders: 3\nTotal: £743.80"}]}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t0", "status": "success", "content": [{"text": "Count: 14"}]}}]},
     ]
     answer = ("Looking at your 9 orders, 3 went with Royal Mail and the other 6 with DPD, £743.80 in all; "
-              "order 1033 on 18 June 2026 had 1,083 items, 12 in 2025, and 743.8 is not how the code wrote it.")
-    assert model.unsupported_figures(answer, messages, "what about 2025?", "Today is 2026-10-07") == ["12", "6", "743.8"]
-    assert model.unsupported_figures("No figures here.", messages) == []
-    assert model.unsupported_figures("", []) == []
+              "order 1033 on 18 June 2026 cost £6.80, 12 in 2025, 14 before, and 743.8 is not how the code wrote it.")
+    assert model.unsupported_figures(answer, this_turn, messages, "what about 2025?", "Today is 2026-10-07") == [
+        "12",    # the model's own earlier words
+        "14",    # an earlier turn's run_python output does not reach this turn's answer
+        "18",    # a day of the month, the lexical check's known false positive
+        "6",     # the difference the model worked out; the row's "items": 6 does not count as read
+        "743.8",  # not as the code wrote it
+    ]
+    assert model.unsupported_figures("Is it £999? Yes, £999.", [], [], "is my total £999?") == ["999"]  # the prompt supports years only
+    assert model.unsupported_figures("No figures here.", this_turn, messages) == []
+    assert model.unsupported_figures("", [], []) == []
 
 
 def test_answer_returns_the_figures_nothing_supports(fakes, monkeypatch):
@@ -637,11 +665,11 @@ def test_answer_returns_the_figures_nothing_supports(fakes, monkeypatch):
         pass
 
     monkeypatch.setattr(FakeAgent, "restored_messages", [
-        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": "Total: 9"}]}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": '{"order_id": 1255, "total": 9.00}'}]}}]},
     ])
-    monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: Counted("9 orders, 6 of them DPD, placed since 2025."))
+    monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: Counted("Order 1255 cost £9.00; 9 orders, 6 of them DPD, placed since 2025."))
     _, _, unsupported = model.answer("how many since 2025?", "c-1000", "session-1", "minted-token")
-    assert unsupported == ["6"]  # 9 is a tool result's, 2025 is the prompt's, 6 is the model's
+    assert unsupported == ["6", "9"]  # 1255 and 9.00 are read from the row, 2025 is the prompt's year, 6 and 9 are the model's
 
 
 def test_the_runtime_log_never_carries_the_tool_input(capsys):
@@ -933,6 +961,69 @@ def test_a_start_the_agent_gave_up_on_is_stopped_when_it_comes_back(monkeypatch,
     time.sleep(0.5)
     assert stopped == ["late-session"]
     assert "stopped sandbox session late-session, created after its start was abandoned" in capsys.readouterr().out
+
+
+def test_after_an_abandoned_call_the_sandbox_runs_nothing_more_this_turn(monkeypatch):
+    """The call given up on may still be running in the session, so a second
+    run_python is refused rather than started beside it; the stop at the
+    end of the turn is what ends the session."""
+    executes = []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s15"))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: executes.append(code) or (_ for _ in ()).throw(sandbox.Abandoned("executeCode did not finish"))))
+    monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(lambda i, sid: None))
+    box = sandbox.Sandbox()
+    with pytest.raises(sandbox.Abandoned):
+        box.run_python(code="while True: pass")
+    with pytest.raises(RuntimeError, match="gave up waiting on an earlier call this turn and will not run again"):
+        box.run_python(code="print(1)")
+    assert executes == ["while True: pass"]
+    box.close()
+
+
+def test_a_late_stop_goes_through_the_same_bound_as_every_call(monkeypatch, capsys):
+    """A session created after its start was abandoned is stopped through
+    stop_session, the bounded call, on the late worker, never through the
+    client directly; with every slot taken for the whole deadline it is
+    refused and logged like any other call."""
+    import threading
+    import time
+    from concurrent.futures import Future
+
+    bounded, direct = [], []
+    monkeypatch.setattr(sandbox, "stop_session", lambda interpreter, sid: bounded.append((interpreter, sid)))
+    monkeypatch.setattr(sandbox, "_stop", lambda interpreter, sid: direct.append(sid))
+    done = Future()
+    done.set_result("late-session")
+    sandbox._stop_late("ci-test", done)
+    time.sleep(0.2)
+    assert bounded == [("ci-test", "late-session")] and direct == []
+    assert "stopped sandbox session late-session, created after its start was abandoned" in capsys.readouterr().out
+
+    monkeypatch.undo()
+    monkeypatch.setattr(sandbox, "WAIT_SECONDS", 0.1)
+    monkeypatch.setattr(sandbox, "MAX_IN_FLIGHT", 1)
+    monkeypatch.setattr(sandbox, "_slots", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(sandbox, "_stop", lambda interpreter, sid: direct.append(sid))
+    assert sandbox._slots.acquire(blocking=False)  # every slot is taken for the whole deadline
+    sandbox._stop_late("ci-test", done)
+    time.sleep(0.4)
+    sandbox._slots.release()
+    assert direct == []
+    assert "stopping late sandbox session late-session failed: RuntimeError" in capsys.readouterr().out
+
+
+def test_a_stream_is_read_to_its_end_before_a_failure_is_raised(fake):
+    seen = []
+
+    def events():
+        for e in [{"throttlingException": {"message": "slow down"}}, _text_event("after")]:
+            seen.append(sorted(e))
+            yield e
+
+    fake.streams = [events()]
+    with pytest.raises(RuntimeError, match="throttlingException"):
+        sandbox.execute_code("s1", "print(1)")
+    assert seen == [["throttlingException"], ["result"]]
 
 
 def test_an_abandoned_write_marks_the_sandbox_too(monkeypatch):

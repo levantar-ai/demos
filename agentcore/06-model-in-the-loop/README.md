@@ -163,8 +163,11 @@ stack, for looking at the minted token and calling the gateway directly.
 - One sandbox session per invocation, created when the model first calls
   `run_python`, with a stop attempted when the answer is out, twice if need
   be; a failed stop or an abandoned call leaves a session to its 900 s
-  lifetime, and a start the agent gave up waiting on is stopped by the
-  worker when it does come back. A turn in which the model never
+  lifetime. After a call the agent gave up on, the sandbox refuses to run
+  again that turn, so nothing else starts in a session that may still be
+  running the abandoned call, and a start the agent gave up waiting on is
+  stopped when it comes back, on a worker of its own and through the same
+  admission bound and deadline as any call. A turn in which the model never
   runs code starts none, because the handoff stages the file and
   `run_python` writes it just before the first execution. Variables from
   one `run_python` call are available to the next within a turn, not
@@ -182,9 +185,15 @@ stack, for looking at the minted token and calling the gateway directly.
   `run_python` step carries up to 2,000 characters of what the code
   printed; the gateway's result is not carried, being rows rather than
   evidence of a sum. After the answer, trusted code lists every figure in
-  it that is not written, as is, in a tool result of the conversation, the
-  prompt, the date or the system prompt (`model.unsupported_figures`),
-  returned as `unsupported_figures`; it reports, it does not rewrite. The
+  it that nothing supports as written (`model.unsupported_figures`,
+  returned as `unsupported_figures`): what `run_python` printed this turn
+  supports any figure, a gateway result in the conversation supports only
+  what is read from a row (a token of three or more digits or with a
+  decimal part, an identifier, a year or an amount), and the prompt, the
+  date and the system prompt support four-digit years only. The check is
+  lexical, with known false positives (a day of the month or a quantity
+  read from a row is named) and a known gap (a calculated figure equal to
+  a row's amount is not); it reports, it does not rewrite. The
   runtime's log gets a redacted line per step, the tool name, the status and
   the size of the input, never the generated code or the order rows it
   embeds. A failure is logged as its class and, for an AWS error, its code,
@@ -213,13 +222,16 @@ stack, for looking at the minted token and calling the gateway directly.
   abandoned at the deadline, and a wait for a slot counts within the same
   180 s), makes one HTTP attempt per call, and admits at most 8 calls in
   flight per process, a ninth being refused rather than queued, except a
-  stop, which waits for a slot; cleanup is two stop attempts, 360 s at the
-  outside. An abandoned call keeps its slot until its HTTP attempt ends,
-  and its code may still be running; the stop at the end of the turn ends
-  it when the stop succeeds (logged as a stop with an abandoned call behind
-  it), and the session's lifetime does when it does not. A start the agent
-  gave up on may still create a session, which the worker stops the moment
-  the start returns. The service offers no cancel.
+  stop, which waits for a slot; the two sandbox stop attempts wait for at
+  most 360 s in total, and the other closers, the agent's, the MCP
+  client's and the memory's, have no application deadline. An abandoned
+  call keeps its slot until its HTTP attempt ends, and its code may still
+  be running; the stop at the end of the turn ends it when the stop
+  succeeds (logged as a stop with an abandoned call behind it), and the
+  session's lifetime does when it does not. A start the agent gave up on
+  may still create a session, which is stopped on the late worker, through
+  the admission bound and deadline, when the start returns. The service
+  offers no cancel.
 - The exchange's pre-token trigger fetches the customer pool's JWKS on a
   cold instance. Its first fetch failing used to be swallowed, and the 30 s
   minimum gap between refreshes then refused every token for that long,
@@ -262,7 +274,10 @@ stack, for looking at the minted token and calling the gateway directly.
   conversation's latest gateway result before the model runs, so a second
   question in a conversation finds the file without fetching again (a
   question about current state still fetches, and the fetch refreshes the
-  file). A failed or empty call withholds the file and `run_python`
+  file). `restore()` tracks every tool use and forgets it once its result
+  is consumed, so an identifier a later call of another tool happens to
+  reuse cannot hand that tool's result over as the orders. A failed or
+  empty call withholds the file and `run_python`
   refuses to run until it is staged again, so a stale copy from an
   earlier run is never read as current. A write that fails when the code
   runs is the tool's error to the model, nothing runs, and the next call

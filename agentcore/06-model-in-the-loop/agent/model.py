@@ -51,28 +51,49 @@ today = lambda: datetime.now(timezone.utc).date().isoformat()
 # A figure as it is written: digits, with an optional decimal part, thousands
 # separators dropped. "06" is not "6" and "743.8" is not "743.80".
 FIGURE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+# Figures the tools return but did not calculate: a token this long, or one
+# with a decimal part, is an identifier, a year or a row's own amount, read
+# rather than worked out. A shorter whole number in a row, a quantity or a
+# day of the month, is not taken as support for a count.
+READ_FIGURE_DIGITS = 3
 
 
 def figures_in(text):
     return {match.group().replace(",", "") for match in FIGURE.finditer(text or "")}
 
 
-def unsupported_figures(answer, messages, *also):
-    """The figures in an answer that nothing supports, as written: not any
-    tool result in the conversation, not the prompt, not the date, not the
-    system prompt. A total the code printed, an order number in the
-    gateway's result or a year in the prompt is supported; a count or a
-    difference the model worked out in its head is not. The check reports,
-    it does not rewrite the answer."""
+def _read_figures(text):
+    return {f for f in figures_in(text) if "." in f or len(f) >= READ_FIGURE_DIGITS}
+
+
+def unsupported_figures(answer, this_turn, messages, *years_from):
+    """The figures in an answer that nothing supports, as written. What
+    `run_python` printed in this turn supports any figure; what the gateway
+    returned in the conversation supports only what can be read from a row,
+    an identifier, a year or an amount; the prompt, the date and the system
+    prompt support only four-digit years. A count or a difference the model
+    worked out in its head is left standing. The check is lexical: a day of
+    the month or a quantity the model read from a row is named as well, and
+    a calculated figure that happens to match a row's amount is not. It
+    reports, it does not rewrite the answer."""
     support = set()
+    for step in this_turn:
+        if step.get("tool") in trail_outputs() and step.get("status") == "success":
+            support |= figures_in(step.get("output", ""))
     for message in messages or []:
         for block in message.get("content", []) or []:
             result = block.get("toolResult") if isinstance(block, dict) else None
             if result:
-                support |= figures_in(_text_of(result))
-    for text in also:
-        support |= figures_in(text)
+                support |= _read_figures(_text_of(result))
+    for text in years_from:
+        support |= {f for f in figures_in(text) if len(f) == 4 and "." not in f}
     return sorted(figure for figure in figures_in(answer) if figure not in support)
+
+
+def trail_outputs():
+    from trail import OUTPUTS_FOR
+
+    return OUTPUTS_FOR
 
 
 def answer(prompt, customer, session, gateway_token):
@@ -151,4 +172,4 @@ def answer(prompt, customer, session, gateway_token):
             except Exception as exc:  # noqa: BLE001 — logged, never raised over the result
                 print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {describe(exc)}")
     text = str(result)
-    return text, trail.steps, unsupported_figures(text, agent.messages, prompt, system_prompt)
+    return text, trail.steps, unsupported_figures(text, trail.steps, agent.messages, prompt, system_prompt)
