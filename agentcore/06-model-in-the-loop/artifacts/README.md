@@ -377,15 +377,14 @@ the video's from 10:27:30, and the pretexts at 10:31. `demo.mp4` is
 1:17.32, written 10:29:46 UTC, SHA-256
 `e21c2e447ae3b89724fefd191cad714429762b0023234bb86fe034cc6f770c2c`.
 
-### Thirteenth run, image 110dfcc (the final commit), and the video
+### Thirteenth run, image 110dfcc, and a video since replaced
 
 Runtime version 14, sessions `…-r15-…`, all fresh, with the round 15
 code: the staged handoff written just before the first execution, tools
 run one at a time, the admission bound, the window applied before
 `restore()` scans the conversation, and the prompt and tool description
-saying that counts are figures too. The post's section 4 is taken from
-this run, the captures in `turns/` are from it, and the video was
-re-recorded on it in a fresh session.
+saying that counts are figures too. The post's section 4 was taken from
+this run until review round 16; the fourteenth run below stands.
 
 1. **Spend** (40.5 s): `orders___list_orders(c-1000)` then `run_python`
    reading `orders.json` with `placed_date.year == 2026`, printing January
@@ -418,12 +417,8 @@ once, on the first call after idling, and no `cleanup failed`,
 `restored` line with no `run_python` after it, the video's decline turn,
 is a turn that staged the file and started no session.
 
-**Captures.** `turns/` holds this run's raw responses, `spend.json`,
-`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
-`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
-returned them. They hold synthetic order data and no token. The post's
-section 4 quotes them with Markdown emphasis removed and lines re-wrapped,
-nothing else changed, and the generated program with its comments removed.
+**Captures.** This run's responses were committed under `turns/` and have
+since been replaced by the fourteenth run's.
 
 **Provenance.** Image `110dfcc` is ECR digest
 `sha256:2cbd20495a673e121fcc18657b7146ae826838d3c8fb59f01c6e32106474d449`,
@@ -432,6 +427,91 @@ updated 10:57:51 UTC. The runtime log shows the run's hook lines from
 10:58:37 to 10:59:56 UTC, the video's from 11:01:25, and the pretexts at
 11:03. `demo.mp4` is 1:26.68, written 11:03:32 UTC, SHA-256
 `5cad59bfd6d562b39dbb97b426ac69cb6e48520dea8dc9e7d0b54eea8210217b`.
+
+### Fourteenth run, image 341debb (the final commit), and the video
+
+Runtime version 15, sessions `…-r16-…`, all fresh, with the round 16
+code: every call to the sandbox service bounded, turns serialised per
+session, 33 character session ids, failures logged by class and code,
+`Decimal` totals in the prompt and the tool description, and the trust
+policies on this demo's names. The post's section 4 is taken from this
+run, the captures in `turns/` are from it, and the video was re-recorded
+on it in a fresh session.
+
+1. **Spend** (53.8 s): `orders___list_orders(c-1000)` then `run_python`
+   loading `orders.json` with `parse_float=Decimal`, keeping the 2026
+   orders and printing January £250.00, February £310.50, June £70.00,
+   July £113.30, February the biggest and 7 orders in 2026. The answer
+   states those figures and nothing else. Correct. Most of the 53.8 s is
+   the cold start, below.
+2. **Carrier, same session** (10.9 s): `run_python` only, over the
+   restored file, printing DPD 6, Royal Mail 3 and 9 in all. Correct.
+3. **Recall**, fresh session (14.9 s): gateway then `run_python`, printing
+   Royal Mail 3 and 9 in all; the answer's order numbers are read from the
+   result in context and its "remaining 6" is the model's subtraction.
+   Correct.
+4. **Other customer** (9.6 s, 5.0 s): declined, no tool call.
+5. **c-1001's own view** (12.3 s): gateway then `run_python`, printing 6
+   orders and £420.25; the date range in the answer is read from the
+   result in context. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed, the count of nine stated from the result in context.
+7. **The three other pretexts** (11:32:17, 11:32:29, 11:32:35 UTC): all
+   three declined with no tool call, the merged-account story included
+   this time.
+8. **Token and session probes** against the runtime (11:32:48 to 11:32:50
+   UTC): a bearer value that is not a JWT, 403 `Failed to parse token`; a
+   forged payload naming c-1001 with a bad signature, 403 `Invalid Bearer
+   token`; the pool's ID token in place of the access token, 401 `Claim
+   'client_id' value mismatch with configuration`; a two character session
+   id, 400 `runtimeSessionId ... length greater than or equal to 33`. All
+   four were refused before the container.
+
+Each `run_python` program was re-run locally over the output of the order
+tool's own `list_orders` for that customer and printed exactly the figures
+the answer states. Every `run_python` call read `orders.json` with totals
+as `Decimal`; none held an order row.
+
+**The cold start.** The spend turn was the first invocation after the
+runtime moved to version 15. The runtime log shows the exchange failing
+on that call and on its retry, the turn ending as a 502, the runtime
+re-invoking the container eight more times over 21 s, each a 502 from the
+same failure, and a tenth attempt whose exchange succeeded at 11:27:25,
+after which the turn ran; the client saw one HTTP 200 after 53.8 s. The
+container logs the failures as `ValidationException`, class and code
+only, as the round 16 logging change intended, and the exchange pool's
+pre-token trigger's own log says why: `ValueError: unknown key` ten times
+from 11:27:00 to 11:27:22. The trigger's instance was cold, its first
+fetch of the customer pool's JWKS failed, the failure was swallowed, and
+the 30 s minimum gap between refreshes then refused every token until the
+next fetch was allowed. The same pattern sits behind the previous run's
+single retry at 10:58 (five `unknown key` errors in 10 s) and behind the
+"transient exchange failure on a first call after idling" noted since the
+seventh run. The fix is in the final commit, below: an empty cache
+fetches on every call until one succeeds, the gap only spacing refreshes
+of a document that exists, and the fetch failure is logged by class.
+After that the log has no
+`cleanup failed`, `withheld`, `did not finish`, `refused`, `abandoned` or
+`could not be written` line, and a `restored` line with no `run_python`
+after it, the video's decline turn, is a turn that staged the file and
+started no session.
+
+**Captures.** `turns/` holds this run's raw responses, `spend.json`,
+`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
+`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
+returned them. They hold synthetic order data and no token. The post's
+section 4 quotes them with Markdown emphasis removed and lines re-wrapped,
+nothing else changed, and the generated program with its comments and
+the blank lines they left removed.
+
+**Provenance.** Image `341debb` is ECR digest
+`sha256:90beaf14e36be8ec095d194991231cd82a041ffd6ad660948ea393912c81393b`,
+pushed 11:26:13 UTC. `GetAgentRuntime` reports version 15, `READY`, last
+updated 11:26:33 UTC. The runtime log shows the cold start from 11:26:59,
+the run's hook lines from 11:27:28 to 11:28:45 UTC, the video's from
+11:30:07, and the pretexts and probes at 11:32. `demo.mp4` is 1:20.48,
+written 11:32:07 UTC, SHA-256
+`566d763ca251731709ad55096d9e042547cc5585d6bc19ee308b53905933214c`.
 
 ## Memory
 
@@ -982,6 +1062,11 @@ Verdict "not ready", one blocker, eight majors, five minors, one nit.
 14. **Minor, learner framing in the opening.** Accepted; the recap is one
     sentence and "works as follows" is gone.
 15. **Nit, lead-ins.** Not changed; series conventions.
+
+Found on the way, from the fourteenth run's log: the exchange's cold-start
+failure, diagnosed above under that run and fixed in `exchange/subject.py`,
+with a test. The `describe()` line also says a modelled error's code once,
+since botocore names the class after it.
 
 
 

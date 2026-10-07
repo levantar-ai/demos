@@ -101,15 +101,20 @@ def _jwk_for_kid(kid):
         hit = _find_kid(keys, kid)
         if hit is not None:
             return hit
-    if now - _jwks_cache["last_refresh"] >= _JWKS_MIN_REFRESH_GAP:
+    # The gap spaces refreshes of a document that exists, so a run of tokens
+    # with unknown kids cannot make this fetch on every call. With nothing
+    # cached there is nothing to protect, so an empty cache fetches on every
+    # call until one succeeds; a cold instance whose first fetch failed would
+    # otherwise refuse every token for the length of the gap.
+    if keys is None or now - _jwks_cache["last_refresh"] >= _JWKS_MIN_REFRESH_GAP:
         _jwks_cache["last_refresh"] = now
         try:
             fresh = _fetch_jwks()
             _jwks_cache["keys"] = fresh
             _jwks_cache["at"] = now
             keys = fresh
-        except Exception:  # noqa: BLE001, S110 # nosec B110 — fail safe: keep validated last-known-good
-            pass
+        except Exception as exc:  # noqa: BLE001 — fail safe: keep validated last-known-good
+            print("JWKS fetch failed:", type(exc).__name__)  # the class, never the body
     if keys is None or now - _jwks_cache["at"] > _JWKS_MAX_STALE:
         return None  # nothing trustworthy to validate against; refuse
     return _find_kid(keys, kid)

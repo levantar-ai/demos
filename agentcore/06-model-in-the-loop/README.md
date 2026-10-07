@@ -207,6 +207,13 @@ stack, for looking at the minted token and calling the gateway directly.
   be running; the stop at the end of the turn ends it when the stop
   succeeds (logged as a stop with an abandoned call behind it), and the
   session's lifetime does when it does not. The service offers no cancel.
+- The exchange's pre-token trigger fetches the customer pool's JWKS on a
+  cold instance. Its first fetch failing used to be swallowed, and the 30 s
+  minimum gap between refreshes then refused every token for that long,
+  which the deployed stack showed on each cold start as a burst of 502s
+  that the runtime's own re-invocations hid from the client. An empty
+  cache now fetches on every call until one succeeds, the gap only spacing
+  refreshes of a document that exists, and the failure is logged by class.
 - The runtime and gateway execution roles trust the service only for a
   runtime or gateway in this account whose ARN starts with this demo's name
   (`runtime/demos_agentcore_06_model_in_the_loop-*`,

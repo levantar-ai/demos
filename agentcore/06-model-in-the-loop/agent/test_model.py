@@ -888,6 +888,9 @@ def test_a_failure_is_described_by_class_and_aws_code_never_by_message():
     assert trail_module.describe(RuntimeError(secret)) == "RuntimeError"
     denied = ClientError({"Error": {"Code": "AccessDeniedException", "Message": secret}}, "InvokeCodeInterpreter")
     assert trail_module.describe(denied) == "ClientError AccessDeniedException"
+    # botocore names a modelled error's class after its code; it is said once
+    modelled = type("ValidationException", (ClientError,), {})
+    assert trail_module.describe(modelled({"Error": {"Code": "ValidationException", "Message": secret}}, "GetToken")) == "ValidationException"
 
 
 def test_a_failing_closes_message_stays_out_of_the_log(fakes, monkeypatch, capsys):

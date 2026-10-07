@@ -41,10 +41,12 @@ class BudgetExceeded(RuntimeError):
 
 
 def describe(exc):
-    """A failure as the log may carry it: class and AWS error code only."""
+    """A failure as the log may carry it: class and AWS error code only,
+    the code once when botocore already named the class after it."""
     response = getattr(exc, "response", None)
     code = response.get("Error", {}).get("Code") if isinstance(response, dict) else None
-    return f"{type(exc).__name__}" + (f" {code}" if isinstance(code, str) and code else "")
+    name = type(exc).__name__
+    return name + (f" {code}" if isinstance(code, str) and code and code != name else "")
 
 
 def _text_of(result):

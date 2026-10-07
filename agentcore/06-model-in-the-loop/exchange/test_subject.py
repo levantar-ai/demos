@@ -64,6 +64,30 @@ def _failing_fetch():
     raise OSError("jwks endpoint unreachable")
 
 
+def test_an_empty_cache_fetches_again_on_the_next_call_within_the_refresh_gap(monkeypatch, capsys):
+    """A cold instance whose first fetch failed refused every token for the
+    30 s refresh gap, which the deployed stack showed on each cold start.
+    With nothing cached, every call fetches until one succeeds."""
+    attempts = []
+
+    def flaky_fetch():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise TimeoutError("cold start")
+        return [jwk_from_rsa("k1")]
+
+    now = 1000.0
+    _jwks_cache_with(monkeypatch, None, 0.0, now, flaky_fetch)
+    assert subject._jwk_for_kid("k1") is None  # the first fetch failed, refused
+    assert "JWKS fetch failed: TimeoutError" in capsys.readouterr().out
+    monkeypatch.setattr(subject.time, "monotonic", lambda: now + 2)  # well inside the gap
+    assert subject._jwk_for_kid("k1")["kid"] == "k1"  # fetched again, not refused
+    assert len(attempts) == 2
+    monkeypatch.setattr(subject.time, "monotonic", lambda: now + 4)
+    assert subject._jwk_for_kid("k-unknown") is None
+    assert len(attempts) == 2  # with a document cached, the gap holds
+
+
 def test_refresh_failure_within_the_stale_bound_keeps_serving_the_cached_key(monkeypatch):
     fetched = 1000.0
     now = fetched + subject._JWKS_TTL + 60  # past fresh TTL, inside max stale
