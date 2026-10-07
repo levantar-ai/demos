@@ -146,11 +146,13 @@ class Sandbox:
         Use this for any counting, summing, averaging, sorting or date
         arithmetic over the customer's orders rather than working it out in
         your head. pandas is installed. The sandbox has no network access and
-        no credentials. The customer's orders are in the sandbox as
-        orders.json, a JSON object with an "orders" list, written by the
-        agent from the gateway's result whenever orders___list_orders has
-        been called in this conversation. Read that file. Never put order
-        rows into the code. Print the results you want to read. Variables
+        no credentials. When the latest orders___list_orders call in this
+        conversation returned a result, the agent has written it to the
+        sandbox as orders.json, a JSON object with an "orders" list. Read
+        that file. Never put order rows into the code. If the latest call
+        failed or its result could not be written, this tool refuses to run
+        until orders___list_orders is called again and succeeds. Print the
+        results you want to read. Variables
         persist between calls within one conversation turn. An execution
         error is returned when the code fails, so correct the code and run
         it again.

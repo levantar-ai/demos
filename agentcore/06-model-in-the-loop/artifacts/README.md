@@ -191,12 +191,14 @@ code as of commit 32339d2.
 ## Change after publication: the data path, 2026-10-07
 
 Andy's question after publication was whether a model should be relied on
-for these requests at all. The answer the post now gives is that the
-computation is deterministic once written and the variability sits in the
-route and the wording, provided the rows the model computes over are the
-gateway's and not a copy it typed. Until this change the model carried the
-orders into the sandbox by retyping them into its code, which is fine for
-seven rows and is where a wrong figure would come from with three hundred.
+for these requests at all. The answer the post now gives is scoped to what
+was observed and what trusted code guarantees: for the recorded questions
+the same generated program over the same `orders.json` gave the same
+figures, trusted code puts the gateway's exact result in front of that
+program, and the model still chooses the program, the rows it uses and the
+wording. Until this change the model carried the orders into the sandbox
+by retyping them into its code, which is fine for seven rows and is where a
+wrong figure would come from with three hundred.
 
 `handoff.py` is a second Strands hook. On a successful `orders___list_orders`
 result it writes the result's text, as returned, into the turn's sandbox
@@ -205,8 +207,10 @@ tell the model to read that file and never put rows in the code. A failed
 write is logged, marks the file unavailable so `run_python` refuses to run
 until it is written again, and the turn continues with the result in the
 model's context. Tests cover the write (whitespace preserved, several text
-blocks joined, other content dropped), other tools and failed calls being
-ignored, the refusal after a failed refresh, and the sandbox's `write`.
+blocks joined, other content dropped), unrelated tools changing nothing, a
+failed or empty handed-over result, or a failed write, withholding the file, the
+same state rebuilt by `restore()` on the next turn, and the sandbox's
+`write`.
 
 ### Sixth run, image b25fa14 (handoff in place)
 
@@ -551,7 +555,33 @@ Verdict "not ready", two blockers, three majors, two minors, one nit.
 After the changes: ruff clean, 74 agent tests pass. Redeploy, live re-run
 and video on this code follow once credentials are refreshed.
 
-<<REVIEW_ROUND_7>>
+### Round 7, 2026-10-07 (after the round 6 fixes)
+
+Verdict "not ready", one blocker, two majors, two minors.
+
+1. **Blocker, a failed or empty latest call was withheld only for that
+   turn; the next turn's `restore()` brought the older success back.**
+   Correct. `latest_results()` now carries the latest outcome per file,
+   text for a successful call and None for a failed or empty one, and
+   `restore()` withholds the file in the latter case. Tested for an error,
+   a blank result and a non-text result after a success, each followed by a
+   fresh sandbox, and for a later success restoring availability.
+2. **Major, the tool description and system prompt promised the file
+   unconditionally.** Accepted; both now say the file is there when the
+   latest call returned a result the agent wrote, and that `run_python`
+   refuses until the tool is called again and succeeds. The spec test
+   checks the conditional wording.
+3. **Major, the artifacts narrative kept the broad determinism claim.**
+   Accepted; scoped to what was observed.
+4. **Minor, "failed calls being ignored".** Accepted; reworded.
+5. **Minor, the module docstring.** Accepted; names the three withholding
+   outcomes and says the state is rebuilt from restored history each turn.
+
+After the changes: ruff clean, 77 agent tests pass. Redeploy, live re-run
+and video on this code follow once credentials are refreshed.
+
+<<REVIEW_ROUND_8>>
+
 
 
 

@@ -244,7 +244,8 @@ def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "orders.json" in prompt and "never retype order rows" in prompt
-    assert "most recent result is in the sandbox" in prompt
+    assert "When the latest orders___list_orders call in this conversation returned a result" in prompt
+    assert "call orders___list_orders again before computing" in prompt
 
 
 def _conversation_with_a_fetch(text):
@@ -274,7 +275,7 @@ def test_a_restored_conversations_latest_fetch_is_put_in_the_sandbox_before_the_
     assert puts == [("orders.json", text)]
 
 
-def test_the_latest_of_several_fetches_wins_and_failures_are_skipped():
+def test_the_latest_outcome_wins_whether_it_succeeded_or_not():
     msgs = _conversation_with_a_fetch("first") + [
         {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t3", "name": "orders___list_orders", "input": {}}}]},
         {"role": "user", "content": [{"toolResult": {"toolUseId": "t3", "status": "error", "content": [{"text": "denied"}]}}]},
@@ -282,8 +283,41 @@ def test_the_latest_of_several_fetches_wins_and_failures_are_skipped():
         {"role": "user", "content": [{"toolResult": {"toolUseId": "t4", "status": "success", "content": [{"text": "second"}]}}]},
     ]
     assert handoff.latest_results(msgs) == {"orders.json": "second"}
-    assert handoff.latest_results([]) == {}
-    assert handoff.latest_results(_conversation_with_a_fetch("")) == {}
+    assert handoff.latest_results(msgs[:-2]) == {"orders.json": None}  # the error was the latest
+    assert handoff.latest_results([]) == {}  # never called: nothing to write, nothing to withhold
+    assert handoff.latest_results(_conversation_with_a_fetch("")) == {"orders.json": None}
+
+
+@pytest.mark.parametrize("latest", [
+    {"status": "error", "content": [{"text": "Tool Execution Denied"}]},
+    {"status": "success", "content": [{"text": "   "}]},
+    {"status": "success", "content": [{"image": {}}]},
+])
+def test_a_failed_or_empty_latest_call_stays_withheld_on_the_next_turn(latest, monkeypatch):
+    """The turn that saw the failure withheld the file; the next turn's
+    fresh sandbox must rebuild that from the restored history, not restore
+    the older success."""
+    msgs = _conversation_with_a_fetch("old rows") + [
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t5", "name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": dict(latest, toolUseId="t5")}]},
+    ]
+    assert handoff.latest_results(msgs) == {"orders.json": None}
+    puts = []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s10"))
+    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, text: puts.append(path)))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: "ran"))
+    box = sandbox.Sandbox()
+    assert handoff.restore(msgs, box) == []
+    assert puts == [] and box.unavailable == {"orders.json"}
+    with pytest.raises(RuntimeError, match="orders.json could not be written"):
+        box.run_python(code="print(1)")
+    later = msgs + [
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t6", "name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t6", "status": "success", "content": [{"text": "new rows"}]}}]},
+    ]
+    box2 = sandbox.Sandbox()
+    assert handoff.restore(later, box2) == ["orders.json"]
+    assert box2.unavailable == set() and box2.run_python(code="print(1)") == "ran"
 
 
 def test_blocks_without_a_tool_use_id_are_never_matched():
@@ -382,6 +416,8 @@ def test_the_tool_description_tells_the_model_to_read_the_file_not_embed_rows():
     description = " ".join(sandbox.Sandbox().run_python.tool_spec["description"].split())
     assert "orders.json" in description
     assert "Never put order rows into the code" in description
+    assert "When the latest orders___list_orders call in this conversation returned a result" in description
+    assert "refuses to run until orders___list_orders is called again" in description
     assert "list of dicts" not in description and "into the code itself" not in description
 
 

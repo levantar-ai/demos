@@ -7,16 +7,17 @@ three hundred rows rather than seven. This hook watches the gateway tool's
 result and writes its text, as returned, into the turn's sandbox session as
 orders.json, so the model's code can read the file instead of reproducing
 the rows in source. The result is still in the model's context, as any tool
-result is. A failed write is logged, the turn goes on, and the sandbox tool
-refuses to run until the file is written again, so a stale copy from an
-earlier turn is never read as the latest result.
+result is. Three outcomes withhold the file instead: the call failed, it
+returned no text, or the write failed. Each is logged, the turn goes on,
+and the sandbox tool refuses to run until a later call's result is written,
+so a copy from an earlier turn is not read as the latest result.
 
 The sandbox session is new on every turn while the conversation is restored
-from memory, so restore() does the same for the most recent gateway result
-in the restored turns before the model runs. Trusted code thus writes the
-latest successfully handed-over gateway result to the sandbox, whichever
-turn fetched it; whether and how the model's code reads it is the model's
-choice, and a question about the current state still fetches again.
+from memory, so restore() rebuilds that state from the restored tool history
+before the model runs: it writes the file whose latest call succeeded and
+withholds the file whose latest call did not. Whether and how the model's
+code reads the file is the model's choice, and a question about the current
+state still fetches again.
 """
 
 from strands.hooks import AfterToolCallEvent, HookProvider, HookRegistry
@@ -74,8 +75,13 @@ class Handoff(HookProvider):
 
 
 def latest_results(messages, handoffs=None):
-    """The most recent successful result text per handed-over tool, from a
-    restored conversation in Bedrock's message format."""
+    """The latest outcome per handed-over tool in a restored conversation.
+
+    Maps each file to the text of the most recent call's result when that
+    call succeeded with text, and to None when the most recent call failed
+    or returned nothing, so that a later turn withholds the file the same
+    way the turn that saw the failure did. Tools never called are absent.
+    """
     handoffs = HANDOFFS if handoffs is None else handoffs
     uses, found = {}, {}
 
@@ -89,24 +95,31 @@ def latest_results(messages, handoffs=None):
             if use and use.get("name") in handoffs and _id(use):
                 uses[_id(use)] = use["name"]
             result = block.get("toolResult") if isinstance(block, dict) else None
-            if result and result.get("status") == "success" and _id(result) in uses:
-                text = _text_of(result)
-                if text.strip():
-                    found[handoffs[uses[_id(result)]]] = text
+            if result and _id(result) in uses:
+                path = handoffs[uses[_id(result)]]
+                text = _text_of(result) if result.get("status") == "success" else ""
+                found[path] = text if text.strip() else None
     return found
 
 
 def restore(messages, sandbox, handoffs=None):
-    """Write the restored conversation's latest gateway results into the
-    sandbox before the model runs. Returns the paths written."""
+    """Bring the restored conversation's handoff state into this turn's
+    sandbox before the model runs: write each file whose latest call
+    succeeded, and withhold each whose latest call did not. Returns the
+    paths written."""
     written = []
     for path, text in latest_results(messages, handoffs).items():
+        if text is None:
+            sandbox.unavailable.add(path)
+            print(f"{path} withheld: the conversation's latest call for it did not produce a result")
+            continue
         try:
             sandbox.write(path, text)
         except Exception as exc:  # noqa: BLE001 — the turn continues, but the tool will not run
             sandbox.unavailable.add(path)
             print(f"restore of {path} to the sandbox failed: {exc}")
             continue
+        sandbox.unavailable.discard(path)
         written.append(path)
         print(f"restored {path} to the sandbox from the conversation ({len(text)} chars)")
     return written
