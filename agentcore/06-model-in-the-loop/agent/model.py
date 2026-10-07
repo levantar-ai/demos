@@ -20,7 +20,7 @@ import re
 from datetime import datetime, timezone
 
 from gateway import orders_tools
-from handoff import Handoff, _text_of, restore
+from handoff import Handoff, handed_texts, restore
 from memory import region, session_manager
 from sandbox import Sandbox
 from strands import Agent
@@ -66,38 +66,31 @@ def _read_figures(text):
     return {f for f in figures_in(text) if "." in f or len(f) >= READ_FIGURE_DIGITS}
 
 
-def unsupported_figures(answer, this_turn, messages, *years_from):
+def unsupported_figures(answer, evidence, messages, *years_from):
     """The figures in an answer that nothing supports, as written. What
-    `run_python` printed in this turn supports any figure; what the gateway
-    returned in the conversation supports only what can be read from a row,
-    an identifier, a year or an amount; the prompt, the date and the system
-    prompt support only four-digit years. A count or a difference the model
+    `run_python` printed in this turn, whole, supports any figure; the
+    successful results of the gateway's order tool in the conversation
+    support only what can be read from a row, an identifier, a year or an
+    amount; the prompt, the date and the system prompt support only
+    four-digit years. Nothing else does, not an earlier turn's code output,
+    not a failed result, not another tool. A count or a difference the model
     worked out in its head is left standing. The check is lexical: a day of
     the month or a quantity the model read from a row is named as well, and
     a calculated figure that happens to match a row's amount is not. It
     reports, it does not rewrite the answer."""
     support = set()
-    for step in this_turn:
-        if step.get("tool") in trail_outputs() and step.get("status") == "success":
-            support |= figures_in(step.get("output", ""))
-    for message in messages or []:
-        for block in message.get("content", []) or []:
-            result = block.get("toolResult") if isinstance(block, dict) else None
-            if result:
-                support |= _read_figures(_text_of(result))
+    for printed in evidence:
+        support |= figures_in(printed)
+    for text in handed_texts(messages):
+        support |= _read_figures(text)
     for text in years_from:
         support |= {f for f in figures_in(text) if len(f) == 4 and "." not in f}
     return sorted(figure for figure in figures_in(answer) if figure not in support)
 
 
-def trail_outputs():
-    from trail import OUTPUTS_FOR
-
-    return OUTPUTS_FOR
-
-
-def answer(prompt, customer, session, gateway_token):
-    """Run one turn of the conversation as the verified customer.
+def answer(prompt, customer, session, gateway_token, subject):
+    """Run one turn of the conversation as the verified customer, whose
+    memory is keyed by the token's subject.
 
     Returns the model's final text, the trail of tool calls it chose, and
     the figures in the text that no tool result, the prompt or the date
@@ -112,7 +105,7 @@ def answer(prompt, customer, session, gateway_token):
     trail = Trail()
     closers = [sandbox.close]
     try:
-        memory = session_manager(customer, session)
+        memory = session_manager(subject, session)
         closers.append(memory.close)
         orders = orders_tools(gateway_token)
         # Strands starts the client while the agent is built and stops it on
@@ -172,4 +165,4 @@ def answer(prompt, customer, session, gateway_token):
             except Exception as exc:  # noqa: BLE001 — logged, never raised over the result
                 print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {describe(exc)}")
     text = str(result)
-    return text, trail.steps, unsupported_figures(text, trail.steps, agent.messages, prompt, system_prompt)
+    return text, trail.steps, unsupported_figures(text, trail.evidence, agent.messages, prompt, system_prompt)

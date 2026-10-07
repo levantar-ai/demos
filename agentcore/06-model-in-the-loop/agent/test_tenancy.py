@@ -57,10 +57,11 @@ def test_no_customer_can_see_the_whole_table():
 
 
 # --- memory: every conversation is keyed by the verified customer -------------
-def test_memory_is_configured_for_the_customer_not_a_body_value():
-    # A caller controls the session value; it must never widen the actor.
-    config = memory.config_for("c-1000", "../c-1001")
-    assert config.actor_id == "c-1000"
+def test_memory_is_configured_for_the_actor_not_a_body_value():
+    # A caller controls the session value; it must never widen the actor,
+    # which is the token's subject.
+    config = memory.config_for("sub-1000", "../c-1001")
+    assert config.actor_id == "sub-1000"
     assert config.session_id == "../c-1001"  # passed through as an opaque id
     assert config.memory_id == "mem-test"
 

@@ -34,20 +34,23 @@ MAX_PROMPT_CHARS = 4_000
 # The runtime sends its session id to the container on this header. It is
 # the conversation's id for the memory; a caller may also name one in the
 # body when invoking the agent outside the runtime. There is no default:
-# two clients of one customer must not silently share a conversation. The
-# runtime requires at least 33 characters and this checks the same, so a
-# conversation outside the runtime is named the way one inside it is. A
-# session id is a locator within the customer's own namespace, never an
-# authorisation boundary: the customer comes from the token, and any client
-# holding that customer's token may continue any of that customer's
-# conversations it knows the id of.
+# two clients of one customer must not silently share a conversation. This
+# is the application's own grammar for an id, with the runtime's minimum of
+# 33 characters, so a conversation outside the runtime is named the way one
+# inside it is. A session id is a locator within the actor's own namespace,
+# never an authorisation boundary: the actor comes from the token, and any
+# client holding that token may continue any of that actor's conversations
+# it knows the id of.
 SESSION_HEADER = "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"
-SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{32,127}$")
+SESSION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{32,127}")
 
-# Turns in one conversation run one at a time. The server answers requests
-# concurrently, and two turns restoring and appending to the same
-# conversation at once would interleave its history, so a second request
-# for the same customer and session waits for the first to finish. An
+# Turns in one conversation run one at a time in this process. The server
+# answers requests concurrently, and two turns restoring and appending to
+# the same conversation at once would interleave its history, so a second
+# request for the same actor and session waits for the first to finish. The
+# runtime routes a session's requests to one microVM for its lifetime, which
+# is what makes this lock the conversation's there; outside the runtime it
+# is the process's only. An
 # entry is counted in and out under the guard, so it exists exactly while
 # a turn holds or waits for it, cannot be dropped from under a waiter, and
 # the table holds one entry per conversation with a turn in flight.
@@ -56,9 +59,9 @@ _turns_guard = threading.Lock()
 
 
 @contextmanager
-def one_turn(customer, session):
+def one_turn(actor, session):
     """Hold the conversation's turn for the block."""
-    key = (customer, session)
+    key = (actor, session)
     with _turns_guard:
         entry = _turns.setdefault(key, [threading.Lock(), 0])
         entry[1] += 1
@@ -96,12 +99,25 @@ def customer_from(headers):
 
     Only an access token carries the username claim this relies on, so the
     token type is checked rather than assumed from the authorizer settings.
+    The username is what the orders service and Cedar know the customer by;
+    it is not what memory is keyed by, since an administrator can delete a
+    username and create it again for someone else.
     """
     claims = claims_from(headers) or {}
     if claims.get("token_use") != "access":
         return None
     username = claims.get("username")
     return username if isinstance(username, str) and username else None
+
+
+def subject_from(headers):
+    """The token's subject, the pool's immutable id for the user, which keys
+    the memory and the turn lock."""
+    claims = claims_from(headers) or {}
+    if claims.get("token_use") != "access":
+        return None
+    subject = claims.get("sub")
+    return subject if isinstance(subject, str) and subject else None
 
 
 def bearer_from(headers):
@@ -114,7 +130,7 @@ def session_from(headers, payload):
     """The conversation id, the runtime's session header or else the body's,
     or None when neither names a usable one."""
     session = headers.get(SESSION_HEADER) or payload.get("session")
-    return session if isinstance(session, str) and SESSION_RE.match(session) else None
+    return session if isinstance(session, str) and SESSION_RE.fullmatch(session) else None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -146,7 +162,8 @@ class Handler(BaseHTTPRequestHandler):
         # the body. This catches a missing or unusable token, it is not a
         # second authentication, the runtime's authorizer is the only one.
         customer = customer_from(self.headers)
-        if customer is None:
+        subject = subject_from(self.headers)
+        if customer is None or subject is None:
             self._send(401, {"error": "no verified caller"})
             return
         try:
@@ -169,13 +186,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "a session id is required"})
             return
         try:
-            with one_turn(customer, session):
+            with one_turn(subject, session):
                 # Trusted code gets the token for the order service, on behalf
                 # of the customer, before the model runs. The model chooses
                 # what to ask the gateway; it never holds what authenticates
                 # the asking.
                 gateway_token = self.exchange(bearer_from(self.headers))
-                result, trail, unsupported = self.respond(prompt, customer, session, gateway_token)
+                result, trail, unsupported = self.respond(prompt, customer, session, gateway_token, subject)
         except BudgetExceeded as exc:
             print(f"turn ended for {customer}: {exc}")
             self._send(502, {"error": "the model exceeded its tool budget for this turn"})

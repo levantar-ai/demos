@@ -79,6 +79,10 @@ class Trail(HookProvider):
         self.max_tool_calls = max_tool_calls
         self.executed = 0
         self._open = {}
+        # What each successful run_python call printed, whole (the sandbox
+        # bounds it), for the check after the answer; the step carries a
+        # preview of it for the caller.
+        self.evidence = []
         # The count and the open steps are shared by every tool call's
         # hooks; the agent runs tools one at a time, and the lock keeps the
         # budget exact if that ever changes.
@@ -128,5 +132,7 @@ class Trail(HookProvider):
         if step["status"] != "success":
             step["error"] = _text_of(result)[:ERROR_PREVIEW]
         elif use["name"] in OUTPUTS_FOR:
-            step["output"] = _text_of(result)[:OUTPUT_PREVIEW]
+            printed = _text_of(result)
+            self.evidence.append(printed)
+            step["output"] = printed[:OUTPUT_PREVIEW]
         print(f"{use['name']} returned {step['status']}")

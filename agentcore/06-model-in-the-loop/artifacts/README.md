@@ -740,6 +740,11 @@ delivery, carrier preference, Royal Mail. The recall turn in a different
 session retrieved it (the model named Royal Mail without being told), and the
 carrier turn in the first run quoted it unprompted.
 
+From review round 19 the actor is the token's `sub` rather than the
+username, so the nineteenth run seeded the preference again, in session
+`live-06-seed-r21-session-…001`, under `/users/<sub of c-1000>`; the record
+under `/users/c-1000` is no longer read.
+
 ## What the live run taught
 
 - Restored conversations must keep their tool context. The first cut set
@@ -1356,6 +1361,42 @@ Verdict "not ready", one blocker, five majors, two minors.
 7. **Minor, lead-ins and H1 dashes.** Not changed; series conventions.
 8. **Minor, `_consume` raised before draining.** Accepted; the stream is
    read to its end and the first failure raised after. Tested.
+
+### Round 19, 2026-10-07 (after the round 18 fixes and the eighteenth run)
+
+Verdict "not ready", two blockers, four majors, two minors, one nit.
+
+1. **Blocker, memory keyed by the mutable username.** Correct. Accepted:
+   the memory's actor and the turn lock are the token's `sub`; the username
+   stays the customer id the orders service and Cedar know. The preference
+   seeded under `c-1000` was seeded again under the subject before the
+   nineteenth run.
+2. **Blocker, the turn lock is per process, the claim deployment-wide.**
+   Disputed in part. AWS's runtime sessions page says the session header
+   routes requests to the same microVM instance and that each session has
+   its own dedicated microVM, so inside the runtime the process lock is the
+   conversation's lock; the post quotes that page and says the lock is the
+   process's only outside the runtime. The runtime's re-invocations in the
+   fourteenth run went to the same container, as its log shows.
+3. **Major, the figures check read the 2,000 character preview and any
+   tool result.** Accepted. The trail keeps the whole of what `run_python`
+   printed as evidence beside the preview, and rows count only from the
+   order tool's successful results; tested with a count past the preview,
+   an earlier turn's code output, a decimal in a failed result and another
+   tool's result.
+4. **Major, "closed" and "cannot hide the answer".** Accepted; closing is
+   attempted and a failure logged.
+5. **Major, late stops queue without bound.** Accepted; at most eight wait
+   for the late worker, past that a late session is left to its lifetime
+   and logged. Tested.
+6. **Major, happy path.** Accepted further: one pretext transcript stays
+   with the probe, the other four are README only, and section 5's bounds
+   list is gone.
+7. **Minor, "whatever tools it lists".** Accepted; the agent hands the model
+   only the tool it names.
+8. **Minor, `match` with `$`.** Accepted; `fullmatch`, tested with a
+   trailing newline and the length bounds.
+9. **Nit, lead-ins.** Not changed; series conventions.
 
 
 

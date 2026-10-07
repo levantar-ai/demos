@@ -43,6 +43,10 @@ _slots = threading.BoundedSemaphore(MAX_IN_FLIGHT)
 # every other call, so a completion callback never waits on the pool it is
 # running in.
 _late = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sandbox-late")
+# Late stops waiting for that worker are bounded too; past the bound a late
+# session is left to its lifetime and the log says so.
+MAX_LATE_PENDING = 8
+_late_pending = threading.BoundedSemaphore(MAX_LATE_PENDING)
 
 
 def client():
@@ -189,6 +193,9 @@ def _stop_late(interpreter, future):
     if future.exception() is not None:
         return
     session_id = future.result()
+    if not _late_pending.acquire(blocking=False):
+        print(f"late stop of sandbox session {session_id} dropped, {MAX_LATE_PENDING} already pending; its lifetime ends it")
+        return
 
     def stop():
         try:
@@ -196,8 +203,14 @@ def _stop_late(interpreter, future):
             print(f"stopped sandbox session {session_id}, created after its start was abandoned")
         except Exception as exc:  # noqa: BLE001 — the session's lifetime is the backstop
             print(f"stopping late sandbox session {session_id} failed: {type(exc).__name__}")
+        finally:
+            _late_pending.release()
 
-    _late.submit(stop)
+    try:
+        _late.submit(stop)
+    except BaseException:
+        _late_pending.release()
+        raise
 
 
 def write_files(session_id, path, text):

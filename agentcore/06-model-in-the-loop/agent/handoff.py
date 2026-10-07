@@ -84,6 +84,25 @@ class Handoff(HookProvider):
         print(f"staged {name} result for the sandbox as {path} ({len(text)} chars)")
 
 
+def handed_texts(messages, handoffs=None):
+    """The text of every successful result of a handed-over tool in the
+    conversation, in order, paired to its call by identifier the way
+    latest_results pairs them."""
+    handoffs = HANDOFFS if handoffs is None else handoffs
+    pending, texts = {}, []
+    for message in messages or []:
+        for block in message.get("content", []) or []:
+            use = block.get("toolUse") if isinstance(block, dict) else None
+            if use and isinstance(use.get("toolUseId"), str) and use["toolUseId"]:
+                pending[use["toolUseId"]] = use.get("name")
+            result = block.get("toolResult") if isinstance(block, dict) else None
+            if result and result.get("toolUseId") in pending:
+                name = pending.pop(result["toolUseId"])
+                if name in handoffs and result.get("status") == "success":
+                    texts.append(_text_of(result))
+    return texts
+
+
 def latest_results(messages, handoffs=None):
     """The latest outcome per handed-over tool in a restored conversation.
 

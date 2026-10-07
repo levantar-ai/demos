@@ -25,7 +25,7 @@ class StubHandler(Handler):
     # brokering a token the gateway accepts from the customer's inbound JWT.
     exchange = staticmethod(lambda inbound: f"obo:{inbound}")
     respond = staticmethod(
-        lambda prompt, customer, session, token: turns.append((prompt, customer, session, token))
+        lambda prompt, customer, session, token, subject: turns.append((prompt, customer, session, token, subject))
         or (f"answer for {customer}", [{"tool": "orders___list_orders", "input": {"customer_id": customer}}], [])
     )
 
@@ -54,8 +54,8 @@ def token_for(claims):
     return f"{_b64({'alg': 'RS256'})}.{_b64(claims)}.signature"
 
 
-def bearer_for(username):
-    return token_for({"username": username, "sub": "x", "token_use": "access"})
+def bearer_for(username, sub="sub-of-" + "c-1000"):
+    return token_for({"username": username, "sub": sub, "token_use": "access"})
 
 
 def headers_for(username="c-1000", session=None):
@@ -130,7 +130,23 @@ def test_a_prompt_goes_to_the_model_as_the_verified_customer(server_url):
         "trail": [{"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}}],
         "unsupported_figures": [],
     }
-    assert turns == [("how much have I spent?", "c-1000", sid("conv-1"), f"obo:{bearer_for('c-1000')}")]
+    assert turns == [("how much have I spent?", "c-1000", sid("conv-1"), f"obo:{bearer_for('c-1000')}", "sub-of-c-1000")]
+
+
+def test_memory_is_keyed_by_the_tokens_subject_not_its_username(server_url):
+    """A username can be deleted and created again for someone else; the
+    subject cannot, so that is what the model's memory is keyed by."""
+    turns.clear()
+    headers = headers_for(session=sid("conv-2"))
+    headers["Authorization"] = f"Bearer {bearer_for('c-1000', sub='4c9a-the-subject')}"
+    post(f"{server_url}/invocations", {"prompt": "hi"}, headers)
+    assert turns[-1][1] == "c-1000" and turns[-1][4] == "4c9a-the-subject"
+
+
+def test_a_token_without_a_subject_is_refused(server_url):
+    headers = headers_for(session=sid("conv-3"))
+    headers["Authorization"] = f"Bearer {token_for({'username': 'c-1000', 'token_use': 'access'})}"
+    assert status_of(f"{server_url}/invocations", {"prompt": "hi"}, headers) == 401
 
 
 def test_the_customer_comes_from_the_token_not_the_body(server_url):
@@ -175,6 +191,8 @@ def test_a_session_id_shorter_than_the_runtimes_minimum_is_rejected(server_url):
     assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "s1"}) == 400
     assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "x" * 32}) == 400
     assert post(f"{server_url}/invocations", {"prompt": "hi", "session": "x" * 33})[0] == 200
+    assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "x" * 33 + "\n"}) == 400  # whole string, no trailing newline
+    assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": "x" * 128 + "y"}) == 400
 
 
 def test_turns_in_one_conversation_run_one_at_a_time(server_url):
@@ -185,7 +203,7 @@ def test_turns_in_one_conversation_run_one_at_a_time(server_url):
 
     spans = []
 
-    def slow(prompt, customer, session, token):
+    def slow(prompt, customer, session, token, subject):
         started = time.monotonic()
         time.sleep(0.3)
         spans.append((session, started, time.monotonic()))
@@ -255,7 +273,7 @@ def test_a_turns_entry_exists_exactly_while_a_turn_holds_or_waits_for_it():
 def test_a_failing_turns_message_stays_out_of_the_log(server_url, capsys):
     """An exception's text can carry a response body, a token or the model's
     code; the log gets the class only."""
-    def boom(prompt, customer, session, token):
+    def boom(prompt, customer, session, token, subject):
         raise RuntimeError('Bearer eyJhbGciOi.eyJzdWIi.sig {"order_id": 1033} print(total)')
 
     original = StubHandler.respond
@@ -270,7 +288,7 @@ def test_a_failing_turns_message_stays_out_of_the_log(server_url, capsys):
 
 
 def test_a_failing_turn_is_a_502_not_a_traceback(server_url):
-    def boom(prompt, customer, session, token):
+    def boom(prompt, customer, session, token, subject):
         raise RuntimeError("model unavailable")
 
     original = StubHandler.respond
@@ -284,7 +302,7 @@ def test_a_failing_turn_is_a_502_not_a_traceback(server_url):
 def test_a_budget_overrun_is_a_502_that_says_so(server_url):
     import trail
 
-    def loops(prompt, customer, session, token):
+    def loops(prompt, customer, session, token, subject):
         raise trail.BudgetExceeded("kept asking")
 
     original = StubHandler.respond

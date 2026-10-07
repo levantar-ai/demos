@@ -111,13 +111,13 @@ def test_the_model_is_told_the_date_by_trusted_code(fakes, monkeypatch):
     """'This year' has to mean something; the live run showed the model
     grouping every order when the fixture happened to be one year."""
     monkeypatch.setattr(model, "today", lambda: "2026-10-07")
-    model.answer("spent this year?", "c-1000", "session-1", "minted-token")
+    model.answer("spent this year?", "c-1000", "session-1", "minted-token", "sub-1000")
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "Today is 2026-10-07 (UTC)" in prompt and '"this year" means the calendar year of that date' in prompt
 
 
 def test_the_restored_conversation_is_windowed(fakes):
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     manager = fakes.built[-1].kw["conversation_manager"]
     assert manager.window_size == model.WINDOW_MESSAGES
     # sliding, not truncating: the default would blank the latest tool
@@ -135,11 +135,11 @@ def test_the_window_is_applied_before_restore_scans_the_conversation(fakes, monk
     staged = []
     monkeypatch.setattr(sandbox.Sandbox, "stage", lambda self, path, text: staged.append(path))
     monkeypatch.setattr(FakeAgent, "restored_messages", _conversation_with_a_fetch("rows") + _filler(model.WINDOW_MESSAGES))
-    model.answer("hello", "c-1000", "session-1", "minted-token")
+    model.answer("hello", "c-1000", "session-1", "minted-token", "sub-1000")
     assert staged == []
     assert len(fakes.built[-1].messages) <= model.WINDOW_MESSAGES
     monkeypatch.setattr(FakeAgent, "restored_messages", _filler(model.WINDOW_MESSAGES - 6) + _conversation_with_a_fetch("rows"))
-    model.answer("hello", "c-1000", "session-1", "minted-token")
+    model.answer("hello", "c-1000", "session-1", "minted-token", "sub-1000")
     assert staged == ["orders.json"]
     assert len(fakes.built[-1].messages) == model.WINDOW_MESSAGES
 
@@ -147,12 +147,12 @@ def test_the_window_is_applied_before_restore_scans_the_conversation(fakes, monk
 def test_tools_run_one_at_a_time_in_the_order_the_model_asked(fakes):
     from strands.tools.executors import SequentialToolExecutor
 
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     assert isinstance(fakes.built[-1].kw["tool_executor"], SequentialToolExecutor)
 
 
 def test_the_model_learns_the_customer_from_trusted_code(fakes):
-    text, steps, _ = model.answer("how much have I spent?", "c-1000", "session-1", "minted-token")
+    text, steps, _ = model.answer("how much have I spent?", "c-1000", "session-1", "minted-token", "sub-1000")
     agent = fakes.built[-1]
     assert text == "answered: how much have I spent?"
     assert steps == []
@@ -163,7 +163,7 @@ def test_the_model_learns_the_customer_from_trusted_code(fakes):
 def test_the_model_is_told_the_gateway_is_the_only_source_of_orders(fakes):
     """The live run's lesson: without this the second turn of a conversation
     invented a dataset in the sandbox instead of fetching again."""
-    model.answer("which carrier?", "c-1000", "session-1", "minted-token")
+    model.answer("which carrier?", "c-1000", "session-1", "minted-token", "sub-1000")
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "only source of order data" in prompt
     assert "Never invent" in prompt
@@ -174,7 +174,7 @@ def test_the_model_is_told_the_gateway_is_the_only_source_of_orders(fakes):
 
 
 def test_the_token_goes_to_the_gateway_client_and_never_to_the_model(fakes):
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     agent = fakes.built[-1]
     client = next(t for t in agent.kw["tools"] if isinstance(t, FakeClient))
     assert client.kw == {
@@ -188,22 +188,25 @@ def test_the_token_goes_to_the_gateway_client_and_never_to_the_model(fakes):
 def test_only_the_allowlisted_gateway_tools_reach_the_model(fakes):
     """A target added to the gateway later is not handed to the model until
     it is named in the agent."""
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     client = next(t for t in fakes.built[-1].kw["tools"] if isinstance(t, FakeClient))
     assert client.kw["tool_filters"]["allowed"] == ["orders___list_orders"]
 
 
 def test_the_model_is_given_the_sandbox_as_a_tool(fakes):
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     agent = fakes.built[-1]
     names = [getattr(t, "tool_name", None) for t in agent.kw["tools"]]
     assert "run_python" in names
 
 
-def test_memory_is_keyed_by_the_verified_customer_and_session(fakes):
-    model.answer("my orders", "c-1000", "session-42", "minted-token")
+def test_memory_is_keyed_by_the_tokens_subject_and_the_session(fakes):
+    """The customer id the model is told is the username; the memory's actor
+    is the subject, which a recreated username does not inherit."""
+    model.answer("my orders", "c-1000", "session-42", "minted-token", "sub-1000")
     manager = fakes.built[-1].kw["session_manager"]
-    assert manager.config.actor_id == "c-1000"
+    assert manager.config.actor_id == "sub-1000"
+    assert "sub-1000" not in fakes.built[-1].kw["system_prompt"]
     assert manager.config.session_id == "session-42"
     assert manager.config.memory_id == "mem-test"
     assert list(manager.config.retrieval_config) == ["/users/{actorId}"]
@@ -212,7 +215,7 @@ def test_memory_is_keyed_by_the_verified_customer_and_session(fakes):
 
 
 def test_the_model_id_and_region_come_from_the_environment(fakes):
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     assert fakes.built[-1].kw["model"].kw == {
         "model_id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
         "region_name": "us-east-1",
@@ -225,7 +228,7 @@ def test_the_agent_is_cleaned_up_even_when_the_turn_fails(fakes, monkeypatch):
 
     monkeypatch.setattr(FakeAgent, "__call__", fail)
     with pytest.raises(RuntimeError, match="throttled"):
-        model.answer("my orders", "c-1000", "session-1", "minted-token")
+        model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     assert fakes.built[-1].cleaned is True
 
 
@@ -248,12 +251,12 @@ def test_the_mcp_client_is_stopped_when_the_agent_fails_after_starting_it(fakes,
     monkeypatch.setattr(gateway, "make_client", RecordingClient)
     monkeypatch.setattr(model, "make_agent", starts_then_fails)
     with pytest.raises(RuntimeError, match="model config invalid"):
-        model.answer("my orders", "c-1000", "session-1", "minted-token")
+        model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     assert clients[-1].stopped == 1 and clients[-1].started is False
 
 
 def test_the_mcp_client_is_stopped_once_on_the_happy_path_and_nothing_fails_to_close(fakes, capsys):
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     client = next(t for t in fakes.built[-1].kw["tools"] if isinstance(t, FakeClient))
     assert client.stopped == 1  # agent.cleanup stopped it; the extra stop was a no-op
     assert "cleanup failed" not in capsys.readouterr().out
@@ -275,27 +278,27 @@ def test_everything_created_is_closed_when_the_agent_cannot_be_built(fakes, monk
     monkeypatch.setattr(memory, "make_manager", RecordingManager)
     monkeypatch.setattr(model, "make_agent", explode)
     with pytest.raises(RuntimeError, match="gateway unreachable"):
-        model.answer("my orders", "c-1000", "session-1", "minted-token")
+        model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     assert managers and managers[-1].closed is True
 
 
 def test_a_failing_close_does_not_stop_the_others_or_mask_the_answer(fakes, monkeypatch, capsys):
     monkeypatch.setattr(FakeManager, "close", lambda self: (_ for _ in ()).throw(RuntimeError("flush failed")))
-    text, _, _ = model.answer("my orders", "c-1000", "session-1", "minted-token")
+    text, _, _ = model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     assert text == "answered: my orders"
     assert fakes.built[-1].cleaned is True
     assert "cleanup failed" in capsys.readouterr().out
 
 
 def test_the_trail_and_the_handoff_are_the_agents_hooks(fakes):
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     hooks = fakes.built[-1].kw["hooks"]
     assert [type(h) for h in hooks] == [trail_module.Trail, handoff.Handoff]
     assert hooks[1].sandbox is not None
 
 
 def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
-    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "orders.json" in prompt and "never retype order rows" in prompt
     assert "the agent writes that text into the sandbox as orders.json before your code runs" in prompt
@@ -330,10 +333,10 @@ def test_a_restored_conversations_latest_fetch_is_written_before_the_models_code
     monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, t: puts.append((sid, path, t))))
     monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: executes.append(len(puts)) or "1"))
     monkeypatch.setattr(FakeAgent, "restored_messages", _conversation_with_a_fetch(text))
-    model.answer("thanks", "c-1000", "session-1", "minted-token")
+    model.answer("thanks", "c-1000", "session-1", "minted-token", "sub-1000")
     assert started == [] and puts == []
     monkeypatch.setattr(FakeAgent, "runs_python", True)
-    model.answer("which carrier?", "c-1000", "session-1", "minted-token")
+    model.answer("which carrier?", "c-1000", "session-1", "minted-token", "sub-1000")
     assert started == ["analysis"]
     assert puts == [("s5", "orders.json", text)]
     assert executes == [1]  # the file was in place before the code ran
@@ -389,6 +392,16 @@ def test_a_failed_or_empty_latest_call_stays_withheld_on_the_next_turn(latest, m
     assert handoff.restore(later, box2) == ["orders.json"]
     assert box2.unavailable == set() and box2.run_python(code="print(1)") == "ran"
     assert puts == ["orders.json"]  # the restored result was written before the code ran
+
+
+def test_every_successful_handed_over_result_is_listed_for_the_check():
+    msgs = _conversation_with_a_fetch("rows one") + [
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t5", "name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t5", "status": "error", "content": [{"text": "denied"}]}}]},
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t6", "name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t6", "status": "success", "content": [{"text": "rows two"}]}}]},
+    ]
+    assert handoff.handed_texts(msgs) == ["rows one", "rows two"]  # the failed call and run_python's "1" are not rows
 
 
 def test_a_reused_tool_use_id_cannot_hand_another_tools_result_over():
@@ -621,42 +634,48 @@ def test_the_trail_records_each_call_with_its_arguments_and_outcome():
     assert json.dumps(t.steps)  # what the handler returns must serialise
 
 
-def test_what_the_code_printed_is_carried_in_the_trail_up_to_the_preview():
+def test_what_the_code_printed_is_carried_in_the_trail_up_to_the_preview_and_whole_as_evidence():
     t = trail_module.Trail()
     use = {"name": "run_python", "input": {"code": "print('x' * 5000)"}, "toolUseId": "u1"}
     t.before(_Event(use))
-    t.after(_Event(use, {"status": "success", "content": [{"text": "x" * 5000}]}))
+    t.after(_Event(use, {"status": "success", "content": [{"text": "x" * 5000 + " count 7"}]}))
     assert len(t.steps[0]["output"]) == trail_module.OUTPUT_PREVIEW
+    assert t.evidence == ["x" * 5000 + " count 7"]  # the check after the answer sees the whole of it
+    use2 = {"name": "run_python", "input": {"code": "nope"}, "toolUseId": "u2"}
+    t.before(_Event(use2))
+    t.after(_Event(use2, {"status": "error", "content": [{"text": "NameError 404"}]}))
+    assert t.evidence == ["x" * 5000 + " count 7"]  # a failed call is no evidence
 
 
 def test_figures_in_the_answer_are_checked_against_what_the_code_printed_and_the_rows_hold():
-    """What run_python printed this turn supports any figure; a gateway row
-    supports only what is read from it, an identifier, a year or an amount;
-    the prompt and the date support years. A count or a difference the
-    model worked out in its head is left standing, and so, the check being
+    """What run_python printed this turn, whole, supports any figure; a
+    successful result of the order tool supports only what is read from a
+    row, an identifier, a year or an amount; the prompt and the date support
+    years. Nothing else does: not an earlier turn's code output, not a
+    failed result, not another tool. A count or a difference the model
+    worked out in its head is left standing, and so, the check being
     lexical, is a day of the month read from a row."""
-    this_turn = [
-        {"tool": "orders___list_orders", "input": {}, "status": "success"},
-        {"tool": "run_python", "input": {"code": "..."}, "status": "success",
-         "output": "Total orders: 9\nRoyal Mail orders: 3\nTotal: £743.80"},
+    evidence = ["Total orders: 9\nRoyal Mail orders: 3\n" + "x" * 2500 + "\nTotal: £743.80\nLate count: 42"]
+    def result(tid, name, text, status="success"):
+        return [
+            {"role": "assistant", "content": [{"toolUse": {"toolUseId": tid, "name": name, "input": {}}}]},
+            {"role": "user", "content": [{"toolResult": {"toolUseId": tid, "status": status, "content": [{"text": text}]}}]},
+        ]
+    messages = (
+        result("t1", "orders___list_orders", '{"orders": [{"order_id": 1033, "placed_at": "2026-06-18", "total": 6.80, "items": 6}]}')
+        + result("t2", "run_python", "Earlier count: 100\nEarlier amount: 5.50")   # an earlier turn's code output
+        + result("t3", "orders___list_orders", '{"total": 250.00}', status="error")  # a failed result
+        + result("t4", "some_other_tool", "value 777 and 8.25")                     # another tool
+        + [{"role": "assistant", "content": [{"text": "There were 12 of them."}]}]  # the model's own words
+    )
+    answer = ("Looking at your 9 orders, 3 went with Royal Mail and the other 6 with DPD, £743.80 in all, 42 late; "
+              "order 1033 on 18 June 2026 cost £6.80; 12 before, 100 earlier at 5.50, 250.00 failed, 777 at 8.25, "
+              "and 743.8 is not how the code wrote it.")
+    assert model.unsupported_figures(answer, evidence, messages, "what about 2025?", "Today is 2026-10-07") == [
+        "100", "12", "18", "250.00", "5.50", "6", "743.8", "777", "8.25",
     ]
-    messages = [
-        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text":
-            '{"orders": [{"order_id": 1033, "placed_at": "2026-06-18", "total": 6.80, "items": 6}]}'}]}}]},
-        {"role": "assistant", "content": [{"text": "There were 12 of them."}]},  # the model's own words support nothing
-        {"role": "user", "content": [{"toolResult": {"toolUseId": "t0", "status": "success", "content": [{"text": "Count: 14"}]}}]},
-    ]
-    answer = ("Looking at your 9 orders, 3 went with Royal Mail and the other 6 with DPD, £743.80 in all; "
-              "order 1033 on 18 June 2026 cost £6.80, 12 in 2025, 14 before, and 743.8 is not how the code wrote it.")
-    assert model.unsupported_figures(answer, this_turn, messages, "what about 2025?", "Today is 2026-10-07") == [
-        "12",    # the model's own earlier words
-        "14",    # an earlier turn's run_python output does not reach this turn's answer
-        "18",    # a day of the month, the lexical check's known false positive
-        "6",     # the difference the model worked out; the row's "items": 6 does not count as read
-        "743.8",  # not as the code wrote it
-    ]
-    assert model.unsupported_figures("Is it £999? Yes, £999.", [], [], "is my total £999?") == ["999"]  # the prompt supports years only
-    assert model.unsupported_figures("No figures here.", this_turn, messages) == []
+    assert model.unsupported_figures("Is it £999? Yes, £999, in 2025.", [], [], "is my total £999 for 2025?") == ["999"]
+    assert model.unsupported_figures("No figures here.", evidence, messages) == []
     assert model.unsupported_figures("", [], []) == []
 
 
@@ -665,10 +684,11 @@ def test_answer_returns_the_figures_nothing_supports(fakes, monkeypatch):
         pass
 
     monkeypatch.setattr(FakeAgent, "restored_messages", [
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t1", "name": "orders___list_orders", "input": {}}}]},
         {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": '{"order_id": 1255, "total": 9.00}'}]}}]},
     ])
     monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: Counted("Order 1255 cost £9.00; 9 orders, 6 of them DPD, placed since 2025."))
-    _, _, unsupported = model.answer("how many since 2025?", "c-1000", "session-1", "minted-token")
+    _, _, unsupported = model.answer("how many since 2025?", "c-1000", "session-1", "minted-token", "sub-1000")
     assert unsupported == ["6", "9"]  # 1255 and 9.00 are read from the row, 2025 is the prompt's year, 6 and 9 are the model's
 
 
@@ -712,7 +732,7 @@ def test_a_budget_overrun_still_closes_everything(fakes, monkeypatch):
 
     monkeypatch.setattr(FakeAgent, "__call__", keeps_asking)
     with pytest.raises(trail_module.BudgetExceeded):
-        model.answer("loop forever", "c-1000", "session-1", "minted-token")
+        model.answer("loop forever", "c-1000", "session-1", "minted-token", "sub-1000")
     assert fakes.built[-1].cleaned is True
 
 
@@ -1012,6 +1032,20 @@ def test_a_late_stop_goes_through_the_same_bound_as_every_call(monkeypatch, caps
     assert "stopping late sandbox session late-session failed: RuntimeError" in capsys.readouterr().out
 
 
+def test_late_stops_waiting_for_their_worker_are_bounded(monkeypatch, capsys):
+    import threading
+    from concurrent.futures import Future
+
+    monkeypatch.setattr(sandbox, "_late_pending", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(sandbox, "MAX_LATE_PENDING", 1)
+    assert sandbox._late_pending.acquire(blocking=False)  # one is pending already
+    done = Future()
+    done.set_result("late-2")
+    sandbox._stop_late("ci-test", done)
+    sandbox._late_pending.release()
+    assert "late stop of sandbox session late-2 dropped, 1 already pending; its lifetime ends it" in capsys.readouterr().out
+
+
 def test_a_stream_is_read_to_its_end_before_a_failure_is_raised(fake):
     seen = []
 
@@ -1096,7 +1130,7 @@ def test_a_failing_closes_message_stays_out_of_the_log(fakes, monkeypatch, capsy
     monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: "1"))
     monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(leaky_stop))
     monkeypatch.setattr(FakeAgent, "runs_python", True)
-    model.answer("hi", "c-1000", "session-1", "minted-token")
+    model.answer("hi", "c-1000", "session-1", "minted-token", "sub-1000")
     out = capsys.readouterr().out
     assert "cleanup failed in Sandbox.close: RuntimeError" in out
     assert "eyJ" not in out and "1033" not in out
@@ -1217,7 +1251,7 @@ def test_answer_unwraps_what_the_loop_wrapped_so_the_handler_sees_the_budget(fak
 
     monkeypatch.setattr(FakeAgent, "__call__", wrapped)
     with pytest.raises(trail_module.BudgetExceeded):
-        model.answer("loop", "c-1000", "session-1", "minted-token")
+        model.answer("loop", "c-1000", "session-1", "minted-token", "sub-1000")
     assert fakes.built[-1].cleaned is True
 
     def throttled(self, prompt):
@@ -1225,7 +1259,7 @@ def test_answer_unwraps_what_the_loop_wrapped_so_the_handler_sees_the_budget(fak
 
     monkeypatch.setattr(FakeAgent, "__call__", throttled)
     with pytest.raises(RuntimeError, match="throttled"):
-        model.answer("loop", "c-1000", "session-1", "minted-token")
+        model.answer("loop", "c-1000", "session-1", "minted-token", "sub-1000")
 
 
 def test_run_python_is_a_tool_the_model_can_read():

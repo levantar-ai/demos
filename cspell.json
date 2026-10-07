@@ -228,7 +228,8 @@
     "strptime",
     "serialises",
     "unsynchronised",
-    "wozs"
+    "wozs",
+    "fullmatch"
   ],
   "ignorePaths": [
     "node_modules/**",
