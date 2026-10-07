@@ -2,13 +2,16 @@
 
 Post 04 wrote the pandas itself and ran it for every CSV it was given. Here
 the code is written by the model, for a question nobody anticipated, and
-this module only runs it. The session is still the Code Interpreter from
-post 04, SANDBOX network mode, so what the model writes cannot reach the
-network, the account or any credential the agent holds. One session per
-invocation, started the first time the model reaches for the tool and
-stopped when the answer is out; the service's session timeout is the
-backstop if that stop fails. Code and output are capped so a runaway loop
-is bounded in what it can send and read back.
+this module only runs it. The session is the Code Interpreter from post 04
+which, in the supplied Terraform deployment (tools.tf), is in SANDBOX
+network mode, so what the model writes cannot reach the network, the
+account or any credential the agent holds; this module does not establish
+that on its own. One session per invocation, started the first time the
+model reaches for the tool, with a stop attempted when the answer is out;
+the session is created with a 900 second timeout, and whether a running
+execution ends at that point is the service's behaviour, not something
+this stack sets or demonstrates. Code and output are capped so a runaway
+loop is bounded in what it can send and read back.
 """
 
 import os

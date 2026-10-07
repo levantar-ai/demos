@@ -1,5 +1,8 @@
-# AgentCore Runtime requires linux/arm64 images (built with --platform linux/arm64)
-FROM python:3.12-slim
+# AgentCore Runtime requires linux/arm64 images (built with --platform linux/arm64).
+# The base image is pinned by digest (python:3.12-slim as of 2026-10-07), so a
+# rebuild starts from the same bytes; the packages below are pinned by version,
+# not by hash, which the README notes.
+FROM python@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f
 
 # Unbuffered stdout so print() reaches CloudWatch immediately
 ENV PYTHONUNBUFFERED=1

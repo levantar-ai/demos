@@ -7,9 +7,13 @@ manager, and lets it decide which tool to use, in what order, with what
 arguments. What the model is told
 and what it is given is the whole of the security story: it learns the
 customer's id from the system prompt, which trusted code wrote from the
-token the runtime verified, and it chooses the customer_id argument. It is
-never given the token. A wrong choice is refused at the gateway by Cedar,
-not by anything here. The gateway's result is staged for the sandbox by
+token the runtime verified, and it chooses the customer_id argument.
+Trusted code puts neither token in its prompt, its messages or its tool
+arguments. A wrong choice is refused at the gateway by Cedar, not by
+anything here, in the supplied Terraform deployment, where the gateway's
+policy engine is in ENFORCE mode with the policies in policy.tf; this
+module does not establish that on its own. The gateway's result is staged
+for the sandbox by
 the Handoff hook and written there before the model's code runs, so the
 code can read it rather than carry the rows in its source; whether and how
 it reads the file is the model's.

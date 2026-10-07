@@ -19,8 +19,8 @@ variable "model_id" {
   # source reports for a system cross-region profile; that is the shape this
   # was built and tested with, so only that shape is accepted.
   validation {
-    condition     = can(regex("^(us|eu|apac|global|us-gov)\\.anthropic\\.claude-(sonnet|haiku|opus)-4-5", var.model_id))
-    error_message = "model_id must be a system cross-region inference profile for a Claude 4.5 model, such as us.anthropic.claude-sonnet-4-5-20250929-v1:0."
+    condition     = can(regex("^(us|eu|apac|global|us-gov)\\.anthropic\\.claude-(sonnet|haiku|opus)-4-5-[0-9]{8}-v[0-9]+:[0-9]+$", var.model_id))
+    error_message = "model_id must be a system cross-region inference profile for a Claude 4.5 model, of the form us.anthropic.claude-sonnet-4-5-20250929-v1:0."
   }
 }
 

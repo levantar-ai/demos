@@ -287,6 +287,104 @@ prompt line does, which is why the data path had to move into code.
 
 
 
+### Ninth run, image 9fb948b (the code as reviewed), and the video
+
+Runtime version 9, sessions `…-r10-…`, all fresh, on the commit the ninth
+review round passed. The post's section 4 is taken from this run and the
+video was re-recorded on it in a fresh session.
+
+1. **Spend** (30.7 s): `orders___list_orders(c-1000)` then `run_python`
+   reading `orders.json`, January £250.00, February £310.50, June £70.00,
+   July £113.30, February the biggest, £743.80 across 7, and it noted the
+   empty months. Correct.
+2. **Carrier, same session** (9.1 s): `run_python` only, over the file that
+   `restore()` wrote from the previous turn's result, DPD 5, Royal Mail 2,
+   preference quoted. One call, no error.
+3. **Recall**, fresh session (12.2 s): gateway then `run_python` on the
+   file, 2 of 7 with Royal Mail, orders 1218 and 1242. Correct.
+4. **Other customer** (7.0 s, 5.2 s): declined, no tool call.
+5. **c-1001's own view** (13.5 s): gateway then `run_python` on the file,
+   5 orders, £355.55. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed, which refreshed the file.
+
+Every `run_python` call in this run opened `orders.json` and none embedded
+an order row. The withholding paths (a failed or empty gateway call after a
+restored file) did not arise in a live turn, since every gateway call
+succeeded; they are covered by the tests.
+
+The video recorded straight after this run was discarded. Its first turn
+came back empty, and the runtime log explained both that and something
+older:
+
+- `turn failed for c-1000: ValidationException when calling
+  GetResourceOauth2Token: HTTP request failed against Token endpoint`. The
+  exchange front door is a Lambda behind an HTTP API, and its first call
+  after idling can exceed AgentCore Identity's timeout on the token
+  endpoint. It happened twice across the whole series of runs, both on a
+  first call after a quiet period. `identity.py` now retries once after two
+  seconds when the error names the token endpoint, and nothing else; tested.
+- `cleanup failed in MCPClient.stop: missing 3 required positional
+  arguments`, 46 times, once per turn since the round 2 change that gave the
+  MCP client its own closer. `MCPClient.stop` has the context-manager
+  signature with no defaults, so the closer called it wrongly, the error
+  was caught and logged, and the client was in fact stopped by
+  `agent.cleanup` on every turn, which is why nothing else was affected.
+  The test fake had a permissive signature and hid it. The closer now
+  passes the three arguments, the fake has the real signature, and the
+  happy-path test asserts no `cleanup failed` line is logged.
+
+Image `8bd7253` with both fixes was deployed and its turns ran while review
+round 10 was in progress; round 10 then narrowed the retry predicate, so
+that run was superseded within minutes and is not recorded as a standing
+run. The standing run is on the commit after round 10, `5acbb89`:
+
+### Tenth run, image 5acbb89, and a video since replaced
+
+Runtime version 11, sessions `…-r12-…`, all fresh. Section 4 was taken
+from this run until review round 13; the eleventh run below is the one
+that stands.
+
+1. **Spend** (19.6 s): `orders___list_orders(c-1000)` then `run_python`
+   reading `orders.json`, January £250.00, February £310.50, June £70.00,
+   July £113.30, February the biggest. Correct.
+2. **Carrier, same session** (8.9 s): `run_python` only, over the file that
+   `restore()` wrote from the previous turn's result, DPD 5, Royal Mail 2.
+   One call, no error.
+3. **Recall**, fresh session (13.3 s): gateway then `run_python` on the
+   file, 2 of 7 with Royal Mail, orders 1218 and 1242. Correct.
+4. **Other customer** (6.1 s, 8.2 s): declined, no tool call.
+5. **c-1001's own view** (12.7 s): gateway then `run_python` on the file,
+   5 orders, £355.55. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed, which refreshed the file.
+
+7. **The three other pretexts**, run on the same image afterwards (10:00:20,
+   10:00:28 and 10:00:34 UTC), the merged-account story, the fake system
+   notice and the authorised-test claim: all three declined with no tool
+   call. On the first image, 1adae91, the merged-account story had produced
+   a call with the model's own `c-1000`; on this image it did not call at
+   all. So all five pretexts in the post were run on the final image.
+
+Every `run_python` call read `orders.json`; none held an order row. The
+runtime log for this run has no `cleanup failed` line (the stop signature
+fix) and no retry line (no exchange failure arose, so the retry path is
+covered by its tests only). The withholding paths likewise did not arise
+live, every gateway call having succeeded, and are covered by tests.
+
+**Captures.** This run's responses were committed under `turns/` and have
+since been replaced by the eleventh run's.
+
+**Provenance.** Image `5acbb89` is ECR digest
+`sha256:d167b116310b57c58ee949e037d73ef833bad17f6146b0223a81ca607b68c589`,
+pushed 2026-10-07 09:50:52 UTC. `GetAgentRuntime` reports version 11,
+`READY`, container URI ending `:5acbb89`, last updated 09:51:10 UTC. The
+runtime log shows the run's invocations at 09:51:46 (spend), 09:51:55
+(carrier), 09:52:11 (recall), 09:52:20 and 09:52:26 (the two refusals),
+09:52:41 (c-1001) and 09:52:54 (freshness), then the video's turns from
+09:54:23. `demo.mp4` is 1:19.84, written 09:56:23 UTC, SHA-256
+`93ac0fa1cde42429612bffa797afda4573ed7474e46db0bf648b75fa2d8526e5`.
+
 ### Eleventh run, image a082e71, and a video since replaced
 
 Runtime version 12, sessions `…-r13-…`, all fresh, with the date in the
@@ -1518,110 +1616,47 @@ No agent code changed in this round, so the nineteenth run stands as the
 final run: `terraform plan` with the deployed image tag showed no changes
 after the variable validation and the comment were added.
 
+### Round 21, 2026-10-07 (after the round 20 fixes)
 
+Verdict "not ready", one blocker, six majors, five minors, one nit.
 
+1. **Blocker, the boundary is keyed by a username that can be reassigned while the
+   TL;DR and conclusion call it intact.** Correct as a reading of the
+   stack: orders, the exchange's `customer_id` claim and Cedar all use the
+   pool username. Re-keying the orders on an immutable id is a change to
+   the series' data model and is not made here. The TL;DR and the
+   conclusion now say the boundary holds for as long as a username is never
+   given to a second person, which is the reviewer's stated alternative.
+2. **Major, the 900 second timeout called a backstop for a running
+   execution.** Accepted; the post and the sandbox's docstring say the
+   session is created with a 900 second timeout and that whether a running
+   execution ends then is the service's behaviour, not demonstrated here.
+3. **Major, "never given the token".** Accepted; every statement is now
+   that trusted code puts neither token in the prompt, messages or tool
+   arguments.
+4. **Major, the traceback claim rested on a direct-call test.** Accepted; a
+   real-loop test with the scripted model shows the sandbox's error text in
+   the next request to the model as the tool result.
+5. **Major, "fetches again ... the artefacts show" was categorical.**
+   Accepted; the post says the recorded turn fetched again before answering,
+   as an instruction asks, and that the comparison was the model's.
+6. **Major, the `model_id` validation had no end anchor.** Accepted; the
+   expression matches the whole profile id.
+7. **Major, happy path.** Not changed further.
+8. **Minor, `BedrockAgentCoreApp` "does the same job".** Accepted; it could
+   replace the runtime adapter while the application's checks stay.
+9. **Minor, "AWS's own samples use".** Accepted; "used in".
+10. **Minor, module docstrings state deployment properties.** Accepted;
+    qualified with the supplied deployment and its resources.
+11. **Minor, the base image unpinned.** Accepted in part; pinned by digest,
+    the packages by version, and the README says the install is not
+    hash-locked.
+12. **Minor, the run history out of order.** Accepted; the ninth and tenth
+    runs sit after the eighth.
+13. **Nit, lead-ins.** Not changed; series conventions.
 
-
-### Ninth run, image 9fb948b (the code as reviewed), and the video
-
-Runtime version 9, sessions `…-r10-…`, all fresh, on the commit the ninth
-review round passed. The post's section 4 is taken from this run and the
-video was re-recorded on it in a fresh session.
-
-1. **Spend** (30.7 s): `orders___list_orders(c-1000)` then `run_python`
-   reading `orders.json`, January £250.00, February £310.50, June £70.00,
-   July £113.30, February the biggest, £743.80 across 7, and it noted the
-   empty months. Correct.
-2. **Carrier, same session** (9.1 s): `run_python` only, over the file that
-   `restore()` wrote from the previous turn's result, DPD 5, Royal Mail 2,
-   preference quoted. One call, no error.
-3. **Recall**, fresh session (12.2 s): gateway then `run_python` on the
-   file, 2 of 7 with Royal Mail, orders 1218 and 1242. Correct.
-4. **Other customer** (7.0 s, 5.2 s): declined, no tool call.
-5. **c-1001's own view** (13.5 s): gateway then `run_python` on the file,
-   5 orders, £355.55. Correct.
-6. **No token**: 401. **Freshness** in the spend session: gateway only,
-   nothing changed, which refreshed the file.
-
-Every `run_python` call in this run opened `orders.json` and none embedded
-an order row. The withholding paths (a failed or empty gateway call after a
-restored file) did not arise in a live turn, since every gateway call
-succeeded; they are covered by the tests.
-
-The video recorded straight after this run was discarded. Its first turn
-came back empty, and the runtime log explained both that and something
-older:
-
-- `turn failed for c-1000: ValidationException when calling
-  GetResourceOauth2Token: HTTP request failed against Token endpoint`. The
-  exchange front door is a Lambda behind an HTTP API, and its first call
-  after idling can exceed AgentCore Identity's timeout on the token
-  endpoint. It happened twice across the whole series of runs, both on a
-  first call after a quiet period. `identity.py` now retries once after two
-  seconds when the error names the token endpoint, and nothing else; tested.
-- `cleanup failed in MCPClient.stop: missing 3 required positional
-  arguments`, 46 times, once per turn since the round 2 change that gave the
-  MCP client its own closer. `MCPClient.stop` has the context-manager
-  signature with no defaults, so the closer called it wrongly, the error
-  was caught and logged, and the client was in fact stopped by
-  `agent.cleanup` on every turn, which is why nothing else was affected.
-  The test fake had a permissive signature and hid it. The closer now
-  passes the three arguments, the fake has the real signature, and the
-  happy-path test asserts no `cleanup failed` line is logged.
-
-Image `8bd7253` with both fixes was deployed and its turns ran while review
-round 10 was in progress; round 10 then narrowed the retry predicate, so
-that run was superseded within minutes and is not recorded as a standing
-run. The standing run is on the commit after round 10, `5acbb89`:
-
-### Tenth run, image 5acbb89, and a video since replaced
-
-Runtime version 11, sessions `…-r12-…`, all fresh. Section 4 was taken
-from this run until review round 13; the eleventh run below is the one
-that stands.
-
-1. **Spend** (19.6 s): `orders___list_orders(c-1000)` then `run_python`
-   reading `orders.json`, January £250.00, February £310.50, June £70.00,
-   July £113.30, February the biggest. Correct.
-2. **Carrier, same session** (8.9 s): `run_python` only, over the file that
-   `restore()` wrote from the previous turn's result, DPD 5, Royal Mail 2.
-   One call, no error.
-3. **Recall**, fresh session (13.3 s): gateway then `run_python` on the
-   file, 2 of 7 with Royal Mail, orders 1218 and 1242. Correct.
-4. **Other customer** (6.1 s, 8.2 s): declined, no tool call.
-5. **c-1001's own view** (12.7 s): gateway then `run_python` on the file,
-   5 orders, £355.55. Correct.
-6. **No token**: 401. **Freshness** in the spend session: gateway only,
-   nothing changed, which refreshed the file.
-
-7. **The three other pretexts**, run on the same image afterwards (10:00:20,
-   10:00:28 and 10:00:34 UTC), the merged-account story, the fake system
-   notice and the authorised-test claim: all three declined with no tool
-   call. On the first image, 1adae91, the merged-account story had produced
-   a call with the model's own `c-1000`; on this image it did not call at
-   all. So all five pretexts in the post were run on the final image.
-
-Every `run_python` call read `orders.json`; none held an order row. The
-runtime log for this run has no `cleanup failed` line (the stop signature
-fix) and no retry line (no exchange failure arose, so the retry path is
-covered by its tests only). The withholding paths likewise did not arise
-live, every gateway call having succeeded, and are covered by tests.
-
-**Captures.** This run's responses were committed under `turns/` and have
-since been replaced by the eleventh run's.
-
-**Provenance.** Image `5acbb89` is ECR digest
-`sha256:d167b116310b57c58ee949e037d73ef833bad17f6146b0223a81ca607b68c589`,
-pushed 2026-10-07 09:50:52 UTC. `GetAgentRuntime` reports version 11,
-`READY`, container URI ending `:5acbb89`, last updated 09:51:10 UTC. The
-runtime log shows the run's invocations at 09:51:46 (spend), 09:51:55
-(carrier), 09:52:11 (recall), 09:52:20 and 09:52:26 (the two refusals),
-09:52:41 (c-1001) and 09:52:54 (freshness), then the video's turns from
-09:54:23. `demo.mp4` is 1:19.84, written 09:56:23 UTC, SHA-256
-`93ac0fa1cde42429612bffa797afda4573ed7474e46db0bf648b75fa2d8526e5`.
-
-
-
+The docstring and Dockerfile changes rebuild the image, so the twentieth
+run below is on the final commit.
 
 
 

@@ -1220,6 +1220,34 @@ def test_in_the_real_loop_the_gateway_result_is_in_the_sandbox_before_the_models
     assert stopped == ["s20"]
 
 
+def test_in_the_real_loop_a_failed_execution_reaches_the_model_as_a_tool_error(monkeypatch):
+    """What the post says lets the model fix its code and run again: the
+    sandbox's error is placed in the next request to the model as the tool
+    result, with its text."""
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s22"))
+    monkeypatch.setattr(sandbox.Sandbox, "execute", staticmethod(lambda sid, code: (_ for _ in ()).throw(RuntimeError("NameError: name 'pandas' is not defined"))))
+    monkeypatch.setattr(sandbox.Sandbox, "stop", staticmethod(lambda i, sid: None))
+    box, t = sandbox.Sandbox(), trail_module.Trail()
+    agent = _real_agent([("tool", "run_python", {"code": "pandas.nope()"}), ("text", "I will fix that.")], box, t)
+    seen = []
+    scripted = agent.model
+    original = scripted.stream
+
+    async def recording(messages, *a, **kw):
+        seen.append([dict(m) for m in messages])
+        async for event in original(messages, *a, **kw):
+            yield event
+
+    scripted.stream = recording
+    assert str(agent("sum them")).strip() == "I will fix that."
+    second_request = seen[1]
+    results = [block["toolResult"] for m in second_request for block in m["content"] if "toolResult" in block]
+    assert results[-1]["status"] == "error"
+    assert "NameError: name 'pandas' is not defined" in results[-1]["content"][0]["text"]
+    assert t.steps[0]["status"] == "error" and "NameError" in t.steps[0]["error"]
+    box.close()
+
+
 def test_in_the_real_loop_the_budget_ends_the_turn(monkeypatch):
     """Strands invokes the before-tool hook outside the handler that turns a
     tool's failure into an error result, so the hook's BudgetExceeded ends

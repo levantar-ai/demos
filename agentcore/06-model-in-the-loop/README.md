@@ -306,7 +306,12 @@ stack, for looking at the minted token and calling the gateway directly.
   `customer_id` claim, Cedar and the orders Lambda, so a username given to
   a second person would carry the first person's orders; provisioning must
   never reassign one, and a production system would key the orders on an
-  immutable customer id too.
+  immutable customer id too. Until then the post's customer boundary is
+  conditional on that rule, and says so.
+- The image's base is pinned by digest (`python:3.12-slim` as of
+  2026-10-07) and the three packages by version; the installation is not
+  hash-locked, so a rebuild resolves the same versions from the index
+  rather than the same bytes.
 - The per-conversation turn lock is process-wide. The runtime routes a
   session's requests to one microVM for the session's lifetime (its
   "microVM stickiness"), so inside the runtime that is the conversation's

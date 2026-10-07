@@ -9,9 +9,12 @@ gateway and the sandbox as tools, with the memory supplied as context, and
 lets it decide which to call, in what order and with what arguments, for a
 question nobody wrote code for. Trusted code still establishes who the
 customer is and brokers the token the gateway accepts, so the model chooses
-arguments and is never given the token. Asked to be another
-customer it declines, and if it were ever talked round, the Cedar policy at
-the gateway refuses an order lookup for anyone else before the tool runs.
+arguments and trusted code puts the token in none of its prompt, messages
+or tool arguments. Asked to be another customer it declines, and if it
+were ever talked round, the Cedar policy at the gateway refuses an order
+lookup for anyone else before the tool runs. That boundary is keyed by
+the customer id, which is the pool username, so it holds for as long as
+a username is never given to a second person.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop
@@ -53,14 +56,15 @@ mismatch before the Lambda runs. The post 05 conclusion said this was the
 precondition for a model choosing the arguments, and this post is the first
 to rely on it.
 
-The agent framework is Strands Agents, which is what AWS's own AgentCore
-samples use. It brings the MCP client, the tool decorator and the loop that
+The agent framework is Strands Agents, which is used in AWS's AgentCore
+samples. It brings the MCP client, the tool decorator and the loop that
 sends tool results back to the model, and the `bedrock-agentcore` SDK brings a session manager that records
 each turn in AgentCore Memory and retrieves the customer's long-term
-records before the model sees a message. The HTTP
-contract is still the hand-rolled server from post 01. The SDK's
-`BedrockAgentCoreApp` does the same job and would replace it. Keeping the
-server keeps the diff between post 05 and this one about the model.
+records before the model sees a message. The HTTP contract is still the hand-rolled server from post 01. The SDK's
+`BedrockAgentCoreApp` could replace the runtime adapter in it, while the
+body checks, the token handling, the per-conversation lock and the
+response shape here would stay. Keeping the server keeps the diff between
+post 05 and this one about the model.
 
 ![A model handed the tools the series built, choosing what to call, with identity staying in trusted code](architecture.png)
 
@@ -166,9 +170,10 @@ Cedar is default deny for anything it might still ask.
 The sandbox arrives as a tool the model writes code for. Post 04's handler
 wrote the pandas. Here the docstring is the tool description the model
 reads, the argument is the code it writes, and the return value is what the
-code printed. A failure is returned to the model as a tool error rather than
-raised at the caller, which is what lets it read the traceback, fix the
-code and run it again.
+code printed. A failure is returned to the model as a tool error rather than raised at
+the caller, with the sandbox's error text in the next request to the
+model, which is what lets it read the error, fix the code and run it
+again.
 
 ```python
 class Sandbox:
@@ -212,9 +217,10 @@ account of what the model is told.
 
 The session behind it is the Code Interpreter from post 04 in `SANDBOX`
 network mode, created the first time the model reaches for the tool, so a
-turn in which the model never runs code starts no session, with a stop
-attempted when the answer is out and the session's 900 second lifetime as
-the backstop. Variables from one `run_python` call are there for the next
+turn in which the model never runs code starts no session, with a stop attempted when the answer is out. The session is created
+with a 900 second timeout, and whether a running execution ends at that
+point is the service's behaviour, not something this stack sets or
+demonstrates. Variables from one `run_python` call are there for the next
 within a turn, and the session's operations run one at a time. Source over
 twenty
 thousand characters is refused, at most eight thousand characters of
@@ -551,9 +557,10 @@ system prompt is for. A second question in the same session shows the
 conversation working as one. The question is about
 the same orders, so the model did not go back to the gateway. It ran code
 over the file, which trusted code had restored into the new session from
-the earlier turn's result. Asked about the current status of an order, or
-whether anything is new, it fetches again, which the system prompt requires
-and the artefacts show.
+the earlier turn's result. In the recorded turn that asked whether anything had changed, the model
+fetched again before answering, which the system prompt asks of it as an
+instruction. The answer it then gave is its own comparison, not one
+trusted code made.
 
 ```
 $ ask "Which carrier has delivered most of my orders?"
@@ -671,9 +678,11 @@ calculated figure in the answer is one the code printed is an instruction
 to the model, and the check that names any figure nothing supports is the
 control outside it, one that reports rather than blocks. The date comes
 from trusted code for the same reason, so that "this year" is a filter
-the program applies rather than an assumption about the data. What the
-isolation does not bound is how much the model asks for, and the bounds
-in section 1 are the agent's own numbers on that.
+the program applies rather than an assumption about the data. What the isolation does not bound is how much the model asks for, and
+the bounds in section 1 are the agent's own numbers on that. Giving up on
+a call does not stop the code. The stop at the end of the turn does when
+it succeeds, and the session's 900 second timeout is the service's to
+apply after that.
 
 The model chooses what to say, and what it says is shaped by everything in
 its context. Three of those things are untrusted, the prompt, the order rows
@@ -705,9 +714,10 @@ The agent now decides. A model is handed the gateway and the sandbox that
 posts 02 and 04 built as tools, with the memory of post 03 supplied as
 context, and it fetches, computes and
 answers a question that no code in the repository anticipated, with the
-trail of its choices returned alongside the answer. What kept the customer
-boundary intact while the model took over the choosing is that identity
-stayed where post 05 put it. Trusted code establishes the customer and
+trail of its choices returned alongside the answer. What kept the customer boundary where post 05 drew it while the model
+took over the choosing is that identity stayed where post 05 put it, and
+that boundary is keyed by the customer id, the pool username, so it holds
+for as long as a username is never given to a second person. Trusted code establishes the customer and
 holds the token, the model chooses arguments and code, and Policy in
 AgentCore refuses a lookup for a wrong customer before the tool runs. In
 five live attempts to be someone else, `c-1001` never reached the gateway,
