@@ -482,6 +482,43 @@ the narrowed freshness instruction and the run that shows it, the excerpt
 with the MCP client's closer and the lifecycle tests behind it, the timeout
 wording, the scoped authority sentence. No new finding at any severity.
 
+### Round 5, 2026-10-07 (on the handoff change)
+
+Verdict "not ready", two blockers, five majors, three minors, one nit.
+
+1. **Blocker, the post's `answer` excerpt predated the handoff.** Correct;
+   it now shows `hooks=[trail, Handoff(sandbox)]` and `restore(...)`.
+2. **Blocker, "variability sits in route and wording" and "rows by way of
+   the handoff, not the model" claimed too much.** Accepted. The post now says
+   trusted code guarantees the gateway's result is in the sandbox to be read
+   and that the three post-change runs read it, while the program, which
+   rows it uses and whether it reads the file at all remain the model's.
+3. **Major, the tool description still told the model to put data in the
+   code.** Correct, and the earlier docstring edit had not applied. The
+   description now says to read `orders.json` and never put rows in the
+   code; a test checks the model-visible spec.
+4. **Major, "does not pass through the model".** Accepted; the result stays
+   in the model's context, the handoff removes the transcription step.
+5. **Major, "byte for byte" was not true.** Accepted. A single text block is
+   written exactly, whitespace included; several blocks are joined; the
+   wording says "its text, as returned". Tests for whitespace and blocks.
+6. **Major, a failed refresh could leave a stale restored file.** Accepted.
+   A failed write marks the file unavailable and `run_python` refuses to
+   run until it is written again; tested with a restored file followed by
+   a failed refresh.
+7. **Major, the pandas-versus-dictionary comparison was pre-handoff
+   evidence.** Accepted, removed.
+8. **Minor, the `Handoff` excerpt hid the failure handling.** Accepted; the
+   excerpt now carries it.
+9. **Minor, `None` tool-use ids could be matched.** Accepted; a non-empty
+   string id is required on both blocks, tested with malformed messages.
+10. **Minor, "six tests".** Accepted, counts removed.
+11. **Nit, section 2 wording.** Accepted.
+
+After the changes: ruff clean, 73 agent tests pass. Redeploy, live re-run
+and video on this code follow once credentials are refreshed.
+
+<<REVIEW_ROUND_6>>
 
 
 

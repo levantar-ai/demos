@@ -201,7 +201,7 @@ conversation's most recent gateway result into the fresh session too. If a
 write fails the tool refuses to run until the file is written again, so a
 copy from an earlier turn is never read as the latest result. The model
 still decides whether to compute, and what the code does with the file is
-the model's; what trusted code guarantees is that the gateway's result is
+the model's. What trusted code guarantees is that the gateway's result is
 there to be read.
 
 ```python
