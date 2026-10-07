@@ -139,6 +139,9 @@ stack, for looking at the minted token and calling the gateway directly.
 
 ## Notes kept out of the post
 
+- The order fixture has three orders from 2025 (998 and 999 for c-1000, 997
+  for c-1001) on top of the 300 the series shares, so "this year" has
+  something to exclude. The 2026 figures the post quotes are unchanged.
 - The model is Claude Sonnet 4.5 through the `us.` cross-region inference
   profile, the default of `var.model_id`. The IAM statement names the
   profile and the foundation model in each region the profile routes to
@@ -165,9 +168,14 @@ stack, for looking at the minted token and calling the gateway directly.
   embeds. The same hook allows eight tool executions a turn, refuses the
   ninth with a message to answer from what it has (recorded in the trail as
   `cancelled`), and raises on the tenth so the turn ends as a 502 rather
-  than running on. That bounds executions and model calls per turn; it does
-  not bound execution time inside the sandbox, which only the runtime's
-  invocation timeout ends.
+  than running on. That bounds executions and model calls per turn, not
+  context: the prompt is capped at 4,000 characters, the restored
+  conversation is windowed to the last 40 messages by Strands'
+  `SlidingWindowConversationManager`, and a handed-over result over 200,000
+  characters is withheld. There is no application-enforced execution
+  deadline inside the sandbox; the agent's boto3 client waits at most 180 s
+  on a call with no automatic retry, and a call it stops waiting for may run
+  on until the session's lifetime ends it.
 - The sandbox tool refuses code over 20,000 characters, accumulates at most
   8,000 characters across stream events for the model, result or error,
   separators counted (each event is still materialised by boto3 before the
@@ -206,9 +214,11 @@ stack, for looking at the minted token and calling the gateway directly.
 - Lint gates. CI runs cspell, tflint, Trivy (misconfiguration and secrets at
   HIGH and CRITICAL), ruff and pytest. The tests never call Bedrock: the
   model, the agent, the MCP client and the memory manager are replaced by
-  fakes that record how they were built, which is where the security claims
-  live (the customer id reaches the model as text, the token reaches the
-  gateway client as a header, and the two never cross).
+  fakes that record how they were built. They check that the customer id
+  and the date reach the model's system prompt as text, that the minted
+  token reaches the MCP client as a header and is absent from the system
+  prompt string, and what each hook does. The full request Strands sends to
+  Bedrock is Strands' to build and is not inspected here.
 
 ## Tear down
 

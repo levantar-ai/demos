@@ -656,7 +656,50 @@ rather than code.
    invocation timestamps from the runtime log and the video's checksum are
    recorded above.
 
-<<REVIEW_ROUND_13>>
+### Round 13, 2026-10-07 (with the raw captures in the bundle)
+
+Verdict "not ready", one blocker, five majors, four minors.
+
+1. **Blocker, the "this year" program never filtered by year.** Correct,
+   and the best finding of the series: it was right only because every
+   fixture row was 2026. Trusted code now writes today's date into the
+   system prompt, with "this year" defined as that calendar year, and the
+   fixture carries three 2025 orders (998 and 999 for c-1000, 997 for
+   c-1001) so the filter is exercised. The turn is re-run below and the
+   post's excerpt and quote come from that run.
+2. **Major, section 4 concealed the missing predicate.** Accepted; section
+   5 says what happened and why the date is now supplied.
+3. **Major, no bound on prompt, restored history or handed-over size.**
+   Accepted. The prompt is capped at 4,000 characters (400 beyond), the
+   conversation window is 40 messages, a handed-over result over 200,000
+   characters is withheld. The post says the tool budget bounds executions,
+   not context, and names these.
+4. **Major, "the runtime's invocation timeout" was unsupported.** Accepted.
+   The sandbox client waits at most 180 s per call with no automatic retry;
+   the prose says there is no application-enforced execution deadline and
+   that a call the agent stops waiting for may run on until the session's
+   lifetime ends it.
+5. **Major, "everything is closed" claimed too much.** Accepted; closing is
+   attempted, failures are logged, the sandbox stop retries once, and the
+   prose says what a failed close can leave behind.
+6. **Major, the token test proves less than the claim.** Accepted; the
+   README says what the tests check and that the full Bedrock request is
+   not inspected.
+7. **Minor, the eight thousand characters plus a marker.** Accepted; the
+   wording says at most eight thousand characters of output plus a note.
+8. **Minor, "copied from them".** Accepted; the quotes have bold markers
+   removed and lines re-wrapped, and the record says so.
+9. **Minor, the recall answer's order details came from context.**
+   Accepted; the post says the counts came from the sandbox and the details
+   from the gateway result in context.
+10. **Minor, the SOURCE CODE and References lead-ins and the closing
+    pointer to the next post.** Not changed; series conventions.
+
+After the changes: ruff clean, 86 agent tests pass. Redeploy (the fixture
+changes the Lambda package), live re-run and video follow.
+
+<<REVIEW_ROUND_14>>
+
 
 
 
@@ -749,7 +792,8 @@ live, every gateway call having succeeded, and are covered by tests.
 `trail`, including the generated code): `spend.json`, `carrier.json`,
 `recall.json`, `other.json`, `other2.json`, `c1001.json`, `fresh.json` and
 `pretext-1.json` to `pretext-3.json`. They hold synthetic order data and no
-token; the post's section 4 quotes are copied from them.
+token. The post's section 4 quotes them with the Markdown bold markers
+removed and lines re-wrapped, nothing else changed.
 
 **Provenance.** Image `5acbb89` is ECR digest
 `sha256:d167b116310b57c58ee949e037d73ef833bad17f6146b0223a81ca607b68c589`,
