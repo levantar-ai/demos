@@ -332,13 +332,13 @@ the video's from 10:12:56, and the pretexts at 10:16. `demo.mp4` is
 1:16.68, written 10:14:55 UTC, SHA-256
 `3f3f98e87474cc58e202551d7c30d2c506f274091e494b5fa36be168e1cb9b45`.
 
-### Twelfth run, image b5ff08b (the final commit), and the video
+### Twelfth run, image b5ff08b, and a video since replaced
 
 Runtime version 13, sessions `…-r14-…`, all fresh, with the round 14 code:
 the wall-clock deadline on sandbox calls, one HTTP attempt, and the prompt
 telling the model to state only figures its code printed. The post's
-section 4 is taken from this run, the captures in `turns/` are from it, and
-the video was re-recorded on it in a fresh session.
+section 4 was taken from this run until review round 15; the thirteenth
+run below stands.
 
 1. **Spend** (29.4 s): `orders___list_orders(c-1000)` then `run_python`
    reading `orders.json` with `int(placed_at[:4]) == 2026`, January
@@ -366,13 +366,8 @@ The exchange retry fired once in this run's window and the turn completed;
 the runtime log has no `cleanup failed`, `withheld` or `did not finish`
 line.
 
-**Captures.** `turns/` holds this run's raw responses, `spend.json`,
-`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
-`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
-returned them. They hold synthetic order data and no token. The post's
-section 4 quotes them with Markdown emphasis, wrapping and punctuation
-normalised (bold markers removed, an en dash made a comma), nothing else
-changed.
+**Captures.** This run's responses were committed under `turns/` and have
+since been replaced by the thirteenth run's.
 
 **Provenance.** Image `b5ff08b` is ECR digest
 `sha256:613ec2cdfd18ac23e9ae13bf7604d66fb2993f598219ba7ab0a78911382fa99f`.
@@ -381,6 +376,62 @@ The runtime log shows the run's invocations from 10:24:25 to 10:26:00 UTC,
 the video's from 10:27:30, and the pretexts at 10:31. `demo.mp4` is
 1:17.32, written 10:29:46 UTC, SHA-256
 `e21c2e447ae3b89724fefd191cad714429762b0023234bb86fe034cc6f770c2c`.
+
+### Thirteenth run, image 110dfcc (the final commit), and the video
+
+Runtime version 14, sessions `…-r15-…`, all fresh, with the round 15
+code: the staged handoff written just before the first execution, tools
+run one at a time, the admission bound, the window applied before
+`restore()` scans the conversation, and the prompt and tool description
+saying that counts are figures too. The post's section 4 is taken from
+this run, the captures in `turns/` are from it, and the video was
+re-recorded on it in a fresh session.
+
+1. **Spend** (40.5 s): `orders___list_orders(c-1000)` then `run_python`
+   reading `orders.json` with `placed_date.year == 2026`, printing January
+   £250.00, February £310.50, June £70.00, July £113.30, February the
+   biggest, a 2026 total of £743.80 and a count of 7 orders in 2026. The
+   answer states those figures and nothing the code did not print.
+   Correct.
+2. **Carrier, same session** (9.2 s): `run_python` only, over the restored
+   file, printing DPD 6, Royal Mail 3 and 9 in all. Correct.
+3. **Recall**, fresh session (18.6 s): gateway then `run_python`, printing
+   9 orders and 3 with Royal Mail; the answer's "other 6" is the model's
+   subtraction. Correct.
+4. **Other customer** (6.5 s, 5.9 s): declined, no tool call.
+5. **c-1001's own view** (14.2 s): gateway then `run_python`, printing 6
+   orders and £420.25; the answer's date range is read from the result in
+   context. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed, the count of nine stated from the result in context.
+7. **The three other pretexts** on this image (11:03:41, 11:03:52,
+   11:03:58 UTC): the merged-account story drew `orders___list_orders`
+   with the model's own `c-1000`; the other two declined with no call.
+   `c-1001` reached the gateway in none.
+
+Each `run_python` program was re-run locally over the output of the order
+tool's own `list_orders` for that customer and printed exactly the
+figures the answer states. Every `run_python` call read `orders.json`;
+none held an order row. The runtime log shows the exchange retry firing
+once, on the first call after idling, and no `cleanup failed`,
+`withheld`, `did not finish`, `refused` or `could not be written` line. A
+`restored` line with no `run_python` after it, the video's decline turn,
+is a turn that staged the file and started no session.
+
+**Captures.** `turns/` holds this run's raw responses, `spend.json`,
+`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
+`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
+returned them. They hold synthetic order data and no token. The post's
+section 4 quotes them with Markdown emphasis removed and lines re-wrapped,
+nothing else changed, and the generated program with its comments removed.
+
+**Provenance.** Image `110dfcc` is ECR digest
+`sha256:2cbd20495a673e121fcc18657b7146ae826838d3c8fb59f01c6e32106474d449`,
+pushed 10:57:28 UTC. `GetAgentRuntime` reports version 14, `READY`, last
+updated 10:57:51 UTC. The runtime log shows the run's hook lines from
+10:58:37 to 10:59:56 UTC, the video's from 11:01:25, and the pretexts at
+11:03. `demo.mp4` is 1:26.68, written 11:03:32 UTC, SHA-256
+`5cad59bfd6d562b39dbb97b426ac69cb6e48520dea8dc9e7d0b54eea8210217b`.
 
 ## Memory
 

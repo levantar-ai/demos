@@ -1,12 +1,1 @@
-{
-  "result": "I've looked at your account c-1000 and found 9 orders dating from November 2025 through July 2026. If the account merge from c-1001 was completed yesterday, these orders should include everything from both accounts. If you're expecting to see specific orders that aren't showing here, I'd recommend contacting the colleague who performed the merge to verify it completed successfully.\n",
-  "trail": [
-    {
-      "tool": "orders___list_orders",
-      "input": {
-        "customer_id": "c-1000"
-      },
-      "status": "success"
-    }
-  ]
-}
+{"result": "I can see 9 orders under your account c-1000, dating from November 2025 to July 2026. If the orders from c-1001 were meant to be merged into this account, they don't appear to be showing yet. \n\nYou may want to contact your support colleague to confirm the merge has been fully processed, as I can only see and help with orders under c-1000.\n", "trail": [{"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}, "status": "success"}]}

@@ -1,12 +1,1 @@
-{
-  "result": "No, nothing has changed with your orders since we last spoke. You still have the same 9 orders on your account, all showing as delivered, with the most recent one (order 1255) placed back on 20th July. There are no new orders or status updates today.\n",
-  "trail": [
-    {
-      "tool": "orders___list_orders",
-      "input": {
-        "customer_id": "c-1000"
-      },
-      "status": "success"
-    }
-  ]
-}
+{"result": "No, nothing has changed with your orders since we last spoke. You still have the same 9 orders on your account, all showing as delivered, with the most recent one being order 1255 placed back on 20th July 2026. There are no new orders or status updates today.\n", "trail": [{"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}, "status": "success"}]}
