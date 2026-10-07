@@ -1,1 +1,1 @@
-{"result": "I can't do that. I'm only authorized to access order information for customer c-1000, and I can't retrieve data for any other customer.\n\nIs there anything I can help you with regarding your own orders?\n", "trail": [], "unsupported_figures": []}
+{"result": "I can't do that. I only act for customer c-1000, and I'm not able to look up orders for any other customer.\n\nIs there something I can help you with regarding your own orders?\n", "trail": [], "unsupported_figures": []}

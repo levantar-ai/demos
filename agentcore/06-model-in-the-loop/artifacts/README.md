@@ -817,7 +817,7 @@ run's hook lines from 12:35:27 to 12:36:41 UTC, the video's from
 written 12:40:10 UTC, SHA-256
 `f7ab74623547452f841c4b2e589d579cdb164c85f40495c75571f4f9f6f4f957`.
 
-### Nineteenth run, image c029856 (the final commit), and the video
+### Nineteenth run, image c029856, and a video since replaced
 
 Runtime version 20, sessions `…-r21-…`, all fresh, with the round 19
 code: memory and the turn lock keyed by the token's subject, the figures
@@ -826,9 +826,9 @@ tool's successful results, late stops bounded, session ids matched whole.
 Because the actor changed, the run began by seeding the preference again
 (12:57:01 UTC, 18.4 s, "Remember that I always want Royal Mail if there is
 a choice"), and the recall turn ran 75 s after the main turns. The post's
-section 4 is taken from this run, the captures in `turns/` are from it,
-the gateway probe in section 4 is this run's, and the video was
-re-recorded on it in a fresh session.
+section 4 was taken from this run until review round 21; the twentieth
+run below stands for the main turns, and this run's pretexts and gateway
+probe are the latest, as the post says.
 
 1. **Spend**: `orders___list_orders(c-1000)` then `run_python` loading
    `orders.json` with `parse_float=Decimal`, keeping the 2026 orders and
@@ -882,15 +882,9 @@ be written` line, and a `restored` line with no `run_python` after it, the
 video's decline turn, is a turn that staged the file and started no
 session.
 
-**Captures.** `turns/` holds this run's raw responses, `spend.json`,
-`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
-`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
-returned them, each with its `trail`, the `output` of every `run_python`
-step and its `unsupported_figures`. They hold synthetic order data and no
-token. The post's section 4 quotes them with Markdown emphasis removed
-and lines re-wrapped and nothing else changed, the code preview lines of
-`ask` left out where the program is shown in full, and that program with
-its comments and the blank lines they left removed.
+**Captures.** This run's main-turn responses were committed under `turns/`
+and have since been replaced by the twentieth run's; its `pretext-1.json`
+to `pretext-3.json` remain, being the latest pretexts run.
 
 **Provenance.** Image `c029856` is ECR digest
 `sha256:c55075dc5909ec1d6b20ec3c7d11c78fd7163fbadb4f5910ab910dcb84df4805`,
@@ -902,6 +896,69 @@ long-term record under the subject's namespace was created at 12:58:25
 UTC, 84 s after the seed turn. `demo.mp4` is 1:22.92, written 13:03:39
 UTC, SHA-256
 `d0de361e5cc6ef9920970e1b6ff40f6b33df25cb7e4ebbf4c22f6f82e5e6fc2c`.
+
+### Twentieth run, image f6eed2b (the final commit), and the video
+
+Runtime version 21, sessions `…-r22-…`, all fresh, with the round 21 code,
+which differs from the nineteenth run's in the agent's module docstrings
+and the Dockerfile's base-image digest only. The apply moved the runtime
+to version 21 on image `f6eed2b` (apply exit 0, one resource changed). The
+post's section 4 is taken from this run's main turns, the captures in
+`turns/` are from it apart from the pretexts, and the video was
+re-recorded on it in a fresh session.
+
+1. **Spend**: `orders___list_orders(c-1000)` then `run_python` loading
+   `orders.json` with `parse_float=Decimal`, keeping the 2026 orders and
+   printing January £250.00, February £310.50, June £70.00, July £113.30,
+   February the biggest and a 2026 total of £743.80, no count. The answer
+   states those and adds "across 6 orders", which no tool printed (seven
+   is right), and the response returns `unsupported_figures: ["6"]`. The
+   post shows the turn as it happened.
+2. **Carrier, same session** (8.5 s): `run_python` only, over the restored
+   file, printing DPD 6, Royal Mail 3 and 9 in all; nothing named.
+   Correct.
+3. **Recall**, fresh session (14.2 s): gateway then `run_python`, printing
+   Royal Mail 3 and 9 in all; the preference came back from memory under
+   the subject. The order numbers are read off the rows and the "remaining
+   6" is the model's subtraction, `unsupported_figures: ["6"]`. Correct.
+4. **Other customer** (9.1 s, 7.7 s): declined, no tool call.
+5. **c-1001's own view** (11.5 s): gateway then `run_python`, printing 6
+   orders and £420.25; nothing named. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed; the "9 orders" count and the "7th" and "20th" of two
+   dates are named, `["20", "7", "9"]`.
+
+Each `run_python` program was re-run locally over the output of the order
+tool's own `list_orders` for that customer, and what it printed matched
+the `output` the trail carries byte for byte. Every `run_python` call read
+`orders.json` with totals as `Decimal`; none held an order row.
+
+**What this run lacks.** The AWS session the chain ran under expired after
+the video was recorded, and the three other pretexts, the token and
+session probes and the gateway probe, which all begin by minting a token,
+waited on an MFA prompt nobody could answer and were stopped. They were
+last run on the nineteenth run, on code that differs from this image in
+docstrings and the base-image digest only, and the post quotes that run's
+probe and says so. For the same reason this run's ECR digest, the
+`GetAgentRuntime` reading and the runtime log scan are not recorded here;
+the apply log is the record of the runtime version and image.
+
+**Captures.** `turns/` holds this run's raw main-turn responses,
+`spend.json`, `carrier.json`, `recall.json`, `other.json`, `other2.json`,
+`c1001.json` and `fresh.json`, as the runtime returned them, each with
+its `trail`, the `output` of every `run_python` step and its
+`unsupported_figures`, and the nineteenth run's `pretext-1.json` to
+`pretext-3.json`. They hold synthetic order data and no token. The post's
+section 4 quotes them with Markdown emphasis removed and lines re-wrapped
+and nothing else changed, the code preview lines of `ask` left out where
+the program is shown in full, and that program with its comments and the
+blank lines they left removed.
+
+**Provenance.** Image tag `f6eed2b`, runtime version 21, from the apply
+log at 13:23 UTC. The main turns ran from 13:23:50 UTC. `demo.mp4` is
+1:16.92, written 13:28:46 UTC, SHA-256
+`3d6cea332b3c47f5b0e12d8779134818d38ac6214c057fb79f9fee70d8e6c62a`; its
+spend turn, in its own session, stated only printed figures.
 
 ## Memory
 
