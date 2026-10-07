@@ -224,7 +224,8 @@
     "artefact",
     "artefacts",
     "defaultdict",
-    "fromisoformat"
+    "fromisoformat",
+    "strptime"
   ],
   "ignorePaths": [
     "node_modules/**",

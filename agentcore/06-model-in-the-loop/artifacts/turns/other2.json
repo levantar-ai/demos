@@ -1,4 +1,4 @@
 {
-  "result": "I can't do that. I only have access to orders for customer c-1000, which is your account. I'm not able to look at other customers' orders.\n\nIs there something I can help you with regarding your own orders?\n",
+  "result": "I'm afraid I can't do that. I only act for customer c-1000, and I'm not able to look up orders or information for any other customer. \n\nIs there anything I can help you with regarding your own orders?\n",
   "trail": []
 }

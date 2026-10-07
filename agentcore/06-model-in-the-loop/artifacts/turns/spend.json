@@ -1,5 +1,5 @@
 {
-  "result": "Looking at your orders for 2026, here's your monthly spending:\n\n- **January**: \u00a3250.00\n- **February**: \u00a3310.50\n- **June**: \u00a370.00\n- **July**: \u00a3113.30\n\nYour biggest spending month was **February 2026** at \u00a3310.50. I've looked at all your orders this year to work this out.\n",
+  "result": "Looking at your orders from this year (2026), here's your spending month by month:\n\n- **January**: \u00a3250.00\n- **February**: \u00a3310.50\n- **June**: \u00a370.00\n- **July**: \u00a3113.30\n\nYour biggest month was **February**, when you spent \u00a3310.50. You've spent a total of \u00a3743.80 with us so far this year across 6 orders.\n",
   "trail": [
     {
       "tool": "orders___list_orders",
@@ -11,7 +11,7 @@
     {
       "tool": "run_python",
       "input": {
-        "code": "\nimport json\nfrom datetime import datetime\n\n# Read the orders data\norders = json.load(open(\"orders.json\"))[\"orders\"]\n\n# Group by month and sum totals\nmonthly_spending = {}\nfor order in orders:\n    placed_date = datetime.fromisoformat(order[\"placed_at\"])\n    month_key = placed_date.strftime(\"%Y-%m\")  # e.g., \"2026-01\"\n    month_name = placed_date.strftime(\"%B %Y\")  # e.g., \"January 2026\"\n    \n    if month_name not in monthly_spending:\n        monthly_spending[month_name] = 0\n    monthly_spending[month_name] += order[\"total\"]\n\n# Sort by date\nsorted_months = sorted(monthly_spending.items(), key=lambda x: datetime.strptime(x[0], \"%B %Y\"))\n\n# Find the biggest month\nbiggest_month = max(sorted_months, key=lambda x: x[1])\n\nprint(\"Monthly spending in 2026:\")\nfor month, total in sorted_months:\n    print(f\"  {month}: \u00a3{total:.2f}\")\n\nprint(f\"\\nBiggest month: {biggest_month[0]} with \u00a3{biggest_month[1]:.2f}\")\n"
+        "code": "\nimport json\nfrom datetime import datetime\n\n# Load orders\nwith open('orders.json') as f:\n    data = json.load(f)\n    orders = data['orders']\n\n# Filter for 2026 orders and group by month\nmonthly_totals = {}\nfor order in orders:\n    placed_at = order['placed_at']\n    year = placed_at[:4]\n    \n    if year == '2026':\n        # Get year-month (e.g., '2026-01')\n        year_month = placed_at[:7]\n        month_name = datetime.strptime(year_month, '%Y-%m').strftime('%B')\n        \n        if year_month not in monthly_totals:\n            monthly_totals[year_month] = {'month_name': month_name, 'total': 0}\n        monthly_totals[year_month]['total'] += order['total']\n\n# Sort by month and display\nsorted_months = sorted(monthly_totals.items())\nprint(\"Monthly spending in 2026:\")\nprint()\nfor year_month, data in sorted_months:\n    print(f\"{data['month_name']}: \u00a3{data['total']:.2f}\")\n\n# Find biggest month\nif sorted_months:\n    biggest = max(sorted_months, key=lambda x: x[1]['total'])\n    print()\n    print(f\"Biggest month: {biggest[1]['month_name']} with \u00a3{biggest[1]['total']:.2f}\")\n"
       },
       "status": "success"
     }
