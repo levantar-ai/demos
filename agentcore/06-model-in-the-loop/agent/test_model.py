@@ -103,6 +103,21 @@ def fakes(monkeypatch):
     return FakeAgent
 
 
+def test_the_model_is_told_the_date_by_trusted_code(fakes, monkeypatch):
+    """'This year' has to mean something; the live run showed the model
+    grouping every order when the fixture happened to be one year."""
+    monkeypatch.setattr(model, "today", lambda: "2026-10-07")
+    model.answer("spent this year?", "c-1000", "session-1", "minted-token")
+    prompt = fakes.built[-1].kw["system_prompt"]
+    assert "Today is 2026-10-07 (UTC)" in prompt and '"this year" means the calendar year of that date' in prompt
+
+
+def test_the_restored_conversation_is_windowed(fakes):
+    model.answer("my orders", "c-1000", "session-1", "minted-token")
+    manager = fakes.built[-1].kw["conversation_manager"]
+    assert manager.window_size == model.WINDOW_MESSAGES
+
+
 def test_the_model_learns_the_customer_from_trusted_code(fakes):
     text, steps = model.answer("how much have I spent?", "c-1000", "session-1", "minted-token")
     agent = fakes.built[-1]
@@ -399,6 +414,15 @@ def test_a_failed_refresh_makes_the_tool_refuse_rather_than_read_a_stale_file(mo
     assert box.run_python(code="print(1)") == "ran"
 
 
+def test_an_oversized_result_is_withheld_not_written(monkeypatch):
+    box = _Box()
+    handoff.Handoff(box).after(_Event({"name": "orders___list_orders", "input": {}, "toolUseId": "u1"},
+                                      {"status": "success", "content": [{"text": "x" * (handoff.MAX_HANDOFF_CHARS + 1)}]}))
+    assert box.files == [] and box.unavailable == {"orders.json"}
+    msgs = _conversation_with_a_fetch("y" * (handoff.MAX_HANDOFF_CHARS + 1))
+    assert handoff.latest_results(msgs) == {"orders.json": None}
+
+
 def test_a_failed_gateway_call_or_an_empty_result_also_withholds_the_old_file(monkeypatch):
     """After restore() put last turn's file in place, a failed call or a
     result with nothing in it must not leave that file readable as current."""
@@ -622,12 +646,12 @@ def test_oversized_code_is_refused_before_a_session_is_started(monkeypatch):
     assert started == []
 
 
-def test_a_failed_stop_keeps_the_session_id_for_a_retry(monkeypatch):
+def test_a_failed_stop_is_retried_once_then_raised_with_the_session_id_kept(monkeypatch):
     attempts = []
 
     def flaky_stop(interpreter, sid):
         attempts.append(sid)
-        if len(attempts) == 1:
+        if len(attempts) < 3:
             raise RuntimeError("throttled")
 
     monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s7"))
@@ -636,10 +660,28 @@ def test_a_failed_stop_keeps_the_session_id_for_a_retry(monkeypatch):
     box = sandbox.Sandbox()
     box.run_python(code="print(1)")
     with pytest.raises(RuntimeError):
-        box.close()
-    assert box.session_id == "s7"
-    box.close()
-    assert box.session_id is None and attempts == ["s7", "s7"]
+        box.close()  # two attempts, both fail
+    assert box.session_id == "s7" and attempts == ["s7", "s7"]
+    box.close()  # third attempt succeeds
+    assert box.session_id is None and attempts == ["s7", "s7", "s7"]
+
+
+def test_the_sandbox_client_waits_a_bounded_time_and_does_not_retry(monkeypatch):
+    made = {}
+
+    class FakeBoto:
+        @staticmethod
+        def client(name, config=None):
+            made["name"], made["config"] = name, config
+            return object()
+
+    monkeypatch.setattr(sandbox, "_client", None)
+    monkeypatch.setattr(sandbox, "boto3", FakeBoto)
+    sandbox.client()
+    assert made["name"] == "bedrock-agentcore"
+    assert made["config"].read_timeout == sandbox.WAIT_SECONDS
+    assert made["config"].retries == {"max_attempts": 1}
+    monkeypatch.setattr(sandbox, "_client", None)
 
 
 def test_closing_an_unused_sandbox_stops_nothing(monkeypatch):

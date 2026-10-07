@@ -25,6 +25,9 @@ from trail import BudgetExceeded
 
 PORT = 8080
 MAX_BODY_BYTES = 2 * 1024 * 1024
+# A question for an order agent is a sentence or a paragraph. Anything
+# larger is a cost rather than a question, and is refused before the model.
+MAX_PROMPT_CHARS = 4_000
 
 # The runtime sends its session id to the container on this header. It is
 # the conversation's id for the memory; a caller may also name one in the
@@ -122,6 +125,9 @@ class Handler(BaseHTTPRequestHandler):
         prompt = payload.get("prompt")
         if not isinstance(prompt, str) or not prompt.strip():
             self._send(400, {"error": "prompt is required"})
+            return
+        if len(prompt) > MAX_PROMPT_CHARS:
+            self._send(400, {"error": f"prompt is longer than {MAX_PROMPT_CHARS} characters"})
             return
         session = session_from(self.headers, payload)
         if session is None:

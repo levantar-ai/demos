@@ -192,6 +192,13 @@ def test_a_budget_overrun_is_a_502_that_says_so(server_url):
         StubHandler.respond = original
 
 
+def test_an_oversized_prompt_is_refused_before_the_model(server_url):
+    turns.clear()
+    big = {"prompt": "x" * (main.MAX_PROMPT_CHARS + 1), "session": "s1"}
+    assert status_of(f"{server_url}/invocations", big) == 400
+    assert turns == []
+
+
 def test_a_missing_prompt_is_rejected(server_url):
     assert status_of(f"{server_url}/invocations", {"csv": "a,b\n1,2\n", "session": "s1"}) == 400
 

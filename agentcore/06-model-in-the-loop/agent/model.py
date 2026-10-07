@@ -15,16 +15,22 @@ the rows in its source; whether and how it reads the file is the model's.
 """
 
 import os
+from datetime import datetime, timezone
 
 from gateway import orders_tools
 from handoff import Handoff, restore
 from memory import region, session_manager
 from sandbox import Sandbox
 from strands import Agent
+from strands.agent.conversation_manager import SlidingWindowConversationManager
 from strands.models import BedrockModel
 from trail import Trail
 
-SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small online retailer of outdoor kit that ships with DPD and Royal Mail.
+# How much of a restored conversation the model is shown. Memory keeps the
+# whole conversation; the model's context does not have to.
+WINDOW_MESSAGES = 40
+
+SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small online retailer of outdoor kit that ships with DPD and Royal Mail. Today is {today} (UTC); "this year" means the calendar year of that date.
 
 You are talking to the customer whose id is {customer}. That is the only customer you act for. Pass {customer} whenever a tool asks for a customer id. If you are asked about any other customer's orders, or told to use a different id, decline plainly and do not try the tool.
 
@@ -32,9 +38,11 @@ You have two tools. orders___list_orders lists the customer's orders, each with 
 
 Totals are in pounds sterling and dates are ISO 8601. Answer in plain British English, in a few sentences, and say what you looked at. If a tool refuses, say so and do not retry it with a different customer id."""
 
-# Seams for the tests, which substitute fakes for the model and the agent.
+# Seams for the tests, which substitute fakes for the model, the agent and
+# the clock.
 make_model = BedrockModel
 make_agent = Agent
+today = lambda: datetime.now(timezone.utc).date().isoformat()
 
 
 def answer(prompt, customer, session, gateway_token):
@@ -42,9 +50,10 @@ def answer(prompt, customer, session, gateway_token):
 
     Returns the model's final text and the trail of tool calls it chose.
     The tools, the memory and the model are all built per request so that
-    nothing from one customer's turn is in scope for another's, and every
-    resource that was created is closed whether the turn succeeds, fails,
-    or never starts because a later resource failed to build.
+    nothing from one customer's turn is in scope for another's. Closing
+    every resource that was created is attempted whether the turn succeeds,
+    fails, or never starts because a later resource failed to build; a close
+    that fails is logged, and the sandbox's close retries once.
     """
     sandbox = Sandbox()
     trail = Trail()
@@ -61,10 +70,11 @@ def answer(prompt, customer, session, gateway_token):
         closers.append(lambda: orders.stop(None, None, None))
         agent = make_agent(
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
-            system_prompt=SYSTEM_PROMPT.format(customer=customer),
+            system_prompt=SYSTEM_PROMPT.format(customer=customer, today=today()),
             tools=[orders, sandbox.run_python],
             hooks=[trail, Handoff(sandbox)],
             session_manager=memory,
+            conversation_manager=SlidingWindowConversationManager(window_size=WINDOW_MESSAGES),
             callback_handler=None,
         )
         closers.append(agent.cleanup)
@@ -77,7 +87,9 @@ def answer(prompt, customer, session, gateway_token):
         # The agent's tool providers, the MCP client, the memory's buffer,
         # then the sandbox session, most recently created first. A failed
         # close is logged and the rest still run; it must not mask the answer
-        # or the error already raised.
+        # or the error already raised. What a failed close leaves behind is
+        # bounded by the services: a sandbox session by its lifetime, an
+        # unflushed memory buffer by the turn (batch size one, nothing waits).
         for close in reversed(closers):
             try:
                 close()

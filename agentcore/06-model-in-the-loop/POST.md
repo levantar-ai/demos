@@ -108,8 +108,12 @@ def answer(prompt, customer, session, gateway_token):
 `make_agent` and `make_model` are the Strands `Agent` and `BedrockModel`
 classes behind module-level names, so the tests can stand fakes in for
 them, and `MCPClient.stop` takes the context-manager arguments, which is
-why its closer passes three. Everything that gets created is closed in
-reverse order whether the turn succeeds, fails or never starts. Strands starts the MCP client while the
+why its closer passes three. Closing everything that was created is
+attempted in reverse order whether the turn succeeds, fails or never
+starts, a failed close is logged rather than allowed to hide the answer,
+and the sandbox's stop retries once. What a failed close could leave
+behind is bounded by the services, a sandbox session by its lifetime and
+the memory's buffer by the turn, since nothing is batched. Strands starts the MCP client while the
 agent is built and stops it on `agent.cleanup`, so the client has a closer
 of its own for the case where the build fails in between, and a failed
 close is logged rather than allowed to hide the answer or the error. Two
@@ -176,11 +180,17 @@ network mode, created the first time the model reaches for the tool and
 stopped when the answer is out, with the session's 900 second lifetime as
 the backstop if that stop fails. Variables from one `run_python` call are
 there for the next within a turn. Source over twenty thousand characters is
-refused, the result handed back to the model is cut at eight thousand, and
-the hook that records the trail allows eight tool executions a turn,
-refuses the next with a message to answer from what it has, and ends the
-turn if the model keeps asking. AWS's description of the capability is the
-reason the code the model writes can be allowed to run at all.
+refused, at most eight thousand characters of output are kept for the
+model plus a note that it was cut, the agent waits at most three minutes
+for one call, and the hook that records the trail allows eight tool
+executions a turn, refuses the next with a message to answer from what it
+has, and ends the turn if the model keeps asking. Those bound what the
+model asks for in a turn. The prompt itself is capped at four thousand
+characters before the model sees it, the restored conversation is
+windowed to the last forty messages, and a handed-over result over two
+hundred thousand characters is withheld. AWS's description of the
+capability is the reason the code the model writes can be allowed to run
+at all.
 
 > This is critical in Agentic AI applications where the agents may execute
 > arbitrary code that can lead to data compromise or security risks. The
@@ -295,9 +305,11 @@ conversation keeps them apart on purpose.
 
 ## 2 - What the model is told
 
-The system prompt is short, and two sentences of it carry weight. The
+The system prompt is short, and three things in it carry weight. The
 customer id is written into it by trusted code from the token the runtime
-verified, and the model is told that it is the only customer it acts for.
+verified, the model is told that it is the only customer it acts for, and
+the date is written into it as well, so that "this year" means a calendar
+year rather than whatever the data happens to contain.
 
 ```
 You are talking to the customer whose id is {customer}. That is the only
@@ -431,7 +443,10 @@ Looking at your order history, DPD has delivered most of your orders with
 orders this year to work this out.
 ```
 
-Memory is what a fresh session shows. In an earlier session c-1000 had
+The counts in that answer came from the sandbox, and the order numbers and
+dates beside them the model took from the gateway's result in its context,
+which is still there as any tool result is. Memory is what a fresh session
+shows. In an earlier session c-1000 had
 said "Remember that I always want Royal Mail if there is a choice", the
 `USER_PREFERENCE` strategy extracted it within about a minute, and the
 session manager puts it in front of a message that needs it. A new
@@ -519,19 +534,23 @@ the same `orders.json` produced the same figures every time, and the
 handoff puts the gateway's exact result in front of that program, so the
 three runs after the change all read the file and returned the expected
 figures without a row passing through the model's typing. What the model
-still controls is the program itself, which rows it
-uses, whether it reads the file at all, and what it says afterwards. The
-file removes the transcription step, it does not take the computation out
-of the model's hands, and a reused session in one recording showed the
-model following the shape of earlier turns over the instruction. That is
-what the evals in a later post measure, and it is the reason the controls
-that must hold are outside the model. What that isolation does not bound is how much the model
+still controls is the program itself, which rows it uses, whether it reads
+the file at all, and what it says afterwards. The file removes the
+transcription step, it does not take the computation out of the model's
+hands. A reused session in one recording showed the model following the
+shape of earlier turns over the instruction, and a program that answered
+"this year" without a year filter was right only because every row was
+from this year, which is why the date now comes from trusted code and the
+fixture has last year's orders in it. That is what the evals in a later
+post measure, and it is the reason the controls that must hold are outside
+the model. What that isolation does not bound is how much the model
 asks for, so the agent puts numbers on that itself, eight tool executions a
 turn and then the turn ends, twenty thousand characters of submitted
-source, eight thousand of result or error kept for the model. It puts no
-limit on how long one execution runs. The 900 second session lifetime
-bounds an abandoned session, not a running call, and the runtime's own
-invocation timeout is what ends a turn that runs away.
+source, eight thousand of result or error kept for the model, three
+minutes of waiting on any one call. It sets no deadline on the execution
+itself. A call the agent stops waiting for may still be running in the
+session until the session's 900 second lifetime ends it, and the agent
+reports the wait as a failure rather than an answer.
 
 The model chooses what to say, and what it says is shaped by everything in
 its context. Three of those things are untrusted, the prompt, the order rows

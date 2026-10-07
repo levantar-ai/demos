@@ -14,15 +14,24 @@ is bounded in what it can send and read back.
 import os
 
 import boto3
+from botocore.config import Config
 from strands import tool
 
 _client = None
+
+# How long the agent waits on one code interpreter call. This is the agent's
+# wait, not the execution: the service may keep running the code until the
+# session ends. No automatic retries, a timed-out call is reported as such.
+WAIT_SECONDS = 180
 
 
 def client():
     global _client
     if _client is None:
-        _client = boto3.client("bedrock-agentcore")
+        _client = boto3.client(
+            "bedrock-agentcore",
+            config=Config(read_timeout=WAIT_SECONDS, connect_timeout=10, retries={"max_attempts": 1}),
+        )
     return _client
 
 
@@ -182,10 +191,14 @@ class Sandbox:
         self.put(self.session_id, path, text)
 
     def close(self):
-        """Stop the session. The id is forgotten only once the stop succeeded,
-        so a failed stop can be retried by whoever catches the error; the
-        service's own 900 second session timeout is the backstop."""
+        """Stop the session, retrying once. The id is forgotten only once the
+        stop succeeded; if both attempts fail the error reaches the caller,
+        and the service's 900 second session lifetime is the backstop."""
         if self.session_id is None:
             return
-        self.stop(self.interpreter, self.session_id)
+        try:
+            self.stop(self.interpreter, self.session_id)
+        except Exception as exc:  # noqa: BLE001 — one retry, then the caller hears about it
+            print(f"stopping sandbox session {self.session_id} failed once, retrying: {exc}")
+            self.stop(self.interpreter, self.session_id)
         self.session_id = None

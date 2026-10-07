@@ -24,6 +24,10 @@ from strands.hooks import AfterToolCallEvent, HookProvider, HookRegistry
 
 # Which tool results are handed over, and under what name.
 HANDOFFS = {"orders___list_orders": "orders.json"}
+# A result larger than this is withheld rather than written: the gateway's
+# orders for one customer are kilobytes, and a result that is not cannot be
+# the thing the model was asked to compute over.
+MAX_HANDOFF_CHARS = 200_000
 
 
 def _text_of(result):
@@ -64,6 +68,9 @@ class Handoff(HookProvider):
         if not text.strip():
             print(f"{name} returned no text, {path} withheld")
             return
+        if len(text) > MAX_HANDOFF_CHARS:
+            print(f"{name} returned {len(text)} chars, over the {MAX_HANDOFF_CHARS} limit, {path} withheld")
+            return
         try:
             self.sandbox.write(path, text)
         except Exception as exc:  # noqa: BLE001 — the turn continues, but the tool will not run
@@ -98,7 +105,7 @@ def latest_results(messages, handoffs=None):
             if result and _id(result) in uses:
                 path = handoffs[uses[_id(result)]]
                 text = _text_of(result) if result.get("status") == "success" else ""
-                found[path] = text if text.strip() else None
+                found[path] = text if text.strip() and len(text) <= MAX_HANDOFF_CHARS else None
     return found
 
 
