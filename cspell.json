@@ -222,7 +222,9 @@
     "materialised",
     "materialises",
     "artefact",
-    "artefacts"
+    "artefacts",
+    "defaultdict",
+    "fromisoformat"
   ],
   "ignorePaths": [
     "node_modules/**",

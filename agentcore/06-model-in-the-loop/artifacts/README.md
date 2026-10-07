@@ -188,6 +188,94 @@ session re-fetched through the gateway and reported no change. The demo
 video was re-recorded against this version straight after the turns, so it
 shows the final code.
 
+## Change after publication: the data path, 2026-10-07
+
+Andy's question after publication was whether a model should be relied on
+for these requests at all. The answer the post now gives is that the
+computation is deterministic once written and the variability sits in the
+route and the wording, provided the rows the model computes over are the
+gateway's and not a copy it typed. Until this change the model carried the
+orders into the sandbox by retyping them into its code, which is fine for
+seven rows and is where a wrong figure would come from with three hundred.
+
+`handoff.py` is a second Strands hook. On a successful `orders___list_orders`
+result it writes the result text into the turn's sandbox session as
+`orders.json`, byte for byte, and the system prompt tells the model to read
+that file and never retype rows. A failed handoff is logged and the turn
+continues with the result in the model's context. Six tests cover the
+hook (byte-for-byte write, other tools and failed calls ignored, failure
+logged) and the sandbox's `write`.
+
+### Sixth run, image b25fa14 (handoff in place)
+
+Runtime version 6, sessions `…-r7-…`. Every `run_python` call now opens
+`orders.json`; no run embedded order rows in code.
+
+1. **Spend** (cold start): gateway then `run_python` reading the file,
+   a `defaultdict` by month, January £250.00, February £310.50, June £70.00,
+   July £113.30, February the biggest, £743.80 across 7. Correct.
+2. **Carrier, same session** (20.7 s): the model went straight to
+   `run_python` reading `orders.json`, got `FileNotFoundError` because the
+   sandbox session is new each turn and nothing had been handed over yet,
+   then called `orders___list_orders` and ran the same code successfully,
+   DPD 5, Royal Mail 2, preference quoted. Right answer, one wasted call.
+   The prompt now says the sandbox starts empty every turn and to fetch
+   first in any turn that computes; re-run below.
+3. **Recall**, fresh session (14.0 s): gateway then `run_python` on the file,
+   2 of 7 with Royal Mail, with the two orders named. Correct.
+4. **Other customer** (6.7 s, 4.6 s): declined, no tool call.
+5. **c-1001's own view** (11.8 s): gateway then `run_python` reading the
+   file, 5 orders, £355.55. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed.
+
+### Seventh run, image f793733 (prompt said the sandbox starts empty each turn)
+
+Same behaviour as the sixth run on every turn, including the carrier turn:
+the model again read `orders.json` first, got the file-not-found, fetched
+and then succeeded (18.0 s). Restored context carrying a previous
+successful read of the file outweighed the instruction, so a prompt was not
+the fix. The code now owns that case: before the model runs, `restore()`
+in `handoff.py` writes the restored conversation's most recent
+`orders___list_orders` result into the turn's fresh sandbox session, and
+the prompt describes `orders.json` as the gateway's latest result in the
+conversation, refreshed by each call. Three tests cover it (the latest of
+several fetches wins, failed calls are skipped, a failed restore is logged).
+
+### Eighth run, image fd2cb8e (restore in place), and the video
+
+Runtime version 8, sessions `…-r9-…`. The post's section 4 is taken from
+this run and the video was re-recorded on it.
+
+1. **Spend** (22.1 s): gateway then `run_python` opening `orders.json`,
+   January £250.00, February £310.50, June £70.00, July £113.30, February
+   the biggest, £743.80 across 7. Correct.
+2. **Carrier, same session** (11.8 s): `run_python` only, reading
+   `orders.json` that `restore()` had written from the previous turn's
+   result, one call, no error, DPD 5, Royal Mail 2, preference quoted. The
+   case the sixth and seventh runs got wrong first time.
+3. **Recall**, fresh session (14.0 s): gateway then `run_python` on the
+   file, 2 of 7 with Royal Mail, orders 1218 and 1242. Correct.
+4. **Other customer** (5.6 s, 5.0 s): declined, no tool call.
+5. **c-1001's own view** (12.1 s): gateway then `run_python` on the file,
+   5 orders, £355.55. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed, which also refreshed the file.
+
+Across the sixth, seventh and eighth runs no `run_python` call embedded an
+order row; every one read `orders.json`.
+
+A video recorded on this image with the tape's old fixed session id showed
+the previous pattern, `run_python` with rows embedded, and no gateway call.
+That session had been reused across every recording, so memory restored the
+earlier recordings' turns and the model copied their shape over the
+instruction and over `orders.json`, which `restore()` had put in place. The
+tape now mints a fresh session id per recording. It is also a finding worth
+keeping: restored tool-use examples shape the model's next move more than a
+prompt line does, which is why the data path had to move into code.
+
+
+
 ## Memory
 
 The seed turn in session `live-06-seed-session-…001` stored five events for

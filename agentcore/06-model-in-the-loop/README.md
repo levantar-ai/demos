@@ -8,7 +8,7 @@ built as tools: the order gateway as an MCP server, the Code Interpreter
 sandbox as `run_python`, and AgentCore Memory through the session manager, so
 every turn is recorded and the customer's long-term preferences are put in
 front of the model. Asked a question nobody wrote code for, the model fetches
-the orders, writes the pandas itself, the sandbox runs it, and the answer
+the orders, writes the code itself, the sandbox runs it, and the answer
 comes back with the trail of what it chose.
 
 Identity is unchanged from demo 05 and is the reason this is safe to do. The
@@ -111,7 +111,7 @@ succeeded:
 ```json
 {"result": "...", "trail": [
   {"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}, "status": "success"},
-  {"tool": "run_python", "input": {"code": "import pandas as pd\n..."}, "status": "success"}
+  {"tool": "run_python", "input": {"code": "import json\nwith open('orders.json') as f:\n..."}, "status": "success"}
 ]}
 ```
 
@@ -181,9 +181,14 @@ stack, for looking at the minted token and calling the gateway directly.
   is a second Strands hook: on a successful `orders___list_orders` result it
   writes the result text into the turn's sandbox session as `orders.json`,
   and the system prompt tells the model to read that file and never retype
-  rows. The model still decides whether and how to compute; the rows it
-  computes over are the gateway's. A failed handoff is logged and the turn
-  continues with the result in the model's context.
+  rows. Because the sandbox session is new each turn, `restore()` writes the
+  restored conversation's latest gateway result into it before the model
+  runs, so a second question in a conversation finds the file without
+  fetching again (a question about current state still fetches, and the
+  fetch refreshes the file). The model still decides whether and how to
+  compute; the rows it computes over are the gateway's. A failed handoff or
+  restore is logged and the turn continues with the result in the model's
+  context.
 - The gateway client loads only the tools named in `gateway.py`'s
   `ALLOWED_TOOLS`, so a target added to the gateway later is not handed to
   the model until the agent is changed to name it. Cedar is default deny for
