@@ -1715,6 +1715,44 @@ Verdict "not ready", one blocker, six majors, five minors, one nit.
 The docstring and Dockerfile changes rebuild the image, so the twentieth
 run below is on the final commit.
 
+### Round 22, 2026-10-07 (after the round 21 fixes and the twentieth run)
+
+Verdict "not ready", one blocker, five majors, four minors.
+
+1. **Blocker, the spend turn returned a wrong count as a successful
+   answer.** Correct as a description of the twentieth run. Accepted as
+   a change to the control: when the check names a figure in the first
+   answer, trusted code asks the model once to restate from what the
+   tools returned or to run code for what it needs, and the response says
+   it did (`restated`); what the check names after that is returned. The
+   next run is on that code.
+2. **Major, the boundary is argument-to-token binding under a
+   no-reassignment invariant.** The TL;DR and conclusion already say the
+   boundary holds for as long as a username is never given to a second
+   person; re-keying the orders on an immutable id is a series data-model
+   change and is not made here.
+3. **Major, four-digit tokens from the prompt counted as years.** Accepted;
+   only the year of the date trusted code gave the model counts, and the
+   prompt supports nothing. Tested with £9999, 1234 items and c-1000.
+4. **Major, no process-wide request bound or model deadline.** Accepted in
+   part: the process serves eight turns at once and answers a ninth with
+   503; the model call has a 120 s read timeout and two attempts; the MCP
+   client's start has Strands' 30 s timeout; the memory calls have none,
+   and the README says so.
+5. **Major, memory isolation is an application invariant, not IAM.**
+   Accepted; the post says so and that the runtime role may read the
+   whole memory.
+6. **Major, happy path.** Not changed further.
+7. **Minor, `BedrockAgentCoreApp`.** Accepted; "the alternative
+   application abstraction, moving these checks into it is not
+   demonstrated".
+8. **Minor, the AWS quotation as justification.** Accepted; `SANDBOX`
+   supplies the isolation and the bounds are the application's.
+9. **Minor, no response-size bound.** Accepted; the response is cut to
+   60,000 serialised characters by shortening each step's code to a 2,000
+   character preview, marked. Tested.
+10. **Minor, lead-ins.** Not changed; series conventions.
+
 
 
 

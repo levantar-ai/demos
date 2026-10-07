@@ -44,6 +44,20 @@ MAX_PROMPT_CHARS = 4_000
 SESSION_HEADER = "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"
 SESSION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{32,127}")
 
+# How many turns one process serves at once. The server starts a thread per
+# request and every turn calls the exchange, the memory, the gateway and the
+# model, none of which the sandbox's own bound covers, so the process admits
+# this many turns and tells the next to try again rather than queue it.
+MAX_TURNS_IN_FLIGHT = 8
+_turns_in_flight = threading.BoundedSemaphore(MAX_TURNS_IN_FLIGHT)
+
+# The response is bounded as well as the request. The trail carries the
+# model's code, up to 20,000 characters a call and eight calls a turn, so
+# past this many serialised characters each step's code is cut to a preview
+# and the step says so.
+MAX_RESPONSE_CHARS = 60_000
+CODE_PREVIEW = 2_000
+
 # Turns in one conversation run one at a time in this process. The server
 # answers requests concurrently, and two turns restoring and appending to
 # the same conversation at once would interleave its history, so a second
@@ -133,6 +147,21 @@ def session_from(headers, payload):
     return session if isinstance(session, str) and SESSION_RE.fullmatch(session) else None
 
 
+def bounded(turn):
+    """The turn as the response carries it, within MAX_RESPONSE_CHARS: past
+    that, each step's code is cut to CODE_PREVIEW characters and the step
+    says so."""
+    if len(json.dumps(turn)) <= MAX_RESPONSE_CHARS:
+        return turn
+    steps = []
+    for step in turn.get("trail", []):
+        code = step.get("input", {}).get("code") if isinstance(step.get("input"), dict) else None
+        if isinstance(code, str) and len(code) > CODE_PREVIEW:
+            step = dict(step, input=dict(step["input"], code=code[:CODE_PREVIEW]), input_truncated=True)
+        steps.append(step)
+    return dict(turn, trail=steps)
+
+
 class Handler(BaseHTTPRequestHandler):
     exchange = staticmethod(orders_token)
     respond = staticmethod(answer)
@@ -185,6 +214,9 @@ class Handler(BaseHTTPRequestHandler):
         if session is None:
             self._send(400, {"error": "a session id is required"})
             return
+        if not _turns_in_flight.acquire(blocking=False):
+            self._send(503, {"error": f"the agent is serving {MAX_TURNS_IN_FLIGHT} turns already; try again"})
+            return
         try:
             with one_turn(subject, session):
                 # Trusted code gets the token for the order service, on behalf
@@ -192,7 +224,7 @@ class Handler(BaseHTTPRequestHandler):
                 # what to ask the gateway; it never holds what authenticates
                 # the asking.
                 gateway_token = self.exchange(bearer_from(self.headers))
-                result, trail, unsupported = self.respond(prompt, customer, session, gateway_token, subject)
+                turn = self.respond(prompt, customer, session, gateway_token, subject)
         except BudgetExceeded as exc:
             print(f"turn ended for {customer}: {exc}")
             self._send(502, {"error": "the model exceeded its tool budget for this turn"})
@@ -203,10 +235,13 @@ class Handler(BaseHTTPRequestHandler):
             print(f"turn failed for {customer}: {describe(exc)}")
             self._send(502, {"error": "request failed"})
             return
+        finally:
+            _turns_in_flight.release()
         # The trail is the route the model took and what its code printed;
         # unsupported_figures lists any figure in the answer that no tool
-        # result in the conversation, the prompt or the date contains.
-        self._send(200, {"result": result, "trail": trail, "unsupported_figures": unsupported})
+        # result in the conversation or the date contains, after the one
+        # restatement the check may have asked for.
+        self._send(200, bounded(turn))
 
     def _send(self, status, body):
         data = json.dumps(body).encode()

@@ -39,6 +39,8 @@ for i, step in enumerate(turn.get("trail", []), 1):
         print(f"  {i}. {step['tool']}({json.dumps(args)})  [{step.get('status', '?')}]")
     if step.get("error"):
         print(f"      {step['error']}")
+if turn.get("restated"):
+    print("  the check named a figure in the first answer; the model was asked once to restate")
 if turn.get("unsupported_figures"):
     print(f"  figures in the answer no tool printed: {', '.join(turn['unsupported_figures'])}")
 print()

@@ -26,7 +26,8 @@ class StubHandler(Handler):
     exchange = staticmethod(lambda inbound: f"obo:{inbound}")
     respond = staticmethod(
         lambda prompt, customer, session, token, subject: turns.append((prompt, customer, session, token, subject))
-        or (f"answer for {customer}", [{"tool": "orders___list_orders", "input": {"customer_id": customer}}], [])
+        or {"result": f"answer for {customer}", "trail": [{"tool": "orders___list_orders", "input": {"customer_id": customer}}],
+            "unsupported_figures": [], "restated": False}
     )
 
 
@@ -129,6 +130,7 @@ def test_a_prompt_goes_to_the_model_as_the_verified_customer(server_url):
         "result": "answer for c-1000",
         "trail": [{"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}}],
         "unsupported_figures": [],
+        "restated": False,
     }
     assert turns == [("how much have I spent?", "c-1000", sid("conv-1"), f"obo:{bearer_for('c-1000')}", "sub-of-c-1000")]
 
@@ -207,7 +209,7 @@ def test_turns_in_one_conversation_run_one_at_a_time(server_url):
         started = time.monotonic()
         time.sleep(0.3)
         spans.append((session, started, time.monotonic()))
-        return "ok", [], []
+        return {"result": "ok", "trail": [], "unsupported_figures": [], "restated": False}
 
     original = StubHandler.respond
     StubHandler.respond = staticmethod(slow)
@@ -224,7 +226,7 @@ def test_turns_in_one_conversation_run_one_at_a_time(server_url):
             overlapped = second_start < first_end
             assert overlapped is (not same)
     finally:
-        StubHandler.respond = original
+        StubHandler.respond = staticmethod(original)  # class access unwrapped the staticmethod
 
 
 def test_a_turns_entry_exists_exactly_while_a_turn_holds_or_waits_for_it():
@@ -270,6 +272,42 @@ def test_a_turns_entry_exists_exactly_while_a_turn_holds_or_waits_for_it():
     assert seen["in flight"] == 40 and main._turns == {}
 
 
+def test_a_ninth_turn_in_flight_is_told_to_try_again(server_url):
+    """Every turn calls the exchange, the memory, the gateway and the model;
+    the process admits a bounded number at once and refuses the next with a
+    503 rather than queueing it."""
+    original = main._turns_in_flight
+    main._turns_in_flight = threading.BoundedSemaphore(1)
+    try:
+        assert main._turns_in_flight.acquire(blocking=False)
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("busy")})
+        assert exc.value.code == 503 and "try again" in json.loads(exc.value.read())["error"]
+        main._turns_in_flight.release()
+        assert post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("busy")})[0] == 200
+    finally:
+        main._turns_in_flight = original
+
+
+def test_the_response_is_bounded_by_cutting_code_to_a_preview(server_url):
+    """Eight calls of twenty thousand characters would be 160,000 characters
+    of code in one response; past the response bound each step's code is
+    cut to a preview and the step says so."""
+    big = {"result": "ok", "unsupported_figures": [], "restated": False,
+           "trail": [{"tool": "run_python", "input": {"code": "x" * 20_000}, "status": "success"} for _ in range(8)]}
+    out = main.bounded(big)
+    assert len(json.dumps(out)) <= main.MAX_RESPONSE_CHARS
+    assert all(len(s["input"]["code"]) == main.CODE_PREVIEW and s["input_truncated"] for s in out["trail"])
+    assert "input_truncated" not in main.bounded({"result": "ok", "trail": [{"tool": "run_python", "input": {"code": "print(1)"}}]})["trail"][0]
+    original = StubHandler.respond
+    StubHandler.respond = staticmethod(lambda *a: big)
+    try:
+        status, body = post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("big")})
+        assert status == 200 and body["trail"][0]["input_truncated"] is True
+    finally:
+        StubHandler.respond = staticmethod(original)  # class access unwrapped the staticmethod
+
+
 def test_a_failing_turns_message_stays_out_of_the_log(server_url, capsys):
     """An exception's text can carry a response body, a token or the model's
     code; the log gets the class only."""
@@ -281,7 +319,7 @@ def test_a_failing_turns_message_stays_out_of_the_log(server_url, capsys):
     try:
         assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": sid("s1")}) == 502
     finally:
-        StubHandler.respond = original
+        StubHandler.respond = staticmethod(original)  # class access unwrapped the staticmethod
     out = capsys.readouterr().out
     assert "turn failed for c-1000: RuntimeError" in out
     assert "eyJ" not in out and "1033" not in out and "print" not in out
@@ -296,7 +334,7 @@ def test_a_failing_turn_is_a_502_not_a_traceback(server_url):
     try:
         assert status_of(f"{server_url}/invocations", {"prompt": "hi", "session": sid("s1")}) == 502
     finally:
-        StubHandler.respond = original
+        StubHandler.respond = staticmethod(original)  # class access unwrapped the staticmethod
 
 
 def test_a_budget_overrun_is_a_502_that_says_so(server_url):
@@ -313,7 +351,7 @@ def test_a_budget_overrun_is_a_502_that_says_so(server_url):
         assert exc.value.code == 502
         assert "budget" in json.loads(exc.value.read())["error"]
     finally:
-        StubHandler.respond = original
+        StubHandler.respond = staticmethod(original)  # class access unwrapped the staticmethod
 
 
 def test_an_oversized_prompt_is_refused_before_the_model(server_url):

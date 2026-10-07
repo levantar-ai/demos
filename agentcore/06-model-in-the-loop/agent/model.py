@@ -23,6 +23,7 @@ import os
 import re
 from datetime import datetime, timezone
 
+from botocore.config import Config
 from gateway import orders_tools
 from handoff import Handoff, handed_texts, restore
 from memory import region, session_manager
@@ -37,6 +38,20 @@ from trail import Trail, describe
 # How much of a restored conversation the model is shown. Memory keeps the
 # whole conversation; the model's context does not have to.
 WINDOW_MESSAGES = 40
+# The Bedrock client's own limits: how long one model call may take to answer
+# and how many HTTP attempts it gets. Strands' default read timeout is the
+# same two minutes; it is set here so that it is a stated bound.
+MODEL_READ_SECONDS = 120
+MODEL_CONFIG = Config(read_timeout=MODEL_READ_SECONDS, connect_timeout=10, retries={"total_max_attempts": 2})
+
+# What trusted code says to the model, once, when the check after the answer
+# names a figure. One restatement; what the check names after that is
+# returned beside the answer.
+RESTATE = (
+    "Your answer states figures that run_python did not print and that are not in the orders: {figures}. "
+    "Restate your answer using only figures the tools returned, or call run_python to compute what you need "
+    "and state what it printed. Do not state a figure you have not had printed."
+)
 
 SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small online retailer of outdoor kit that ships with DPD and Royal Mail. Today is {today} (UTC); "this year" means the calendar year of that date.
 
@@ -70,25 +85,24 @@ def _read_figures(text):
     return {f for f in figures_in(text) if "." in f or len(f) >= READ_FIGURE_DIGITS}
 
 
-def unsupported_figures(answer, evidence, messages, *years_from):
+def unsupported_figures(answer, evidence, messages, date):
     """The figures in an answer that nothing supports, as written. What
     `run_python` printed in this turn, whole, supports any figure; the
     successful results of the gateway's order tool in the conversation
     support only what can be read from a row, an identifier, a year or an
-    amount; the prompt, the date and the system prompt support only
-    four-digit years. Nothing else does, not an earlier turn's code output,
-    not a failed result, not another tool. A count or a difference the model
-    worked out in its head is left standing. The check is lexical: a day of
-    the month or a quantity the model read from a row is named as well, and
-    a calculated figure that happens to match a row's amount is not. It
-    reports, it does not rewrite the answer."""
-    support = set()
+    amount; the date trusted code gave the model supports its year and
+    nothing else. Nothing else does, not an earlier turn's code output, not
+    a failed result, not another tool, not a figure the prompt itself
+    carries. A count or a difference the model worked out in its head is
+    left standing. The check is lexical: a day of the month or a quantity
+    the model read from a row is named as well, and a calculated figure that
+    happens to match a row's amount is not. It reports, it does not rewrite
+    the answer."""
+    support = {str(date)[:4]}
     for printed in evidence:
         support |= figures_in(printed)
     for text in handed_texts(messages):
         support |= _read_figures(text)
-    for text in years_from:
-        support |= {f for f in figures_in(text) if len(f) == 4 and "." not in f}
     return sorted(figure for figure in figures_in(answer) if figure not in support)
 
 
@@ -96,9 +110,10 @@ def answer(prompt, customer, session, gateway_token, subject):
     """Run one turn of the conversation as the verified customer, whose
     memory is keyed by the token's subject.
 
-    Returns the model's final text, the trail of tool calls it chose, and
-    the figures in the text that no tool result, the prompt or the date
-    supports.
+    Returns the model's final text, the trail of tool calls it chose, the
+    figures in the text that no tool result or the date supports, and
+    whether the model was asked once to restate because the check named a
+    figure in its first answer.
     The tools, the memory and the model are all built per request so that
     nothing from one customer's turn is in scope for another's. Closing
     every resource that was created is attempted whether the turn succeeds,
@@ -125,7 +140,7 @@ def answer(prompt, customer, session, gateway_token, subject):
         window = SlidingWindowConversationManager(window_size=WINDOW_MESSAGES, should_truncate_results=False)
         system_prompt = SYSTEM_PROMPT.format(customer=customer, today=today())
         agent = make_agent(
-            model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
+            model=make_model(model_id=os.environ["MODEL_ID"], region_name=region(), boto_client_config=MODEL_CONFIG),
             system_prompt=system_prompt,
             tools=[orders, sandbox.run_python],
             hooks=[trail, Handoff(sandbox)],
@@ -146,8 +161,21 @@ def answer(prompt, customer, session, gateway_token, subject):
         # and the file it was told about is there whichever turn fetched it.
         window.apply_management(agent)
         restore(agent.messages, sandbox)
+        date = today()
         try:
-            result = agent(prompt)
+            text = str(agent(prompt))
+            unsupported = unsupported_figures(text, trail.evidence, agent.messages, date)
+            restated = False
+            if unsupported:
+                # Once: the figures the check named go back to the model with
+                # the instruction to restate from what the tools returned.
+                # The request is trusted code's, recorded in the conversation
+                # as a message like any other. What the check names after
+                # the restatement is returned beside the answer.
+                print(f"restating: {len(unsupported)} figure(s) no tool printed")
+                text = str(agent(RESTATE.format(figures=", ".join(unsupported))))
+                unsupported = unsupported_figures(text, trail.evidence, agent.messages, date)
+                restated = True
         except EventLoopException as exc:
             # Strands wraps whatever ends its loop, including what a hook
             # raised. The handler needs the original, so that the budget's
@@ -168,5 +196,4 @@ def answer(prompt, customer, session, gateway_token, subject):
                 close()
             except Exception as exc:  # noqa: BLE001 — logged, never raised over the result
                 print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {describe(exc)}")
-    text = str(result)
-    return text, trail.steps, unsupported_figures(text, trail.evidence, agent.messages, prompt, system_prompt)
+    return {"result": text, "trail": trail.steps, "unsupported_figures": unsupported, "restated": restated}

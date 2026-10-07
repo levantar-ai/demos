@@ -61,10 +61,9 @@ samples. It brings the MCP client, the tool decorator and the loop that
 sends tool results back to the model, and the `bedrock-agentcore` SDK brings a session manager that records
 each turn in AgentCore Memory and retrieves the customer's long-term
 records before the model sees a message. The HTTP contract is still the hand-rolled server from post 01. The SDK's
-`BedrockAgentCoreApp` could replace the runtime adapter in it, while the
-body checks, the token handling, the per-conversation lock and the
-response shape here would stay. Keeping the server keeps the diff between
-post 05 and this one about the model.
+`BedrockAgentCoreApp` is the alternative application abstraction, and
+moving these checks into it is not demonstrated here. Keeping the server
+keeps the diff between post 05 and this one about the model.
 
 ![A model handed the tools the series built, choosing what to call, with identity staying in trusted code](architecture.png)
 
@@ -227,19 +226,21 @@ thousand characters is refused, at most eight thousand characters of
 output are kept for the model plus a note that it was cut, the agent
 gives up on any call to the sandbox service three minutes after it asked
 and runs nothing more in that session for the turn, at most eight such
-calls are in flight in the process at once, and the hook that records the
+calls are in flight in the process at once, the hook that records the
 trail allows eight tool attempts a turn, counted as the model asks,
 refuses the next with a message to answer from what it has, and ends the
-turn if the model keeps asking. Those bound what the model asks for in a
-turn, and the README has the detail of each. The
+turn if the model keeps asking, and the process serves eight turns at once
+and tells a ninth to try again, each model call given two minutes to
+answer and the response cut to a bounded size. Those bound what the model
+asks for in a turn, and the README has the detail of each. The
 prompt itself is capped at four thousand characters before the model
 sees it and the restored conversation is windowed to the last forty
 messages. Neither bounds what a tool result puts in the model's context.
 The gateway's result enters it whole, as every tool result does, and the
 two hundred thousand character cap on the handoff below bounds what is
-staged for the sandbox, not the context. AWS's description of the
-capability is the reason the code the model writes can be allowed to run
-at all.
+staged for the sandbox, not the context. `SANDBOX` mode
+supplies the network isolation that lets the model's code run at all, and
+the bounds above are the application's own.
 
 > This is critical in Agentic AI applications where the agents may execute
 > arbitrary code that can lead to data compromise or security risks. The
@@ -412,13 +413,17 @@ reproduce the gateway's rows in the source it writes. Both are
 instructions, which the model follows most of the time. What trusted code
 adds is a lexical check after the answer. Every figure in it is looked
 for, as written, in the whole of what `run_python` printed this turn,
-among the tokens of three or more digits, or with a decimal part, in the
-order tool's own results, which is what identifiers, years and amounts
-look like and what a quantity or a day of the month does not, and among
-the years in the prompt and the date. Any found in none of them is
-returned beside the answer as the figures the check did not find, so a
-count the model did in its head is named. Nothing else counts, not an
-earlier turn's code output, not a failed result. Being lexical, it names
+among the tokens of three or more digits, or with a decimal part, in
+the order tool's own results, which is what identifiers, years and
+amounts look like and what a quantity or a day of the month does not,
+and the year of the date trusted code gave it. Nothing else counts, not
+an earlier turn's code output, not a failed result, not a figure the
+prompt itself carries. When the check names a figure in the first
+answer, trusted code asks the model once to restate from what the tools
+returned, or to run code for what it needs, and the response says it
+did. Whatever the check names after that is returned beside the answer
+as the figures the check did not find, so a count the model did in its
+head and kept is named. Being lexical, it names
 a day of the month read from a row as well, and misses a calculated
 figure that happens to equal a row's amount. It annotates the answer. It
 establishes nothing about its correctness, and it does not rewrite.
@@ -682,8 +687,9 @@ the program itself, which rows it uses, whether it reads the file at all,
 and what it says afterwards. The file removes the transcription step, it
 does not take the computation out of the model's hands, the rule that a
 calculated figure in the answer is one the code printed is an instruction
-to the model, and the check that names any figure nothing supports is the
-control outside it, one that reports rather than blocks. The date comes
+to the model, and the check that names any figure nothing supports, with
+the one restatement it asks for, is the control outside it, one that
+reports after that rather than blocks. The date comes
 from trusted code for the same reason, so that "this year" is a filter
 the program applies rather than an assumption about the data. What the isolation does not bound is how much the model asks for, and
 the bounds in section 1 are the agent's own numbers on that. Giving up on
@@ -701,10 +707,12 @@ most of the time, not all of it. That is why the controls that matter are
 the ones outside the model.
 
 Memory is keyed by the token's subject. The session manager is built with
-that actor and a session id the caller controls, so a caller can start a
-new conversation but cannot read into another customer's, and a username
+that actor and a session id the caller controls, so the request path never
+configures memory for anyone but the verified subject, and a username
 given to someone else later carries none of the memory, though it would
-carry the orders, which are keyed by the customer id. The retrieval is
+carry the orders, which are keyed by the customer id. That is an
+invariant of the application, which its tests cover, not one IAM
+enforces: the runtime role may read the whole memory. The retrieval is
 semantic, so what the model sees from memory is whatever the
 strategy extracted, which is a reason to look at those records before
 trusting what the model says it remembers.

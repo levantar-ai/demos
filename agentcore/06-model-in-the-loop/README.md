@@ -120,7 +120,7 @@ contains, as written:
   {"tool": "orders___list_orders", "input": {"customer_id": "c-1000"}, "status": "success"},
   {"tool": "run_python", "input": {"code": "import json\nwith open('orders.json') as f:\n..."}, "status": "success",
    "output": "Total orders: 9\nRoyal Mail orders: 3"}
-], "unsupported_figures": ["6"]}
+], "unsupported_figures": ["6"], "restated": true}
 ```
 
 Two more prompts show the parts that are not the model's to decide. Ask for
@@ -196,13 +196,18 @@ stack, for looking at the minted token and calling the gateway directly.
   supports any figure, a successful result of the order tool in the
   conversation supports only what is read from a row (a token of three or
   more digits or with a decimal part, an identifier, a year or an amount),
-  and the prompt, the date and the system prompt support four-digit years
-  only. Nothing else counts, not an earlier turn's code output, not a
-  failed result, not another tool. The check is lexical, with known false
-  positives (a day of the month or a quantity read from a row is named)
-  and a known gap (a calculated figure equal to a row's amount is not); it
-  annotates, it establishes nothing about correctness, and it does not
-  rewrite. The
+  and the date trusted code gave the model supports its year only. Nothing
+  else counts, not an earlier turn's code output, not a failed result, not
+  another tool, not a figure the prompt carries. When the check names a
+  figure in the first answer, `answer()` asks the model once to restate
+  from what the tools returned (`model.RESTATE`), a message trusted code
+  writes and the conversation records like any other, and the response
+  says so (`restated`); what the check names after that is returned. The
+  check is lexical, with known false positives (a day of the month or a
+  quantity read from a row is named) and a known gap (a calculated figure
+  equal to a row's amount is not); it annotates, it establishes nothing
+  about correctness, and after the one restatement it does not rewrite.
+  The
   runtime's log gets a redacted line per step, the tool name, the status and
   the size of the input, never the generated code or the order rows it
   embeds. A failure is logged as its class and, for an AWS error, its code,
@@ -233,7 +238,13 @@ stack, for looking at the minted token and calling the gateway directly.
   flight per process, a ninth being refused rather than queued, except a
   stop, which waits for a slot; the two sandbox stop attempts wait for at
   most 360 s in total, and the other closers, the agent's, the MCP
-  client's and the memory's, have no application deadline. An abandoned
+  client's and the memory's, have no application deadline. The process
+  serves at most 8 turns at once (`main.MAX_TURNS_IN_FLIGHT`) and answers a
+  ninth with 503 rather than queueing it; each model call has a 120 s read
+  timeout and two HTTP attempts (`model.MODEL_CONFIG`); the MCP client's
+  start has Strands' 30 s timeout; the memory calls have none. The
+  response is cut to 60,000 serialised characters by shortening each
+  step's code to a 2,000 character preview, marked `input_truncated`. An abandoned
   call keeps its slot until its HTTP attempt ends, and its code may still
   be running; the stop at the end of the turn ends it when the stop
   succeeds (logged as a stop with an abandoned call behind it), and the

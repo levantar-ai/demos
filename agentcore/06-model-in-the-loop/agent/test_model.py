@@ -96,6 +96,11 @@ class FakeAgent:
                 t.stop(None, None, None)
 
 
+def _answer(*args):
+    turn = model.answer(*args)
+    return turn["result"], turn["trail"], turn["unsupported_figures"]
+
+
 @pytest.fixture
 def fakes(monkeypatch):
     FakeAgent.built.clear()
@@ -152,7 +157,7 @@ def test_tools_run_one_at_a_time_in_the_order_the_model_asked(fakes):
 
 
 def test_the_model_learns_the_customer_from_trusted_code(fakes):
-    text, steps, _ = model.answer("how much have I spent?", "c-1000", "session-1", "minted-token", "sub-1000")
+    text, steps, _ = _answer("how much have I spent?", "c-1000", "session-1", "minted-token", "sub-1000")
     agent = fakes.built[-1]
     assert text == "answered: how much have I spent?"
     assert steps == []
@@ -216,10 +221,11 @@ def test_memory_is_keyed_by_the_tokens_subject_and_the_session(fakes):
 
 def test_the_model_id_and_region_come_from_the_environment(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
-    assert fakes.built[-1].kw["model"].kw == {
-        "model_id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        "region_name": "us-east-1",
-    }
+    kw = fakes.built[-1].kw["model"].kw
+    assert kw["model_id"] == "us.anthropic.claude-sonnet-4-5-20250929-v1:0" and kw["region_name"] == "us-east-1"
+    # the model call has a stated read timeout and attempt count of its own
+    assert kw["boto_client_config"].read_timeout == model.MODEL_READ_SECONDS
+    assert kw["boto_client_config"].retries == {"total_max_attempts": 2}
 
 
 def test_the_agent_is_cleaned_up_even_when_the_turn_fails(fakes, monkeypatch):
@@ -284,7 +290,7 @@ def test_everything_created_is_closed_when_the_agent_cannot_be_built(fakes, monk
 
 def test_a_failing_close_does_not_stop_the_others_or_mask_the_answer(fakes, monkeypatch, capsys):
     monkeypatch.setattr(FakeManager, "close", lambda self: (_ for _ in ()).throw(RuntimeError("flush failed")))
-    text, _, _ = model.answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
+    text, _, _ = _answer("my orders", "c-1000", "session-1", "minted-token", "sub-1000")
     assert text == "answered: my orders"
     assert fakes.built[-1].cleaned is True
     assert "cleanup failed" in capsys.readouterr().out
@@ -671,25 +677,54 @@ def test_figures_in_the_answer_are_checked_against_what_the_code_printed_and_the
     answer = ("Looking at your 9 orders, 3 went with Royal Mail and the other 6 with DPD, £743.80 in all, 42 late; "
               "order 1033 on 18 June 2026 cost £6.80; 12 before, 100 earlier at 5.50, 250.00 failed, 777 at 8.25, "
               "and 743.8 is not how the code wrote it.")
-    assert model.unsupported_figures(answer, evidence, messages, "what about 2025?", "Today is 2026-10-07") == [
+    assert model.unsupported_figures(answer, evidence, messages, "2026-10-07") == [
         "100", "12", "18", "250.00", "5.50", "6", "743.8", "777", "8.25",
     ]
-    assert model.unsupported_figures("Is it £999? Yes, £999, in 2025.", [], [], "is my total £999 for 2025?") == ["999"]
-    assert model.unsupported_figures("No figures here.", evidence, messages) == []
-    assert model.unsupported_figures("", [], []) == []
+    # the prompt supports nothing: a figure the customer wrote is not evidence of itself
+    assert model.unsupported_figures("Is it £999? Yes, £999, in 2025.", [], [], "2026-10-07") == ["2025", "999"]
+    assert model.unsupported_figures("Order c-1000 has 1234 items for £9999.", [], [], "2026-10-07") == ["1000", "1234", "9999"]
+    assert model.unsupported_figures("No figures here.", evidence, messages, "2026-10-07") == []
+    assert model.unsupported_figures("", [], [], "2026-10-07") == []
 
 
-def test_answer_returns_the_figures_nothing_supports(fakes, monkeypatch):
-    class Counted(FakeResult):
-        pass
-
-    monkeypatch.setattr(FakeAgent, "restored_messages", [
+def test_a_named_figure_gets_one_restatement(fakes, monkeypatch):
+    """When the check names a figure in the first answer, trusted code asks
+    the model once to restate from what the tools returned; the response
+    says it did and carries what the check names after that."""
+    rows = [
         {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t1", "name": "orders___list_orders", "input": {}}}]},
         {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": '{"order_id": 1255, "total": 9.00}'}]}}]},
-    ])
-    monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: Counted("Order 1255 cost £9.00; 9 orders, 6 of them DPD, placed since 2025."))
-    _, _, unsupported = model.answer("how many since 2025?", "c-1000", "session-1", "minted-token", "sub-1000")
-    assert unsupported == ["6", "9"]  # 1255 and 9.00 are read from the row, 2025 is the prompt's year, 6 and 9 are the model's
+    ]
+    monkeypatch.setattr(FakeAgent, "restored_messages", rows)
+    monkeypatch.setattr(model, "today", lambda: "2026-10-07")
+    prompts = []
+    answers = iter(["9 orders, 6 of them DPD, placed since 2025.", "Order 1255 cost £9.00, placed in 2026."])
+
+    def scripted(self, prompt):
+        prompts.append(prompt)
+        return FakeResult(next(answers))
+
+    monkeypatch.setattr(FakeAgent, "__call__", scripted)
+    turn = model.answer("how many since 2025?", "c-1000", "session-1", "minted-token", "sub-1000")
+    assert turn["restated"] is True and turn["unsupported_figures"] == []
+    assert turn["result"] == "Order 1255 cost £9.00, placed in 2026."
+    assert prompts[0] == "how many since 2025?"
+    assert "2025, 6, 9" in prompts[1] and "Restate your answer" in prompts[1]  # the named figures, once
+
+
+def test_what_the_restatement_still_names_is_returned_and_there_is_no_second(fakes, monkeypatch):
+    calls = []
+    monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: calls.append(prompt) or FakeResult("The other 6 went with DPD."))
+    turn = model.answer("how many?", "c-1000", "session-1", "minted-token", "sub-1000")
+    assert turn["restated"] is True and turn["unsupported_figures"] == ["6"]
+    assert len(calls) == 2
+
+
+def test_a_clean_answer_is_not_restated(fakes, monkeypatch):
+    calls = []
+    monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: calls.append(prompt) or FakeResult("Nothing to report."))
+    turn = model.answer("anything new?", "c-1000", "session-1", "minted-token", "sub-1000")
+    assert turn["restated"] is False and turn["unsupported_figures"] == [] and len(calls) == 1
 
 
 def test_the_runtime_log_never_carries_the_tool_input(capsys):
