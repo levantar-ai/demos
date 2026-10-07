@@ -233,14 +233,29 @@ class Handoff(HookProvider):
         print(f"handed {name} result to the sandbox as {path} ({len(text)} chars)")
 
 
-def restore(messages, sandbox):
-    for path, text in latest_results(messages).items():
+def restore(messages, sandbox, handoffs=None):
+    written = []
+    for path, text in latest_results(messages, handoffs).items():
+        if text is None:
+            sandbox.unavailable.add(path)
+            print(f"{path} withheld: the conversation's latest call for it did not produce a result")
+            continue
         try:
             sandbox.write(path, text)
         except Exception as exc:
             sandbox.unavailable.add(path)
             print(f"restore of {path} to the sandbox failed: {exc}")
+            continue
+        sandbox.unavailable.discard(path)
+        written.append(path)
+        print(f"restored {path} to the sandbox from the conversation ({len(text)} chars)")
+    return written
 ```
+
+`latest_results` carries the latest outcome per file from the restored
+turns, the text when that call succeeded and `None` when it failed or
+returned nothing, so a turn that follows a failed call withholds the file
+the same way the turn that saw the failure did.
 
 And the memory arrives beside the tools rather than as one. Post 03 stored
 and recalled on command. The session manager writes each turn's messages
@@ -545,8 +560,9 @@ them behind the same gateway is still how you would finish the job.
 
 ## Conclusion
 
-The agent now decides. A model is handed the gateway, the sandbox and the
-memory that posts 02 to 04 built, as tools, and it fetches, computes and
+The agent now decides. A model is handed the gateway and the sandbox that
+posts 02 and 04 built as tools, with the memory of post 03 supplied as
+context, and it fetches, computes and
 answers a question that no code in the repository anticipated, with the
 trail of its choices returned alongside the answer. What made that safe to
 do is that identity stayed where post 05 put it. Trusted code establishes

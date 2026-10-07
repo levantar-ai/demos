@@ -147,12 +147,13 @@ class Sandbox:
         arithmetic over the customer's orders rather than working it out in
         your head. pandas is installed. The sandbox has no network access and
         no credentials. When the latest orders___list_orders call in this
-        conversation returned a result, the agent has written it to the
-        sandbox as orders.json, a JSON object with an "orders" list. Read
-        that file. Never put order rows into the code. If the latest call
-        failed or its result could not be written, this tool refuses to run
-        until orders___list_orders is called again and succeeds. Print the
-        results you want to read. Variables
+        conversation returned non-empty text and the agent successfully
+        wrote it, that text is available as orders.json, a JSON object with
+        an "orders" list. Read that file. Never put order rows into the
+        code. If the latest call failed, returned no usable text or could
+        not be written, this tool refuses to run until orders___list_orders
+        is called again and succeeds. Print the results you want to read.
+        Variables
         persist between calls within one conversation turn. An execution
         error is returned when the code fails, so correct the code and run
         it again.

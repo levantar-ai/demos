@@ -3,11 +3,11 @@
 Extends the demo 05 agent with a model in the loop. Every post so far routed
 a prompt with code, a regex for "order", a prefix for "remember", one
 hard-coded pandas script for every CSV. This one hands a Bedrock model, Claude
-Sonnet 4.5 through a cross-region inference profile, the things those posts
-built as tools: the order gateway as an MCP server, the Code Interpreter
-sandbox as `run_python`, and AgentCore Memory through the session manager, so
-every turn is recorded and the customer's long-term preferences are put in
-front of the model. Asked a question nobody wrote code for, the model fetches
+Sonnet 4.5 through a cross-region inference profile, two of the things those
+posts built as tools, the order gateway as an MCP server and the Code
+Interpreter sandbox as `run_python`, with AgentCore Memory supplied as
+context through the session manager, so every turn is recorded and the
+customer's long-term preferences are put in front of the model. Asked a question nobody wrote code for, the model fetches
 the orders, writes the code itself, the sandbox runs it, and the answer
 comes back with the trail of what it chose.
 

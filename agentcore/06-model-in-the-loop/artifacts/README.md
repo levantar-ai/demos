@@ -245,8 +245,10 @@ the fix. The code now owns that case: before the model runs, `restore()`
 in `handoff.py` writes the restored conversation's most recent
 `orders___list_orders` result into the turn's fresh sandbox session, and
 the prompt describes `orders.json` as the gateway's latest result in the
-conversation, refreshed by each call. Three tests cover it (the latest of
-several fetches wins, failed calls are skipped, a failed restore is logged).
+conversation, refreshed by each call. At this revision a failed latest call
+was skipped by the restore, which review round 7 caught; since then the
+latest outcome wins and a failed or empty latest call keeps the file
+withheld on the following turn.
 
 ### Eighth run, image fd2cb8e (restore in place), and the video
 
@@ -580,7 +582,29 @@ Verdict "not ready", one blocker, two majors, two minors.
 After the changes: ruff clean, 77 agent tests pass. Redeploy, live re-run
 and video on this code follow once credentials are refreshed.
 
-<<REVIEW_ROUND_8>>
+### Round 8, 2026-10-07 (after the round 7 fixes)
+
+Verdict "not ready", one blocker, two majors, one minor; the `latest_results`
+and `restore` implementation and tests accepted.
+
+1. **Blocker, the post's `restore()` excerpt lacked the withheld branch.**
+   Correct; the excerpt is now the real function.
+2. **Major, the model-visible wording still implied the file existed after
+   any successful call.** Accepted; the prompt and the tool description say
+   the file is there when the latest call returned non-empty text and the
+   agent wrote it successfully, and the tests check that wording.
+3. **Major, "memory as a tool" in the conclusion, README opening and two
+   module docstrings.** Accepted; all four say gateway and sandbox as tools,
+   memory as context through the session manager.
+4. **Minor, the seventh-run record described the pre-round-7 skip as
+   current.** Accepted; it now says what that revision did and points to
+   the correction.
+
+After the changes: ruff clean, 77 agent tests pass. Redeploy, live re-run
+and video on this code follow once credentials are refreshed.
+
+<<REVIEW_ROUND_9>>
+
 
 
 

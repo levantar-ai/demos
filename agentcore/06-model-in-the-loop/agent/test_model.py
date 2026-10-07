@@ -244,7 +244,7 @@ def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "orders.json" in prompt and "never retype order rows" in prompt
-    assert "When the latest orders___list_orders call in this conversation returned a result" in prompt
+    assert "returned non-empty text and the agent successfully wrote it" in prompt
     assert "call orders___list_orders again before computing" in prompt
 
 
@@ -416,7 +416,7 @@ def test_the_tool_description_tells_the_model_to_read_the_file_not_embed_rows():
     description = " ".join(sandbox.Sandbox().run_python.tool_spec["description"].split())
     assert "orders.json" in description
     assert "Never put order rows into the code" in description
-    assert "When the latest orders___list_orders call in this conversation returned a result" in description
+    assert "returned non-empty text and the agent successfully wrote it" in description
     assert "refuses to run until orders___list_orders is called again" in description
     assert "list of dicts" not in description and "into the code itself" not in description
 

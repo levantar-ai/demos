@@ -5,8 +5,9 @@ validates the customer's bearer token and forwards it, as post 05, and the
 agent still gets its token for the order service from AgentCore Identity on
 the customer's behalf (identity.py). What changes is what happens to the
 prompt. There is no routing code left in this file. Every prompt goes to a
-Bedrock model (model.py) that has been handed the order gateway, the sandbox
-and the memory as tools, and the model chooses what to call. The customer
+Bedrock model (model.py) that has been handed the order gateway and the
+sandbox as tools, with the memory supplied as context by the session
+manager, and the model chooses what to call. The customer
 the model acts for comes from the verified token; the token itself is
 supplied to the gateway client by this code, so the model chooses arguments,
 never credentials, and a wrong customer_id is refused by Cedar at the
