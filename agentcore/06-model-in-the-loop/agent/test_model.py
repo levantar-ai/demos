@@ -117,6 +117,8 @@ def test_the_model_is_told_the_gateway_is_the_only_source_of_orders(fakes):
     assert "only source of order data" in prompt
     assert "Never invent" in prompt
     assert "call it again" in prompt  # a restored snapshot is for analysis, not for current status
+    assert "Call it in any turn that needs order data" not in prompt  # reuse is allowed for the same figures
+    assert "there is no suitable result from earlier in this conversation" in prompt
     assert "current status, carrier or ETA of an order" in prompt
 
 

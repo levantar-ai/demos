@@ -603,7 +603,16 @@ and `restore` implementation and tests accepted.
 After the changes: ruff clean, 77 agent tests pass. Redeploy, live re-run
 and video on this code follow once credentials are refreshed.
 
-<<REVIEW_ROUND_9>>
+### Round 9, 2026-10-07 (after the round 8 fixes)
+
+Verdict **"ready to publish"**, one minor: the system prompt said to call
+the gateway in any turn that needs order data and in the next sentence
+allowed reuse. Accepted; it now says to call when there is no suitable
+earlier result, tested. The redeploy, live re-run and video on this code
+follow below once credentials are refreshed.
+
+<<FINAL_RUN>>
+
 
 
 
