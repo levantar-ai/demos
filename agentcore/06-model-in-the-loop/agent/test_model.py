@@ -67,9 +67,11 @@ class FakeResult:
 
 class FakeAgent:
     built: ClassVar[list] = []
+    restored_messages: ClassVar[list] = []
 
     def __init__(self, **kw):
         self.kw = kw
+        self.messages = list(FakeAgent.restored_messages)
         self.cleaned = False
         for t in kw.get("tools", []):
             if isinstance(t, FakeClient):
@@ -242,7 +244,51 @@ def test_the_model_is_told_to_read_the_file_not_retype_rows(fakes):
     model.answer("my orders", "c-1000", "session-1", "minted-token")
     prompt = fakes.built[-1].kw["system_prompt"]
     assert "orders.json" in prompt and "never retype order rows" in prompt
-    assert "starts empty on every turn" in prompt  # the live run showed it assuming the file persisted
+    assert "most recent result is in the sandbox" in prompt
+
+
+def _conversation_with_a_fetch(text):
+    return [
+        {"role": "user", "content": [{"text": "how much have I spent?"}]},
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t1", "name": "orders___list_orders", "input": {"customer_id": "c-1000"}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": text}]}}]},
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t2", "name": "run_python", "input": {"code": "print(1)"}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t2", "status": "success", "content": [{"text": "1"}]}}]},
+        {"role": "assistant", "content": [{"text": "£743.80"}]},
+    ]
+
+
+def test_a_restored_conversations_latest_fetch_is_put_in_the_sandbox_before_the_model_runs(fakes, monkeypatch):
+    """The live run's second turn read orders.json before fetching and found
+    nothing, because the sandbox session is new each turn. Trusted code now
+    restores the last gateway result into it first."""
+    text = '{"customer_id": "c-1000", "orders": [{"order_id": 1033, "total": 12.0}]}'
+    puts = []
+    monkeypatch.setattr(sandbox.Sandbox, "start", staticmethod(lambda i, n: "s5"))
+    monkeypatch.setattr(sandbox.Sandbox, "put", staticmethod(lambda sid, path, t: puts.append((path, t))))
+    monkeypatch.setattr(FakeAgent, "restored_messages", _conversation_with_a_fetch(text))
+    try:
+        model.answer("which carrier?", "c-1000", "session-1", "minted-token")
+    finally:
+        monkeypatch.setattr(FakeAgent, "restored_messages", [])
+    assert puts == [("orders.json", text)]
+
+
+def test_the_latest_of_several_fetches_wins_and_failures_are_skipped():
+    msgs = _conversation_with_a_fetch("first") + [
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t3", "name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t3", "status": "error", "content": [{"text": "denied"}]}}]},
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t4", "name": "orders___list_orders", "input": {}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t4", "status": "success", "content": [{"text": "second"}]}}]},
+    ]
+    assert handoff.latest_results(msgs) == {"orders.json": "second"}
+    assert handoff.latest_results([]) == {}
+    assert handoff.latest_results(_conversation_with_a_fetch("")) == {}
+
+
+def test_a_failed_restore_is_logged_and_the_turn_goes_on(capsys):
+    assert handoff.restore(_conversation_with_a_fetch("x"), _Box(fail=True)) == []
+    assert "restore of orders.json to the sandbox failed" in capsys.readouterr().out
 
 
 # --- the handoff: the gateway's result reaches the sandbox untouched ---------

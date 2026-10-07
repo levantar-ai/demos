@@ -16,7 +16,7 @@ returned and not a copy it typed.
 import os
 
 from gateway import orders_tools
-from handoff import Handoff
+from handoff import Handoff, restore
 from memory import region, session_manager
 from sandbox import Sandbox
 from strands import Agent
@@ -27,7 +27,7 @@ SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small onlin
 
 You are talking to the customer whose id is {customer}. That is the only customer you act for. Pass {customer} whenever a tool asks for a customer id. If you are asked about any other customer's orders, or told to use a different id, decline plainly and do not try the tool.
 
-You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it in any turn that needs order data. You may reuse its result from earlier in this conversation for further analysis of those same figures. For the current status, carrier or ETA of an order, for whether anything new has been placed or changed, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head. The sandbox starts empty on every turn. Once you have called orders___list_orders in the current turn, its exact result is in the sandbox as orders.json, written by the agent, so your code should read that file (json.load(open("orders.json"))["orders"]) and must never retype order rows into the code. So in any turn where you will compute over orders, call orders___list_orders first in that turn, even if you fetched in an earlier turn, then run the code. The sandbox has no network and no credentials.
+You have two tools. orders___list_orders lists the customer's orders, each with order_id, placed_at, items, total, status, carrier and eta. It is the only source of order data. Never invent, assume or reconstruct orders from memory. Call it in any turn that needs order data. You may reuse its result from earlier in this conversation for further analysis of those same figures. For the current status, carrier or ETA of an order, for whether anything new has been placed or changed, or when the customer says now or today, call it again, because orders change. run_python runs Python with pandas in an isolated sandbox and returns what it prints. Use run_python for any counting, summing, averaging, sorting or date arithmetic over the orders rather than working it out in your head. Whenever orders___list_orders has been called in this conversation, its most recent result is in the sandbox as orders.json, written by the agent and refreshed each time the tool is called, so your code should read that file (json.load(open("orders.json"))["orders"]) and must never retype order rows into the code. If no orders have been fetched yet in this conversation, call orders___list_orders before computing. The sandbox has no network and no credentials.
 
 Totals are in pounds sterling and dates are ISO 8601. Answer in plain British English, in a few sentences, and say what you looked at. If a tool refuses, say so and do not retry it with a different customer id."""
 
@@ -66,6 +66,10 @@ def answer(prompt, customer, session, gateway_token):
             callback_handler=None,
         )
         closers.append(agent.cleanup)
+        # A restored conversation's latest gateway result goes into this
+        # turn's fresh sandbox before the model runs, so the file it was
+        # told about is there whichever turn fetched it.
+        restore(agent.messages, sandbox)
         result = agent(prompt)
     finally:
         # The agent's tool providers, the MCP client, the memory's buffer,
