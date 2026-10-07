@@ -44,25 +44,67 @@ def test_orders_token_fails_closed_without_a_token(monkeypatch):
         identity.orders_token("inbound-jwt")
 
 
-def test_a_transient_exchange_failure_is_retried_once(monkeypatch):
+def _token_endpoint_failure():
+    from botocore.exceptions import ClientError
+    return ClientError({"Error": {"Code": "ValidationException",
+                                  "Message": "HTTP request failed against Token endpoint"}},
+                       "GetResourceOauth2Token")
+
+
+def test_a_transient_exchange_failure_is_retried_once_after_the_pause(monkeypatch):
+    fake = FakeAgentCore()
+    calls, slept = [], []
+
+    def flaky(**kw):
+        calls.append(kw)
+        if len(calls) == 1:
+            raise _token_endpoint_failure()
+        return {"accessToken": "minted-789"}
+
+    fake.get_resource_oauth2_token = flaky
+    monkeypatch.setattr(identity, "_client", lambda: fake)
+    monkeypatch.setattr(identity.time, "sleep", lambda s: slept.append(s))
+    assert identity.orders_token("inbound-jwt") == "minted-789"
+    assert len(calls) == 2 and calls[0] == calls[1]
+    assert slept == [identity.RETRY_AFTER_SECONDS]
+
+
+def test_a_second_transient_failure_is_raised_with_no_third_attempt(monkeypatch):
+    import pytest
     from botocore.exceptions import ClientError
 
     fake = FakeAgentCore()
     calls = []
 
-    def flaky(**kw):
+    def always(**kw):
         calls.append(kw)
-        if len(calls) == 1:
-            raise ClientError({"Error": {"Code": "ValidationException",
-                                         "Message": "HTTP request failed against Token endpoint"}},
-                              "GetResourceOauth2Token")
-        return {"accessToken": "minted-789"}
+        raise _token_endpoint_failure()
 
-    fake.get_resource_oauth2_token = flaky
+    fake.get_resource_oauth2_token = always
     monkeypatch.setattr(identity, "_client", lambda: fake)
-    monkeypatch.setattr(identity, "RETRY_AFTER_SECONDS", 0)
-    assert identity.orders_token("inbound-jwt") == "minted-789"
-    assert len(calls) == 2 and calls[0] == calls[1]
+    monkeypatch.setattr(identity.time, "sleep", lambda s: None)
+    with pytest.raises(ClientError):
+        identity.orders_token("inbound-jwt")
+    assert len(calls) == 2
+
+
+def test_a_validation_exception_about_something_else_is_not_retried(monkeypatch):
+    import pytest
+    from botocore.exceptions import ClientError
+
+    fake = FakeAgentCore()
+    calls = []
+
+    def other(**kw):
+        calls.append(kw)
+        raise ClientError({"Error": {"Code": "ValidationException", "Message": "scopes invalid"}},
+                          "GetResourceOauth2Token")
+
+    fake.get_resource_oauth2_token = other
+    monkeypatch.setattr(identity, "_client", lambda: fake)
+    with pytest.raises(ClientError):
+        identity.orders_token("inbound-jwt")
+    assert len(calls) == 1
 
 
 def test_other_exchange_errors_are_not_retried(monkeypatch):

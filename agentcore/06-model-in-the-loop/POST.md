@@ -84,7 +84,7 @@ def answer(prompt, customer, session, gateway_token):
         memory = session_manager(customer, session)
         closers.append(memory.close)
         orders = orders_tools(gateway_token)
-        closers.append(orders.stop)
+        closers.append(lambda: orders.stop(None, None, None))
         agent = make_agent(
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region()),
             system_prompt=SYSTEM_PROMPT.format(customer=customer),
@@ -107,8 +107,9 @@ def answer(prompt, customer, session, gateway_token):
 
 `make_agent` and `make_model` are the Strands `Agent` and `BedrockModel`
 classes behind module-level names, so the tests can stand fakes in for
-them. Everything that gets created is closed in reverse order whether the
-turn succeeds, fails or never starts. Strands starts the MCP client while the
+them, and `MCPClient.stop` takes the context-manager arguments, which is
+why its closer passes three. Everything that gets created is closed in
+reverse order whether the turn succeeds, fails or never starts. Strands starts the MCP client while the
 agent is built and stops it on `agent.cleanup`, so the client has a closer
 of its own for the case where the build fails in between, and a failed
 close is logged rather than allowed to hide the answer or the error. Two

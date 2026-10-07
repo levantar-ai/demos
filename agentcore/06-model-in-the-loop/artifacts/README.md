@@ -611,6 +611,28 @@ allowed reuse. Accepted; it now says to call when there is no suitable
 earlier result, tested. The redeploy, live re-run and video on this code
 follow below once credentials are refreshed.
 
+### Round 10, 2026-10-07 (on the two runtime-log fixes)
+
+Verdict "not ready", two blockers, two majors, one minor.
+
+1. **Blocker, the post's `answer` excerpt still had the no-argument
+   closer.** Correct; it now matches `model.py`, with a sentence on why
+   the closer passes three arguments.
+2. **Blocker, the artifacts said the fixes were redeployed while the run
+   was a placeholder.** The run was in progress when the review was sent;
+   the record now says which image ran and that the standing run is the
+   one on the final commit.
+3. **Major, `test_identity.py` was not in the bundle.** It is now, and the
+   tests cover one retry with one pause, a second matching failure raised
+   with no third attempt, and a non-matching failure not retried.
+4. **Major, the retry predicate matched any `ClientError` mentioning the
+   token endpoint.** Accepted; it checks the structured error code
+   (`ValidationException`) and message.
+5. **Minor, the comments stated the cause as fact.** Accepted; they state
+   the observation.
+
+<<REVIEW_ROUND_11>>
+
 ### Ninth run, image 9fb948b (the code as reviewed), and the video
 
 Runtime version 9, sessions `…-r10-…`, all fresh, on the commit the ninth
@@ -658,9 +680,11 @@ older:
   passes the three arguments, the fake has the real signature, and the
   happy-path test asserts no `cleanup failed` line is logged.
 
-Both fixes are redeployed and the turns and video re-run below.
+Both fixes were redeployed as image `8bd7253` and the turns re-run; review
+round 10 then narrowed the retry to the structured error code and message,
+so the run that stands is the one on the commit after that, below.
 
-<<RUN_11>>
+<<RUN_12>>
 
 
 

@@ -22,12 +22,18 @@ from botocore.exceptions import ClientError
 
 _agentcore = None
 
-# The exchange front door is a Lambda behind an HTTP API; its first call
-# after idling can exceed AgentCore Identity's timeout on the token
-# endpoint, which comes back as a ValidationException naming the endpoint.
-# One retry after a pause is enough, the second call reaches a warm function.
+# An occasional first request after an idle period came back from
+# GetResourceOauth2Token as a ValidationException whose message named the
+# token endpoint, "HTTP request failed against Token endpoint". That one
+# failure is retried once after a pause; anything else is raised as it is.
 RETRY_AFTER_SECONDS = 2
-_TRANSIENT = "Token endpoint"
+_TRANSIENT_CODE = "ValidationException"
+_TRANSIENT_TEXT = "Token endpoint"
+
+
+def _transient(exc):
+    error = (getattr(exc, "response", None) or {}).get("Error", {})
+    return error.get("Code") == _TRANSIENT_CODE and _TRANSIENT_TEXT in error.get("Message", "")
 
 
 def _client():
@@ -62,7 +68,7 @@ def orders_token(inbound_jwt: str) -> str:
     try:
         result = client.get_resource_oauth2_token(**request)
     except ClientError as exc:
-        if _TRANSIENT not in str(exc):
+        if not _transient(exc):
             raise
         print(f"exchange failed once, retrying in {RETRY_AFTER_SECONDS}s: {exc}")
         time.sleep(RETRY_AFTER_SECONDS)
