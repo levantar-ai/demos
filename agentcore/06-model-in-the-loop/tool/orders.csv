@@ -1,4 +1,7 @@
 order_id,customer_id,placed_at,items,total,status,carrier,eta
+997,c-1001,2025-12-02,3,64.70,delivered,DPD,
+998,c-1000,2025-11-14,2,88.40,delivered,Royal Mail,
+999,c-1000,2025-12-19,1,149.00,delivered,DPD,
 1001,c-1039,2026-01-05,1,189.00,delivered,DPD,
 1002,c-1033,2026-01-05,2,102.10,delivered,Royal Mail,
 1003,c-1010,2026-01-06,2,111.50,delivered,DPD,

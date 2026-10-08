@@ -5,9 +5,11 @@ the handler. From this post the AgentCore Memory session manager records
 every turn as an event in the customer's own session, the short-term memory,
 and before the model sees a message it retrieves the customer's long-term
 records, the USER_PREFERENCE strategy's extractions in /users/{actorId}, and
-puts them in front of the message. The actor is always the verified customer,
-never a value from the request body, so one customer's preferences cannot be
-read into another's conversation.
+puts them in front of the message. The actor is the token's subject, the
+pool's immutable id for the user, never the username, which an administrator
+can delete and create again, and never a value from the request body, so one
+customer's preferences cannot be read into another's conversation and a
+recreated username inherits nothing.
 
 Restored turns keep their tool calls and results (the SDK's default). The
 live run showed why: with them filtered out, a second turn in the same
@@ -38,15 +40,16 @@ def region():
     return os.environ.get("AWS_REGION") or boto3.Session().region_name
 
 
-def config_for(customer, session):
-    """The memory configuration for one customer's conversation."""
+def config_for(actor, session):
+    """The memory configuration for one conversation of one actor, the
+    token's subject."""
     return AgentCoreMemoryConfig(
         memory_id=os.environ["MEMORY_ID"],
-        actor_id=customer,
+        actor_id=actor,
         session_id=session,
         retrieval_config={PREFERENCES: RetrievalConfig(top_k=5, relevance_score=0.3)},
     )
 
 
-def session_manager(customer, session):
-    return make_manager(config_for(customer, session), region_name=region())
+def session_manager(actor, session):
+    return make_manager(config_for(actor, session), region_name=region())

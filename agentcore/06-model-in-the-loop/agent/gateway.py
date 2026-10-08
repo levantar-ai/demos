@@ -1,14 +1,17 @@
 """The order tools, as the gateway publishes them, handed to the model.
 
 Carried forward from post 02 with one change. Earlier posts called a named
-tool from code; here the gateway is connected as an MCP server and whatever
-tools it lists are the ones the model may choose from, by the names the
-gateway gives them, <target>___<tool>. The token presented is the one
-AgentCore Identity obtained on the customer's behalf (identity.py), never
-the customer's own, and the model never sees it: it travels in the HTTP
-header of a client that trusted code built. Policy in AgentCore still
-evaluates Cedar on every call, so a customer_id the model chooses wrongly
-is refused at the gateway before the tool runs.
+tool from code; here the gateway is connected as an MCP server, Strands
+discovers the tools it lists, and the model is handed only the ones named
+in ALLOWED_TOOLS, by the names the gateway gives them, <target>___<tool>.
+The token presented is the one AgentCore Identity obtained on the
+customer's behalf (identity.py), never the customer's own, and trusted code
+puts it only in the HTTP header of the client built here, never in the
+model's prompt, messages or tool arguments. In the supplied Terraform
+deployment, Policy in AgentCore evaluates Cedar on every call (gateway.tf,
+ENFORCE mode, policy.tf), so a customer_id the model chooses wrongly is
+refused at the gateway before the tool runs; this module does not
+establish that on its own.
 """
 
 import os
@@ -26,8 +29,9 @@ ALLOWED_TOOLS = ["orders___list_orders"]
 def orders_tools(gateway_token):
     """An MCP client for the order gateway, authenticated with the minted token.
 
-    Strands starts it when the agent loads its tools and stops it on
-    agent.cleanup(), so the connection lives exactly as long as one answer.
+    Strands starts it when the agent loads its tools, and stopping it is
+    attempted on agent.cleanup(), with a closer of its own in model.py for
+    the case where the agent's build fails part way: made for one answer.
     Only the allowlisted tools are loaded, whatever else the gateway lists.
     """
     return make_client(

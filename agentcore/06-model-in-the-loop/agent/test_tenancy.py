@@ -57,10 +57,11 @@ def test_no_customer_can_see_the_whole_table():
 
 
 # --- memory: every conversation is keyed by the verified customer -------------
-def test_memory_is_configured_for_the_customer_not_a_body_value():
-    # A caller controls the session value; it must never widen the actor.
-    config = memory.config_for("c-1000", "../c-1001")
-    assert config.actor_id == "c-1000"
+def test_memory_is_configured_for_the_actor_not_a_body_value():
+    # A caller controls the session value; it must never widen the actor,
+    # which is the token's subject.
+    config = memory.config_for("sub-1000", "../c-1001")
+    assert config.actor_id == "sub-1000"
     assert config.session_id == "../c-1001"  # passed through as an opaque id
     assert config.memory_id == "mem-test"
 
@@ -70,3 +71,17 @@ def test_recall_searches_only_the_customers_namespace():
     (namespace,) = config.retrieval_config
     assert namespace == "/users/{actorId}"
     assert namespace.format(actorId=config.actor_id) == "/users/c-1000"
+
+
+# --- what the Terraform fixes that the code relies on -------------------------
+TERRAFORM = pathlib.Path(__file__).resolve().parents[1] / "terraform"
+
+
+def test_the_sandbox_has_no_network():
+    """SANDBOX mode is what lets the model's code run at all."""
+    assert 'network_mode = "SANDBOX"' in (TERRAFORM / "tools.tf").read_text()
+
+
+def test_the_execution_roles_trust_the_service_only_for_this_demos_runtime_and_gateway():
+    assert "runtime/${local.runtime_name}-*" in (TERRAFORM / "iam.tf").read_text()
+    assert "gateway/${local.name_prefix}-gw-*" in (TERRAFORM / "gateway.tf").read_text()

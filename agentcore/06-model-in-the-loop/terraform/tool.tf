@@ -28,9 +28,26 @@ resource "aws_iam_role" "tool" {
   }
 }
 
-resource "aws_iam_role_policy_attachment" "tool_logs" {
-  role       = aws_iam_role.tool.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+# The log group first, with retention and the demo key, so the role needs
+# no CreateLogGroup and may write to this group alone.
+resource "aws_cloudwatch_log_group" "tool" {
+  # checkov:skip=CKV_AWS_338:Seven days is the retention for a teaching stack that is destroyed after the post
+  name              = "/aws/lambda/${local.name_prefix}-orders"
+  retention_in_days = 7
+  kms_key_id        = aws_kms_key.demo.arn
+}
+
+resource "aws_iam_role_policy" "tool_logs" {
+  name = "logs"
+  role = aws_iam_role.tool.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      Resource = "${aws_cloudwatch_log_group.tool.arn}:*"
+    }]
+  })
 }
 
 resource "aws_iam_role_policy" "tool_tracing" {
@@ -63,6 +80,7 @@ resource "aws_lambda_function" "tool" {
   tracing_config {
     mode = "Active"
   }
+  depends_on = [aws_cloudwatch_log_group.tool]
 
   tags = {
     Project = "demos"

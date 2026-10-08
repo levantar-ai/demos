@@ -7,7 +7,15 @@ shows the model's choices as a short list rather than a wall of JSON.
 import json
 import sys
 
-turn = json.load(sys.stdin)
+raw = sys.stdin.read()
+try:
+    turn = json.loads(raw)
+except ValueError:
+    print(f"no JSON in the response: {raw[:300]!r}")
+    sys.exit(0)
+if not isinstance(turn, dict):
+    print(f"unexpected response: {raw[:300]!r}")
+    sys.exit(0)
 if "error" in turn:
     print(f"error: {turn['error']}")
     sys.exit(0)
@@ -21,9 +29,19 @@ for i, step in enumerate(turn.get("trail", []), 1):
         if len(lines) > 8:
             shown += f"\n      ... ({len(lines) - 8} more lines)"
         print(f"  {i}. run_python  [{step.get('status', '?')}]\n{shown}")
+        if step.get("output"):
+            printed = step["output"].strip().splitlines()
+            print("      printed:")
+            print("\n".join(f"        {line}" for line in printed[:8]))
+            if len(printed) > 8:
+                print(f"        ... ({len(printed) - 8} more lines)")
     else:
         print(f"  {i}. {step['tool']}({json.dumps(args)})  [{step.get('status', '?')}]")
     if step.get("error"):
         print(f"      {step['error']}")
+if turn.get("restated"):
+    print("  the check named a figure in the first answer; the model was asked once to restate")
+if turn.get("unsupported_figures"):
+    print(f"  figures in the answer no tool printed: {', '.join(turn['unsupported_figures'])}")
 print()
 print(turn.get("result", ""))

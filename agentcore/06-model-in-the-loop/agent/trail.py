@@ -10,16 +10,20 @@ in CloudWatch.
 
 The same hook is the turn's budget. A model loop that keeps calling tools is
 a cost and an availability problem before it is anything else, so after
-MAX_TOOL_CALLS executions the next request is cancelled with a message that
-tells the model to answer from what it has, recorded in the trail as
-cancelled, and a request after that ends the turn with BudgetExceeded, which
-the handler turns into a 502. Cancelling alone would not bound anything, the
+MAX_TOOL_CALLS attempts, counted as the model asks and whether or not the
+tool then succeeds, the next request is cancelled with a message that tells
+the model to answer from what it has, recorded in the trail as cancelled,
+and a request after that ends the turn with BudgetExceeded, which the
+handler turns into a 502. Cancelling alone would not bound anything, the
 model could keep asking and each ask is another model invocation.
+
+describe() is what every failure looks like in the log: the exception's
+class and, for an AWS error, its code, never its message, which can carry
+a response body, a token or the model's code.
 """
 
 
-class BudgetExceeded(RuntimeError):
-    """The model kept asking for tools after being told the budget was spent."""
+import threading
 
 from strands.hooks import (
     AfterToolCallEvent,
@@ -29,12 +33,35 @@ from strands.hooks import (
 )
 
 ERROR_PREVIEW = 300
+# A step for one of these tools carries what the tool returned, cut to the
+# preview, so the caller can see what the model's code printed. The gateway's
+# result is not carried: it is the customer's rows, not evidence of a sum.
+OUTPUT_PREVIEW = 2_000
+OUTPUTS_FOR = frozenset({"run_python"})
 MAX_TOOL_CALLS = 8
 
 
+class BudgetExceeded(RuntimeError):
+    """The model kept asking for tools after being told the budget was spent."""
+
+
+def describe(exc):
+    """A failure as the log may carry it: class and AWS error code only,
+    the code once when botocore already named the class after it."""
+    response = getattr(exc, "response", None)
+    code = response.get("Error", {}).get("Code") if isinstance(response, dict) else None
+    name = type(exc).__name__
+    return name + (f" {code}" if isinstance(code, str) and code and code != name else "")
+
+
 def _text_of(result):
+    """The text of a result, or nothing for a malformed one, so a tool
+    failure the hook is recording is not turned into a failed turn."""
+    content = result.get("content") if isinstance(result, dict) else None
+    if not isinstance(content, list):
+        return ""
     return " ".join(
-        item["text"] for item in result.get("content", []) if isinstance(item, dict) and "text" in item
+        item["text"] for item in content if isinstance(item, dict) and isinstance(item.get("text"), str)
     ).strip()
 
 
@@ -52,12 +79,28 @@ class Trail(HookProvider):
         self.max_tool_calls = max_tool_calls
         self.executed = 0
         self._open = {}
+        # What each successful run_python call printed, whole (the sandbox
+        # bounds it), for the check after the answer; the step carries a
+        # preview of it for the caller.
+        self.evidence = []
+        # The count and the open steps are shared by every tool call's
+        # hooks; the agent runs tools one at a time, and the lock keeps the
+        # budget exact if that ever changes.
+        self._lock = threading.Lock()
 
     def register_hooks(self, registry: HookRegistry, **kwargs) -> None:
         registry.add_callback(BeforeToolCallEvent, self.before)
         registry.add_callback(AfterToolCallEvent, self.after)
 
     def before(self, event):
+        with self._lock:
+            self._before(event)
+
+    def after(self, event):
+        with self._lock:
+            self._after(event)
+
+    def _before(self, event):
         use = event.tool_use
         step = {"tool": use["name"], "input": use.get("input", {})}
         if self.executed >= self.max_tool_calls:
@@ -79,7 +122,7 @@ class Trail(HookProvider):
         self._open[use.get("toolUseId")] = step
         print(f"model chose {use['name']} (input {_size_of(step['input'])} chars)")
 
-    def after(self, event):
+    def _after(self, event):
         use = event.tool_use
         step = self._open.pop(use.get("toolUseId"), None)
         if step is None:
@@ -88,4 +131,8 @@ class Trail(HookProvider):
         step["status"] = result.get("status", "unknown")
         if step["status"] != "success":
             step["error"] = _text_of(result)[:ERROR_PREVIEW]
+        elif use["name"] in OUTPUTS_FOR:
+            printed = _text_of(result)
+            self.evidence.append(printed)
+            step["output"] = printed[:OUTPUT_PREVIEW]
         print(f"{use['name']} returned {step['status']}")

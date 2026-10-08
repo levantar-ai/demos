@@ -15,10 +15,26 @@ the customer, from the token's customer_id claim.
 """
 
 import os
+import time
 
 import boto3
+from botocore.exceptions import ClientError
+from trail import describe
 
 _agentcore = None
+
+# An occasional first request after an idle period came back from
+# GetResourceOauth2Token as a ValidationException whose message named the
+# token endpoint, "HTTP request failed against Token endpoint". That one
+# failure is retried once after a pause; anything else is raised as it is.
+RETRY_AFTER_SECONDS = 2
+_TRANSIENT_CODE = "ValidationException"
+_TRANSIENT_TEXT = "Token endpoint"
+
+
+def _transient(exc):
+    error = (getattr(exc, "response", None) or {}).get("Error", {})
+    return error.get("Code") == _TRANSIENT_CODE and _TRANSIENT_TEXT in error.get("Message", "")
 
 
 def _client():
@@ -44,12 +60,20 @@ def orders_token(inbound_jwt: str) -> str:
         userToken=inbound_jwt,
     )["workloadAccessToken"]
 
-    result = client.get_resource_oauth2_token(
-        workloadIdentityToken=workload_token,
-        resourceCredentialProviderName=os.environ["OBO_PROVIDER_NAME"],
-        scopes=[os.environ["ORDERS_SCOPE"]],
-        oauth2Flow="ON_BEHALF_OF_TOKEN_EXCHANGE",
-    )
+    request = {
+        "workloadIdentityToken": workload_token,
+        "resourceCredentialProviderName": os.environ["OBO_PROVIDER_NAME"],
+        "scopes": [os.environ["ORDERS_SCOPE"]],
+        "oauth2Flow": "ON_BEHALF_OF_TOKEN_EXCHANGE",
+    }
+    try:
+        result = client.get_resource_oauth2_token(**request)
+    except ClientError as exc:
+        if not _transient(exc):
+            raise
+        print(f"exchange failed once, retrying in {RETRY_AFTER_SECONDS}s: {describe(exc)}")
+        time.sleep(RETRY_AFTER_SECONDS)
+        result = client.get_resource_oauth2_token(**request)
     token = result.get("accessToken")
     if not isinstance(token, str) or not token.strip():
         # This provider performs a back-channel exchange and returns no consent

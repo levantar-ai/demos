@@ -13,7 +13,7 @@ Five posts built the primitives, a runtime, a gateway, memory, a sandbox and
 an identity chain, and every one of them routed the prompt with code. This
 post hands those primitives to Claude on Bedrock as tools and asks a question
 nobody wrote code for. The model fetches the orders through the gateway,
-writes the pandas itself, runs it in the sandbox and answers, and the response
+writes the code itself, runs it in the sandbox and answers, and the response
 carries the trail of what it chose.
 
 What makes that safe is that identity stayed in trusted code. The model is

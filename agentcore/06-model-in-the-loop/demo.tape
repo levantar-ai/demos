@@ -19,7 +19,9 @@
 # The stack must be deployed in ENFORCE mode with customer c-1000 in the pool,
 # and c-1000 must have told the agent a carrier preference in an earlier
 # session long enough ago for the memory strategy to have extracted it. The
-# video shows only the example being exercised.
+# session id is minted fresh per recording: a reused id restores the earlier
+# recordings' turns from memory and the model copies their shape. The video
+# shows only the example being exercised.
 Output demo.mp4
 Set Shell "bash"
 Set FontSize 20
@@ -34,11 +36,11 @@ Hide
 Type "exec aws-vault exec lev:andy.rea -- bash --norc"
 Enter
 Sleep 3s
-Type `ask() { curl -s "$INVOKE_URL" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -H "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION" -d "$(jq -cn --arg p "$1" '{prompt: $p}')" | python3 show_turn.py; }`
+Type `ask() { curl -s "$INVOKE_URL" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -H "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: $SESSION" -d "$(jq -cn --arg p "$1" '{prompt: $p}')" --max-time 300 | python3 show_turn.py; }`
 Enter
 Type `mint() { curl -s -u "brightwell-orders-agent:$SECRET" "$ISSUER/token" -H "Content-Type: application/x-www-form-urlencoded" --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" --data-urlencode "subject_token=$1" --data-urlencode "subject_token_type=urn:ietf:params:oauth:token-type:jwt" | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])'; }`
 Enter
-Type `. "$PROBE_VENV/bin/activate"; export SESSION=model-in-the-loop-video-session-0000000000001; export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] '; clear; printf '\033[3J'`
+Type `. "$PROBE_VENV/bin/activate"; export SESSION=model-in-the-loop-video-$(date +%s)-00000000000000000; export PS1='\[\e[1;36m\]agentcore >\[\e[0m\] '; clear; printf '\033[3J'`
 Enter
 Sleep 2s
 Show
@@ -56,7 +58,7 @@ Enter
 Wait
 Sleep 1s
 
-Type "# a question nobody wrote code for. watch the trail: the model fetches the orders through the gateway, then writes pandas and runs it in the sandbox"
+Type "# a question nobody wrote code for. watch the trail: the model fetches the orders through the gateway, then writes the code and runs it in the sandbox over the file the agent handed over"
 Enter
 Sleep 1s
 

@@ -222,7 +222,17 @@
     "materialised",
     "materialises",
     "artefact",
-    "artefacts"
+    "artefacts",
+    "defaultdict",
+    "fromisoformat",
+    "strptime",
+    "serialises",
+    "unsynchronised",
+    "wozs",
+    "fullmatch",
+    "apologise",
+    "recognisable",
+    "unrecognised"
   ],
   "ignorePaths": [
     "node_modules/**",
@@ -237,6 +247,7 @@
     "docs/levantar-d3/vendor/**",
     "**/dist/**",
     "levantar-d3/catalog/logo.js",
-    "docs/levantar-d3/catalog/logo.js"
+    "docs/levantar-d3/catalog/logo.js",
+    "**/artifacts/turns/**"
   ]
 }
