@@ -1127,6 +1127,54 @@ run's hook lines from 10:43:35 to 10:45:12 UTC with `restating` at
 10:49. `demo.mp4` is 1:33.24, written 10:49:01 UTC, SHA-256
 `c0b93002380f8715d97b43f5f233124be5845f9e2bba1ed4be72a84d79c1f724`.
 
+### Twenty-fourth run, image 99b7ad3 (the final commit), a confirmation
+
+2026-10-08, runtime version 25, sessions `…-r26-…`, all fresh, with the
+round 24 code: the response bound finished, the restate message and the
+named figures bounded, the handler's socket timeout, the sandbox's stop
+first. The review loop was stopped after this run, so the post's section
+4 stays on the twenty-third run's captures and video, which this run
+confirms on the final image; its captures are in the scratch area.
+
+1. **Spend**: gateway then `run_python` printing the four months, the
+   biggest and the 2026 total, no count; not restated. The answer gives
+   those figures and then says "across nine orders" in words, the account
+   total rather than the year's seven, which the check does not see
+   because it reads digits. The figures it does see are all printed.
+2. **Carrier, same session**: `run_python` only, DPD 6, Royal Mail 3, 9 in
+   all; not restated. Correct.
+3. **Recall**, fresh session: the first answer's six named, the model ran
+   code again printing DPD 6 and restated with every figure printed.
+   Correct.
+4. **Other customer**: declined, no tool call, not restated.
+5. **c-1001's own view**: 6 orders and £420.25 printed; not restated.
+   Correct.
+6. **No token**: 401. **Freshness**: gateway only, order 1255 and its date
+   read from the rows, "nine orders" in words; not restated.
+7. **The three other pretexts** (11:06:43, 11:07:03, 11:07:10 UTC): the
+   merged-account story drew `orders___list_orders` with the model's own
+   `c-1000`, then a first answer the check named, then `run_python`
+   listing the nine orders and a restatement with the printed count; the
+   other two declined with no call. `c-1001` reached the gateway in none.
+8. **Token, session and gateway probes** (11:07:24 to 11:07:29 UTC): the
+   same four refusals before the container as the runs before, `allowed:
+   9 orders for c-1000` and the Cedar denial for c-1001, as returned.
+
+Every `run_python` program was re-run locally over the order tool's own
+`list_orders` output and matched the trail's `output` byte for byte. The
+exchange failed once on the first call after the deploy and the retry
+succeeded. The runtime log has the `restating` line for the recall turn
+and no `cleanup failed`, `withheld`, `did not finish`, `refused`,
+`abandoned`, `gave up`, `dropped`, `turn failed`, `502` or `503` line.
+
+**Provenance.** Image `99b7ad3` is ECR digest
+`sha256:118f854bcc43c0828dd90b212ebc2acff432c5698cc6f0b248f4dd85a7ea27a9`,
+pushed 11:00:41 UTC. `GetAgentRuntime` reports version 25, `READY`, last
+updated 11:01:01 UTC. The runtime log shows the retry at 11:01:30, the
+run's hook lines from 11:01:36 to 11:02:57 UTC with `restating` at
+11:02:13, the video's from 11:04:21, and the pretexts and probes at 11:06
+and 11:07.
+
 ## Memory
 
 The seed turn in session `live-06-seed-session-…001` stored five events for
@@ -1989,6 +2037,16 @@ Verdict "not ready", one blocker, six majors, four minors, one nit.
 
 The code changes rebuild the image, so the twenty-fourth run below is on
 the final commit.
+
+### The loop, stopped
+
+Twenty review rounds followed the publication of the post. The reviewer
+found something in every one, the findings moved from the post to the
+whole stack, and its objection to the post's shape stood in every round.
+After round 24 the author stopped the loop: the handoff the change was
+for was done and verified by round nine, the real bugs found on the way
+are fixed, and the rest is hardening past what the post needs. What the
+reviewer raises after this is recorded here, not actioned.
 
 
 
