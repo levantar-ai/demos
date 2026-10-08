@@ -1208,7 +1208,7 @@ def test_a_failing_closes_message_stays_out_of_the_log(fakes, monkeypatch, capsy
 
 
 # --- the real Strands loop, with a scripted model ----------------------------
-from strands.models import Model as _StrandsModel  # noqa: E402
+from strands.models import Model as _StrandsModel
 
 
 class ScriptedModel(_StrandsModel):
