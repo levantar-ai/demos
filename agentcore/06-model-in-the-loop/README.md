@@ -244,12 +244,17 @@ stack, for looking at the minted token and calling the gateway directly.
   stop, which waits for a slot; the two sandbox stop attempts wait for at
   most 360 s in total, and the other closers, the agent's, the MCP
   client's and the memory's, have no application deadline. The process
-  serves at most 8 turns at once (`main.MAX_TURNS_IN_FLIGHT`) and answers a
-  ninth with 503 rather than queueing it; each model call has a 120 s read
-  timeout and two HTTP attempts (`model.MODEL_CONFIG`); the MCP client's
-  start has Strands' 30 s timeout; the memory calls have none. The
-  response is cut to 60,000 serialised characters by shortening each
-  step's code to a 2,000 character preview, marked `input_truncated`. An abandoned
+  admits at most 8 requests at once (`main.MAX_TURNS_IN_FLIGHT`), before
+  it reads a body, and answers a ninth with 503 rather than queueing it;
+  the server still starts a thread per connection, which the runtime
+  fronts. Each model request has a 120 s socket read timeout and two HTTP
+  attempts (`model.MODEL_CONFIG`), which is not a deadline on the call as
+  a whole; the MCP client's start has Strands' 30 s timeout; the memory
+  calls have none. The response is cut to 60,000 serialised characters in
+  stages, re-serialised after each and marked: each step's code to a 2,000
+  character preview (`input_truncated`), printed output and errors to 500
+  (`output_truncated`, `error_truncated`), the answer to 8,000
+  (`result_truncated`), and last the trail dropped (`trail_truncated`). An abandoned
   call keeps its slot until its HTTP attempt ends, and its code may still
   be running; the stop at the end of the turn ends it when the stop
   succeeds (logged as a stop with an abandoned call behind it), and the

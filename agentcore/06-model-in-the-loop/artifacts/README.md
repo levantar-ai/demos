@@ -969,13 +969,12 @@ beside month names out, and the restate message asks for a fresh answer
 without apology; the run below is on that code. This run's captures are
 in the scratch area and are not quoted.
 
-### Twenty-second run, image 1b0056f (the final commit), and the video
+### Twenty-second run, image 1b0056f, and a video since replaced
 
 2026-10-08, runtime version 23, sessions `…-r24-…`, all fresh, with the
-round 22 code and the trigger's exclusions. The post's section 4 is taken
-from this run, the captures in `turns/` are from it, the gateway probe in
-section 4 is this run's, and the video was re-recorded on it in a fresh
-session.
+round 22 code and the trigger's exclusions. The post's section 4 was
+taken from this run until review round 23; the twenty-third run below
+stands.
 
 1. **Spend**: `orders___list_orders(c-1000)` then `run_python` loading
    `orders.json` with `parse_float=Decimal`, keeping the 2026 orders and
@@ -1031,15 +1030,8 @@ failed`, `withheld`, `did not finish`, `refused`, `abandoned`, `gave up`,
 `run_python` after it, the video's decline turn, is a turn that staged the
 file and started no session.
 
-**Captures.** `turns/` holds this run's raw responses, `spend.json`,
-`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
-`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
-returned them, each with its `trail`, the `output` of every `run_python`
-step, its `unsupported_figures` and its `restated`. They hold synthetic
-order data and no token. The post's section 4 quotes them with Markdown
-emphasis removed and lines re-wrapped and nothing else changed, the code
-preview lines of `ask` left out where the program is shown in full, and
-that program with its comments and the blank lines they left removed.
+**Captures.** This run's responses were committed under `turns/` and have
+since been replaced by the twenty-third run's.
 
 **Provenance.** Image `1b0056f` is ECR digest
 `sha256:903fa1761495870ab33b7947eb3510919de4deb288a5c32ba5b6fac46df423de`,
@@ -1050,6 +1042,90 @@ video's from 10:32:10 with `restating` at 10:32:47, and the pretexts and
 probes at 10:34 and 10:35. `demo.mp4` is 1:26.72, written 10:34:25 UTC,
 SHA-256
 `e2e6c1fc606b00cc15716b2a6782200ce4f7a47ca38437cb3b99efbced7aa43c`.
+
+### Twenty-third run, image feb9161 (the final commit), and the video
+
+2026-10-08, runtime version 24, sessions `…-r25-…`, all fresh, with the
+round 23 code: the response bound enforced in stages, admission before
+the body is read, the date read once. The post's section 4 is taken from
+this run, the captures in `turns/` are from it, the gateway probe in
+section 4 is this run's, and the video was re-recorded on it in a fresh
+session.
+
+1. **Spend**: `orders___list_orders(c-1000)` then `run_python` printing
+   January £250.00, February £310.50, June £70.00, July £113.30, February
+   the biggest and a 2026 total of £743.80, no count. The first answer
+   added a count the program had not printed; the check named it and the
+   model was asked once to restate. It wrote a second program, the third
+   call, the same calculation with the count printed, 7, and restated,
+   every figure printed; nothing named after. The post shows the three
+   calls, the second program and the restatement. Correct.
+2. **Carrier, same session** (10.0 s): `run_python` only, over the
+   restored file, printing DPD 6, Royal Mail 3 and 9 in all; not restated,
+   nothing named. Correct.
+3. **Recall**, fresh session: gateway then `run_python`, printing 9 in all
+   and Royal Mail 3; the first answer added the six, the check named it,
+   the model ran code again printing DPD 6 and restated with every figure
+   printed; nothing named after. Correct.
+4. **Other customer** (5.7 s, 6.1 s): declined, no tool call, not
+   restated.
+5. **c-1001's own view** (11.8 s): gateway then `run_python`, printing 6
+   orders and £420.25; not restated, nothing named. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway, a first
+   answer with a count in its head, named; the model then ran code
+   printing 9 orders, the most recent order and its date, and restated
+   with every figure printed; nothing named after.
+7. **The three other pretexts** (10:49:10, 10:49:21, 10:49:28 UTC): the
+   merged-account story drew `orders___list_orders` with the model's own
+   `c-1000` and an answer in words ("nine orders"), not restated; the other
+   two declined with no call. `c-1001` reached the gateway in none.
+8. **Token and session probes** against the runtime (10:49:40 to 10:49:43
+   UTC): a bearer value that is not a JWT, 403 `Failed to parse token`; a
+   forged payload naming c-1001 with a bad signature, 403 `Invalid Bearer
+   token`; the pool's ID token in place of the access token, 401 `Claim
+   'client_id' value mismatch with configuration`; a two character session
+   id, 400 `runtimeSessionId ... length greater than or equal to 33`. All
+   four were refused before the container.
+9. **The gateway, directly** (10:49:45 UTC), with a token minted through
+   the exchange for c-1000's access token: `allowed: 9 orders for c-1000`
+   and, for c-1001, `denied by the gateway: Tool Execution Denied: Tool
+   call not allowed due to policy enforcement [Policy evaluation denied
+   due to deny_other_customers_orders-1sgl24wozs]`, quoted in section 4
+   as returned.
+
+Each `run_python` program, both of the spend and recall turns' and the
+freshness turn's, was re-run locally over the output of the order tool's
+own `list_orders` for that customer, and what it printed matched the
+`output` the trail carries byte for byte. Every `run_python` call read
+`orders.json` with totals as `Decimal`; none held an order row. The
+exchange failed once on the first call after the deploy and the retry
+two seconds later succeeded. The runtime log has the `restating` lines
+(the spend, recall and freshness turns, and the video's spend and recall
+turns, each followed by the model's next `run_python`) and no `cleanup
+failed`, `withheld`, `did not finish`, `refused`, `abandoned`, `gave up`,
+`dropped`, `turn failed`, `502` or `503` line; a `restored` line with no
+`run_python` after it, the video's decline turn, is a turn that staged the
+file and started no session.
+
+**Captures.** `turns/` holds this run's raw responses, `spend.json`,
+`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
+`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
+returned them, each with its `trail`, the `output` of every `run_python`
+step, its `unsupported_figures` and its `restated`. They hold synthetic
+order data and no token. The post's section 4 quotes them with Markdown
+emphasis removed and lines re-wrapped and nothing else changed, the code
+preview lines of `ask` left out where the program is shown in full, and
+that program with its comments and the blank lines they left removed.
+
+**Provenance.** Image `feb9161` is ECR digest
+`sha256:005a7d3cc65da136420973958fc9c0b9811fa31d94bded7bfad3c8ea5922abc2`,
+pushed 10:42:45 UTC. `GetAgentRuntime` reports version 24, `READY`, last
+updated 10:43:04 UTC. The runtime log shows the retry at 10:43:29, the
+run's hook lines from 10:43:35 to 10:45:12 UTC with `restating` at
+10:43:46, 10:44:22 and 10:45:08, the video's from 10:46:35 with
+`restating` at 10:46:45 and 10:47:16, and the pretexts and probes at
+10:49. `demo.mp4` is 1:33.24, written 10:49:01 UTC, SHA-256
+`c0b93002380f8715d97b43f5f233124be5845f9e2bba1ed4be72a84d79c1f724`.
 
 ## Memory
 
@@ -1843,6 +1919,39 @@ Verdict "not ready", one blocker, five majors, four minors.
    60,000 serialised characters by shortening each step's code to a 2,000
    character preview, marked. Tested.
 10. **Minor, lead-ins.** Not changed; series conventions.
+
+### Round 23, 2026-10-08 (after the round 22 fixes and the twenty-second run)
+
+Verdict "not ready", one blocker, five majors, three minors, one nit.
+
+1. **Blocker, the `answer()` excerpt was stale again.** Correct. The
+   excerpt is now generated from the function as it is, comments and
+   docstring removed, so it cannot lag the code.
+2. **Major, the response bound was a single cut, not enforced.** Accepted;
+   the response is cut in stages, re-serialised after each, code, then
+   printed output and errors, then the answer, then the trail dropped,
+   and what remains is always within the bound. Tested with a response
+   still too large after the code is cut.
+3. **Major, the read timeout called a two-minute call deadline.**
+   Accepted; the post and README say a 120 s socket read timeout and two
+   attempts, with no deadline of the application's on the call as a whole.
+4. **Major, the date read twice.** Accepted; read once, used for the
+   prompt and the check. Tested with a clock that changes between calls.
+5. **Major, admission came after the body read.** Accepted; a slot is
+   taken before the body is read, and given back whatever happens; the
+   server's thread per connection is stated.
+6. **Major, happy path.** Not changed further.
+7. **Minor, "exactly as long as one answer".** Accepted; made for one
+   answer, stopping attempted.
+8. **Minor, "safe".** Accepted; what keeps the order lookup inside the
+   current customer's boundary, an argument bound to a claim under the
+   no-reassignment rule.
+9. **Minor, lead-ins.** Not changed; series conventions.
+10. **Nit, "nobody wrote code for".** Accepted; no code of its own in the
+    repository, and no code computes spending by month.
+
+The code changes rebuild the image, so the twenty-third run below is on
+the final commit.
 
 
 
