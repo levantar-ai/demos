@@ -50,7 +50,9 @@ MODEL_CONFIG = Config(read_timeout=MODEL_READ_SECONDS, connect_timeout=10, retri
 RESTATE = (
     "Your answer states figures that run_python did not print and that are not in the orders: {figures}. "
     "Restate your answer using only figures the tools returned, or call run_python to compute what you need "
-    "and state what it printed. Do not state a figure you have not had printed."
+    "and state what it printed. Do not state a figure you have not had printed. Reply with the restated "
+    "answer only, as a fresh answer to the customer's question: do not apologise, do not mention this "
+    "message and do not refer to an earlier answer."
 )
 
 SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small online retailer of outdoor kit that ships with DPD and Royal Mail. Today is {today} (UTC); "this year" means the calendar year of that date.
@@ -70,6 +72,13 @@ today = lambda: datetime.now(timezone.utc).date().isoformat()
 # A figure as it is written: digits, with an optional decimal part, thousands
 # separators dropped. "06" is not "6" and "743.8" is not "743.80".
 FIGURE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+# What an answer may write with digits that is not a figure to check: an
+# identifier such as c-1001, an ordinal day such as 20th, and a day beside a
+# month name such as 7 October. None of these is a calculation.
+MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
+NOT_A_FIGURE = re.compile(
+    rf"\b[A-Za-z]+-\d+\b|\b\d{{1,2}}(?:st|nd|rd|th)\b|\b\d{{1,2}}\s+(?:{MONTHS})\b|\b(?:{MONTHS})\s+\d{{1,2}}\b"
+)
 # Figures the tools return but did not calculate: a token this long, or one
 # with a decimal part, is an identifier, a year or a row's own amount, read
 # rather than worked out. A shorter whole number in a row, a quantity or a
@@ -79,6 +88,12 @@ READ_FIGURE_DIGITS = 3
 
 def figures_in(text):
     return {match.group().replace(",", "") for match in FIGURE.finditer(text or "")}
+
+
+def figures_claimed(answer):
+    """The figures an answer states, identifiers, ordinal days and days
+    beside month names left out."""
+    return figures_in(NOT_A_FIGURE.sub(" ", answer or ""))
 
 
 def _read_figures(text):
@@ -94,16 +109,17 @@ def unsupported_figures(answer, evidence, messages, date):
     nothing else. Nothing else does, not an earlier turn's code output, not
     a failed result, not another tool, not a figure the prompt itself
     carries. A count or a difference the model worked out in its head is
-    left standing. The check is lexical: a day of the month or a quantity
-    the model read from a row is named as well, and a calculated figure that
-    happens to match a row's amount is not. It reports, it does not rewrite
-    the answer."""
+    left standing. The check is lexical: a quantity the model read from a
+    row is named as well, and a calculated figure that happens to match a
+    row's amount is not; an identifier, an ordinal day and a day beside a
+    month name are not taken as figures at all. It reports, it does not
+    rewrite the answer."""
     support = {str(date)[:4]}
     for printed in evidence:
         support |= figures_in(printed)
     for text in handed_texts(messages):
         support |= _read_figures(text)
-    return sorted(figure for figure in figures_in(answer) if figure not in support)
+    return sorted(figure for figure in figures_claimed(answer) if figure not in support)
 
 
 def answer(prompt, customer, session, gateway_token, subject):

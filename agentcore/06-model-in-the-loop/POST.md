@@ -418,14 +418,16 @@ the order tool's own results, which is what identifiers, years and
 amounts look like and what a quantity or a day of the month does not,
 and the year of the date trusted code gave it. Nothing else counts, not
 an earlier turn's code output, not a failed result, not a figure the
-prompt itself carries. When the check names a figure in the first
-answer, trusted code asks the model once to restate from what the tools
-returned, or to run code for what it needs, and the response says it
-did. Whatever the check names after that is returned beside the answer
+prompt itself carries. An identifier such as `c-1001`,
+an ordinal day such as 20th and a day beside a month name are not taken
+as figures at all. When the check names a figure in the first answer,
+trusted code asks the model once to restate from what the tools returned,
+or to run code for what it needs, as a fresh answer, and the response says
+it did. Whatever the check names after that is returned beside the answer
 as the figures the check did not find, so a count the model did in its
-head and kept is named. Being lexical, it names
-a day of the month read from a row as well, and misses a calculated
-figure that happens to equal a row's amount. It annotates the answer. It
+head and kept is named. Being lexical, it names a quantity read from a
+row as well, and misses a calculated figure that happens to equal a row's
+amount. It annotates the answer. It
 establishes nothing about its correctness, and it does not rewrite.
 
 ## 3 - The model's own permission

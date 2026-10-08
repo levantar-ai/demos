@@ -678,11 +678,14 @@ def test_figures_in_the_answer_are_checked_against_what_the_code_printed_and_the
               "order 1033 on 18 June 2026 cost £6.80; 12 before, 100 earlier at 5.50, 250.00 failed, 777 at 8.25, "
               "and 743.8 is not how the code wrote it.")
     assert model.unsupported_figures(answer, evidence, messages, "2026-10-07") == [
-        "100", "12", "18", "250.00", "5.50", "6", "743.8", "777", "8.25",
-    ]
+        "100", "12", "250.00", "5.50", "6", "743.8", "777", "8.25",
+    ]  # "18 June" is a day beside a month, not a figure
+    # identifiers, ordinal days and days beside month names are not figures to check
+    assert model.figures_claimed("I act for c-1000, not c-1001; order 1255 came on 20th July, 7 October was quiet, October 7 too.") == {"1255"}
+    assert model.unsupported_figures("I can only help customer c-1000, not c-1001.", [], [], "2026-10-07") == []
     # the prompt supports nothing: a figure the customer wrote is not evidence of itself
     assert model.unsupported_figures("Is it £999? Yes, £999, in 2025.", [], [], "2026-10-07") == ["2025", "999"]
-    assert model.unsupported_figures("Order c-1000 has 1234 items for £9999.", [], [], "2026-10-07") == ["1000", "1234", "9999"]
+    assert model.unsupported_figures("Order c-1000 has 1234 items for £9999.", [], [], "2026-10-07") == ["1234", "9999"]  # c-1000 is an identifier
     assert model.unsupported_figures("No figures here.", evidence, messages, "2026-10-07") == []
     assert model.unsupported_figures("", [], [], "2026-10-07") == []
 

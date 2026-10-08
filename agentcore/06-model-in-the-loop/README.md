@@ -203,10 +203,15 @@ stack, for looking at the minted token and calling the gateway directly.
   from what the tools returned (`model.RESTATE`), a message trusted code
   writes and the conversation records like any other, and the response
   says so (`restated`); what the check names after that is returned. The
-  check is lexical, with known false positives (a day of the month or a
-  quantity read from a row is named) and a known gap (a calculated figure
-  equal to a row's amount is not); it annotates, it establishes nothing
-  about correctness, and after the one restatement it does not rewrite.
+  check is lexical: identifiers such as `c-1001`, ordinal days and days
+  beside month names are not taken as figures (`model.NOT_A_FIGURE`), with
+  a known false positive (a quantity read from a row is named) and a known
+  gap (a calculated figure equal to a row's amount is not); it annotates,
+  it establishes nothing about correctness, and after the one restatement
+  it does not rewrite. The twenty-first run showed why the exclusions are
+  needed: the first version of the trigger named `c-1001` in a decline and
+  the day numbers of dates, and the model's restatements opened with
+  apologies, so the restate message now asks for a fresh answer.
   The
   runtime's log gets a redacted line per step, the tool name, the status and
   the size of the input, never the generated code or the order rows it

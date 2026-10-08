@@ -229,7 +229,8 @@
     "serialises",
     "unsynchronised",
     "wozs",
-    "fullmatch"
+    "fullmatch",
+    "apologise"
   ],
   "ignorePaths": [
     "node_modules/**",
