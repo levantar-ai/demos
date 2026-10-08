@@ -283,7 +283,11 @@ def test_a_ninth_turn_in_flight_is_told_to_try_again(server_url):
         with pytest.raises(urllib.error.HTTPError) as exc:
             post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("busy")})
         assert exc.value.code == 503 and "try again" in json.loads(exc.value.read())["error"]
+        # admission comes before the body is read or parsed: a full process
+        # answers 503 even to a body it would otherwise reject
+        assert status_of(f"{server_url}/invocations", b"not json") == 503
         main._turns_in_flight.release()
+        assert status_of(f"{server_url}/invocations", b"not json") == 400  # and gives the slot back
         assert post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("busy")})[0] == 200
     finally:
         main._turns_in_flight = original
@@ -299,6 +303,15 @@ def test_the_response_is_bounded_by_cutting_code_to_a_preview(server_url):
     assert len(json.dumps(out)) <= main.MAX_RESPONSE_CHARS
     assert all(len(s["input"]["code"]) == main.CODE_PREVIEW and s["input_truncated"] for s in out["trail"])
     assert "input_truncated" not in main.bounded({"result": "ok", "trail": [{"tool": "run_python", "input": {"code": "print(1)"}}]})["trail"][0]
+    # a response still too large after the code is cut goes through the later stages, each marked
+    loud = dict(big, trail=[dict(s, output="y" * 8_000) for s in big["trail"]], result="z" * 100_000)
+    out = main.bounded(loud)
+    assert len(json.dumps(out)) <= main.MAX_RESPONSE_CHARS
+    assert out["result_truncated"] is True and len(out["result"]) == main.RESULT_PREVIEW
+    assert all(s["output_truncated"] and len(s["output"]) == main.OUTPUT_PREVIEW for s in out["trail"])
+    absurd = dict(loud, trail=[dict(s, tool="x" * 9_000) for s in loud["trail"]])
+    out = main.bounded(absurd)
+    assert len(json.dumps(out)) <= main.MAX_RESPONSE_CHARS and out["trail"] == [] and out["trail_truncated"] is True
     original = StubHandler.respond
     StubHandler.respond = staticmethod(lambda *a: big)
     try:

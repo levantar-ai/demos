@@ -53,10 +53,13 @@ _turns_in_flight = threading.BoundedSemaphore(MAX_TURNS_IN_FLIGHT)
 
 # The response is bounded as well as the request. The trail carries the
 # model's code, up to 20,000 characters a call and eight calls a turn, so
-# past this many serialised characters each step's code is cut to a preview
-# and the step says so.
+# past this many serialised characters the response is cut in stages, each
+# re-serialised and marked: code to a preview, printed output and errors to
+# a preview, the answer itself, and last the trail dropped altogether.
 MAX_RESPONSE_CHARS = 60_000
 CODE_PREVIEW = 2_000
+OUTPUT_PREVIEW = 500
+RESULT_PREVIEW = 8_000
 
 # Turns in one conversation run one at a time in this process. The server
 # answers requests concurrently, and two turns restoring and appending to
@@ -147,19 +150,45 @@ def session_from(headers, payload):
     return session if isinstance(session, str) and SESSION_RE.fullmatch(session) else None
 
 
-def bounded(turn):
-    """The turn as the response carries it, within MAX_RESPONSE_CHARS: past
-    that, each step's code is cut to CODE_PREVIEW characters and the step
-    says so."""
-    if len(json.dumps(turn)) <= MAX_RESPONSE_CHARS:
-        return turn
+def _size(turn):
+    return len(json.dumps(turn))
+
+
+def _cut_steps(turn, field, limit, mark, nested=False):
     steps = []
     for step in turn.get("trail", []):
-        code = step.get("input", {}).get("code") if isinstance(step.get("input"), dict) else None
-        if isinstance(code, str) and len(code) > CODE_PREVIEW:
-            step = dict(step, input=dict(step["input"], code=code[:CODE_PREVIEW]), input_truncated=True)
+        holder = step.get("input") if nested else step
+        value = holder.get(field) if isinstance(holder, dict) else None
+        if isinstance(value, str) and len(value) > limit:
+            if nested:
+                step = dict(step, input=dict(step["input"], **{field: value[:limit]}), **{mark: True})
+            else:
+                step = dict(step, **{field: value[:limit], mark: True})
         steps.append(step)
     return dict(turn, trail=steps)
+
+
+def bounded(turn):
+    """The turn as the response carries it, within MAX_RESPONSE_CHARS. Past
+    that it is cut in stages, re-serialised after each and marked: each
+    step's code to CODE_PREVIEW, each step's printed output and error to
+    OUTPUT_PREVIEW, the answer to RESULT_PREVIEW, and last the trail
+    dropped. What remains is always within the bound."""
+    if _size(turn) <= MAX_RESPONSE_CHARS:
+        return turn
+    turn = _cut_steps(turn, "code", CODE_PREVIEW, "input_truncated", nested=True)
+    if _size(turn) <= MAX_RESPONSE_CHARS:
+        return turn
+    turn = _cut_steps(turn, "output", OUTPUT_PREVIEW, "output_truncated")
+    turn = _cut_steps(turn, "error", OUTPUT_PREVIEW, "error_truncated")
+    if _size(turn) <= MAX_RESPONSE_CHARS:
+        return turn
+    result = turn.get("result")
+    if isinstance(result, str) and len(result) > RESULT_PREVIEW:
+        turn = dict(turn, result=result[:RESULT_PREVIEW], result_truncated=True)
+    if _size(turn) <= MAX_RESPONSE_CHARS:
+        return turn
+    return dict(turn, trail=[], trail_truncated=True)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -184,6 +213,18 @@ class Handler(BaseHTTPRequestHandler):
         if length <= 0 or length > MAX_BODY_BYTES:
             self._send(413, {"error": "request body must be 1..2MB"})
             return
+        # Admission comes before the body is read, so a slow or incomplete
+        # body occupies one of the admitted slots rather than a thread
+        # outside the bound; the slot is given back whatever happens next.
+        if not _turns_in_flight.acquire(blocking=False):
+            self._send(503, {"error": f"the agent is serving {MAX_TURNS_IN_FLIGHT} turns already; try again"})
+            return
+        try:
+            self._serve(length)
+        finally:
+            _turns_in_flight.release()
+
+    def _serve(self, length):
         # The body is read before anything is decided about it, so an early
         # response never races a client that is still sending.
         body = self.rfile.read(length)
@@ -214,9 +255,6 @@ class Handler(BaseHTTPRequestHandler):
         if session is None:
             self._send(400, {"error": "a session id is required"})
             return
-        if not _turns_in_flight.acquire(blocking=False):
-            self._send(503, {"error": f"the agent is serving {MAX_TURNS_IN_FLIGHT} turns already; try again"})
-            return
         try:
             with one_turn(subject, session):
                 # Trusted code gets the token for the order service, on behalf
@@ -235,8 +273,6 @@ class Handler(BaseHTTPRequestHandler):
             print(f"turn failed for {customer}: {describe(exc)}")
             self._send(502, {"error": "request failed"})
             return
-        finally:
-            _turns_in_flight.release()
         # The trail is the route the model took and what its code printed;
         # unsupported_figures lists any figure in the answer that no tool
         # result in the conversation or the date contains, after the one

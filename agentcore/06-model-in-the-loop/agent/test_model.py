@@ -723,6 +723,17 @@ def test_what_the_restatement_still_names_is_returned_and_there_is_no_second(fak
     assert len(calls) == 2
 
 
+def test_the_date_is_read_once_for_the_prompt_and_the_check(fakes, monkeypatch):
+    """A turn crossing midnight tells the model one date and checks against
+    the same one."""
+    clock = iter(["2026-12-31", "2027-01-01", "2027-01-01"])
+    monkeypatch.setattr(model, "today", lambda: next(clock))
+    monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: FakeResult("You spent nothing in 2026."))
+    turn = model.answer("this year?", "c-1000", "session-1", "minted-token", "sub-1000")
+    assert "Today is 2026-12-31" in fakes.built[-1].kw["system_prompt"]
+    assert turn["unsupported_figures"] == [] and turn["restated"] is False  # 2026 is the year the model was told
+
+
 def test_a_clean_answer_is_not_restated(fakes, monkeypatch):
     calls = []
     monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: calls.append(prompt) or FakeResult("Nothing to report."))

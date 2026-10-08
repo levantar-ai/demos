@@ -154,7 +154,10 @@ def answer(prompt, customer, session, gateway_token, subject):
         # before it trims anything, which would blank the gateway's result
         # the model is about to compute over.
         window = SlidingWindowConversationManager(window_size=WINDOW_MESSAGES, should_truncate_results=False)
-        system_prompt = SYSTEM_PROMPT.format(customer=customer, today=today())
+        # The date is read once, so the year the model is told and the year
+        # the check after the answer accepts are the same, across midnight too.
+        date = today()
+        system_prompt = SYSTEM_PROMPT.format(customer=customer, today=date)
         agent = make_agent(
             model=make_model(model_id=os.environ["MODEL_ID"], region_name=region(), boto_client_config=MODEL_CONFIG),
             system_prompt=system_prompt,
@@ -177,7 +180,6 @@ def answer(prompt, customer, session, gateway_token, subject):
         # and the file it was told about is there whichever turn fetched it.
         window.apply_management(agent)
         restore(agent.messages, sandbox)
-        date = today()
         try:
             text = str(agent(prompt))
             unsupported = unsupported_figures(text, trail.evidence, agent.messages, date)
