@@ -230,7 +230,9 @@
     "unsynchronised",
     "wozs",
     "fullmatch",
-    "apologise"
+    "apologise",
+    "recognisable",
+    "unrecognised"
   ],
   "ignorePaths": [
     "node_modules/**",

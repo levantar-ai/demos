@@ -54,6 +54,12 @@ RESTATE = (
     "answer only, as a fresh answer to the customer's question: do not apologise, do not mention this "
     "message and do not refer to an earlier answer."
 )
+# What the restate message names: the first few of the figures the check
+# found, so a model that wrote a great many cannot make the message long.
+RESTATE_FIGURES = 10
+# A run of digits longer than this is not a figure anyone calculated and is
+# not checked, which bounds every figure the check can name.
+MAX_FIGURE_CHARS = 32
 
 SYSTEM_PROMPT = """You are the order support agent for Brightwell, a small online retailer of outdoor kit that ships with DPD and Royal Mail. Today is {today} (UTC); "this year" means the calendar year of that date.
 
@@ -87,7 +93,7 @@ READ_FIGURE_DIGITS = 3
 
 
 def figures_in(text):
-    return {match.group().replace(",", "") for match in FIGURE.finditer(text or "")}
+    return {f for f in (m.group().replace(",", "") for m in FIGURE.finditer(text or "")) if len(f) <= MAX_FIGURE_CHARS}
 
 
 def figures_claimed(answer):
@@ -191,7 +197,10 @@ def answer(prompt, customer, session, gateway_token, subject):
                 # as a message like any other. What the check names after
                 # the restatement is returned beside the answer.
                 print(f"restating: {len(unsupported)} figure(s) no tool printed")
-                text = str(agent(RESTATE.format(figures=", ".join(unsupported))))
+                named = ", ".join(unsupported[:RESTATE_FIGURES])
+                if len(unsupported) > RESTATE_FIGURES:
+                    named += f" and {len(unsupported) - RESTATE_FIGURES} more"
+                text = str(agent(RESTATE.format(figures=named)))
                 unsupported = unsupported_figures(text, trail.evidence, agent.messages, date)
                 restated = True
         except EventLoopException as exc:
@@ -203,13 +212,13 @@ def answer(prompt, customer, session, gateway_token, subject):
                 raise exc.original_exception from exc
             raise
     finally:
-        # The agent's tool providers, the MCP client, the memory's buffer,
-        # then the sandbox session, most recently created first. A failed
-        # close is logged and the rest still run; it must not mask the answer
-        # or the error already raised. What a failed close leaves behind is
-        # bounded by the services: a sandbox session by its lifetime, an
-        # unflushed memory buffer by the turn (batch size one, nothing waits).
-        for close in reversed(closers):
+        # The sandbox's stop first, since it has a deadline of its own and
+        # the session is the thing that may still be running the model's
+        # code; then the agent's tool providers, the MCP client and the
+        # memory's buffer, most recently created first, which have none. A
+        # failed close is logged and the rest still run; it must not mask
+        # the answer or the error already raised.
+        for close in [closers[0]] + list(reversed(closers[1:])):
             try:
                 close()
             except Exception as exc:  # noqa: BLE001 — logged, never raised over the result

@@ -60,6 +60,7 @@ MAX_RESPONSE_CHARS = 60_000
 CODE_PREVIEW = 2_000
 OUTPUT_PREVIEW = 500
 RESULT_PREVIEW = 8_000
+FIGURES_PREVIEW = 20
 
 # Turns in one conversation run one at a time in this process. The server
 # answers requests concurrently, and two turns restoring and appending to
@@ -186,14 +187,27 @@ def bounded(turn):
     result = turn.get("result")
     if isinstance(result, str) and len(result) > RESULT_PREVIEW:
         turn = dict(turn, result=result[:RESULT_PREVIEW], result_truncated=True)
+    figures = turn.get("unsupported_figures")
+    if isinstance(figures, list) and len(figures) > FIGURES_PREVIEW:
+        turn = dict(turn, unsupported_figures=figures[:FIGURES_PREVIEW], unsupported_figures_truncated=True)
     if _size(turn) <= MAX_RESPONSE_CHARS:
         return turn
-    return dict(turn, trail=[], trail_truncated=True)
+    turn = dict(turn, trail=[], trail_truncated=True)
+    if _size(turn) <= MAX_RESPONSE_CHARS:
+        return turn
+    # Nothing recognisable is left to cut, so the answer alone goes back,
+    # which with every other field dropped is within the bound by
+    # construction.
+    return {"result": str(turn.get("result", ""))[:RESULT_PREVIEW], "trail": [], "unsupported_figures": [],
+            "restated": bool(turn.get("restated")), "response_truncated": True}
 
 
 class Handler(BaseHTTPRequestHandler):
     exchange = staticmethod(orders_token)
     respond = staticmethod(answer)
+    # A read from the connection that stalls this long ends the request, so
+    # a declared body that never arrives cannot hold an admitted slot.
+    timeout = 30
 
     def do_GET(self):
         if self.path == "/ping":

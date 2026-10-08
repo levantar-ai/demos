@@ -312,6 +312,14 @@ def test_the_response_is_bounded_by_cutting_code_to_a_preview(server_url):
     absurd = dict(loud, trail=[dict(s, tool="x" * 9_000) for s in loud["trail"]])
     out = main.bounded(absurd)
     assert len(json.dumps(out)) <= main.MAX_RESPONSE_CHARS and out["trail"] == [] and out["trail_truncated"] is True
+    # figures are bounded too, and a response that is still too large with the trail gone is cut to the answer alone
+    many = dict(big, trail=[], unsupported_figures=[str(n) for n in range(30)])
+    out = main.bounded(dict(many, result="z" * 100_000))
+    assert len(out["unsupported_figures"]) == main.FIGURES_PREVIEW and out["unsupported_figures_truncated"] is True
+    huge = {"result": "z" * 100_000, "trail": [], "unsupported_figures": [], "restated": False, "extra": "w" * 100_000}
+    out = main.bounded(huge)
+    assert len(json.dumps(out)) <= main.MAX_RESPONSE_CHARS and out["response_truncated"] is True and "extra" not in out
+    assert main.Handler.timeout == 30  # a stalled body read ends the request
     original = StubHandler.respond
     StubHandler.respond = staticmethod(lambda *a: big)
     try:

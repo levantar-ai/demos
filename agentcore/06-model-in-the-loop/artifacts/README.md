@@ -1953,6 +1953,43 @@ Verdict "not ready", one blocker, five majors, three minors, one nit.
 The code changes rebuild the image, so the twenty-third run below is on
 the final commit.
 
+### Round 24, 2026-10-08 (after the round 23 fixes and the twenty-third run)
+
+Verdict "not ready", one blocker, six majors, four minors, one nit.
+
+1. **Blocker, the response bound did not cover the named figures.**
+   Correct. Accepted: a run of more than 32 digits is not a figure the
+   check names, the response carries at most 20 named figures, and the
+   last stage of the bound returns the answer alone, within the bound by
+   construction. Tested with a huge answer and an unrecognised field.
+2. **Major, the restate message interpolated every figure.** Accepted; it
+   names at most ten, with a count of the rest. Tested with fifty.
+3. **Major, "customer boundary".** Accepted; the TL;DR and conclusion
+   call it a binding of the argument to the token's customer id rather
+   than to a person, conditional on no reassignment.
+4. **Major, a stalled body read holds an admitted slot.** Accepted; the
+   handler's socket timeout is 30 s, and the prose says so. The server's
+   thread per connection stays, as the README says.
+5. **Major, the sandbox closed last, after unbounded closers.** Accepted;
+   the sandbox's stop is attempted first, then the rest in reverse order.
+   Tested.
+6. **Major, happy path.** Not changed further.
+7. **Major, "the only other change to the role".** Accepted; the only
+   memory permission added, with the carried-forward permissions stated
+   as sufficient for the paths exercised rather than minimal.
+8. **Minor, the README's response contract.** Accepted; it points to the
+   rule.
+9. **Minor, the gateway docstring's "exactly".** Accepted.
+10. **Minor, "as written" and thousands separators.** Accepted; compared
+    lexically after separators are removed, with the exclusions applied.
+11. **Minor, the allowlist as least privilege.** Accepted; tool-surface
+    reduction, with Cedar the authorisation control for calls that reach
+    the gateway.
+12. **Nit, lead-ins.** Not changed; series conventions.
+
+The code changes rebuild the image, so the twenty-fourth run below is on
+the final commit.
+
 
 
 

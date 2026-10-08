@@ -13,9 +13,10 @@ the gateway accepts, so the model chooses arguments and trusted code
 puts the token in none of its prompt, messages or tool arguments. Asked
 to be another customer it declines, and if it were ever talked round,
 the Cedar policy at the gateway refuses an order lookup for anyone else
-before the tool runs. That boundary is keyed by the customer id, which
-is the pool username, so it holds for as long as a username is never
-given to a second person.
+before the tool runs. That is a binding of
+the argument to the token's customer id, the pool username, rather than
+to a person, so it holds for as long as a username is never given to a
+second person.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop
@@ -139,8 +140,9 @@ window is applied to the restored conversation before `restore` scans it,
 so what it scans is what the model is shown, and it slides rather than
 truncates, because the manager's default answers an overfull
 conversation by blanking its latest tool results before it trims
-anything. Closing what the turn created is attempted in reverse order
-when it ends, and a close that fails is logged. Two things in the tools
+anything. Closing what the turn created is attempted when it ends, the sandbox's
+stop first, since it has a deadline of its own, then the rest in reverse
+order, and a close that fails is logged. Two things in the tools
 list and one beside it are the series so far.
 
 The gateway arrives as an MCP server. Post 02 called a named tool from code.
@@ -172,9 +174,10 @@ def orders_tools(gateway_token):
     )
 ```
 
-The allowlist is the model's side of least privilege. A target added to the
-gateway later is not handed to the model until the agent names it, and
-Cedar is default deny for anything it might still ask.
+The allowlist reduces the tool surface the model sees, which is not an
+authorisation control. A target added to the gateway later is not handed
+to the model until the agent names it, and Cedar is the independent
+authorisation control for every call that does reach the gateway.
 
 The sandbox arrives as a tool the model writes code for. Post 04's handler
 wrote the pandas. Here the docstring is the tool description the model
@@ -240,10 +243,11 @@ calls are in flight in the process at once, the hook that records the
 trail allows eight tool attempts a turn, counted as the model asks,
 refuses the next with a message to answer from what it has, and ends the
 turn if the model keeps asking, and the process admits eight
-requests at once, before it reads a body, and tells a ninth to try
-again, each model request given a two minute socket read timeout and two
-attempts, with no deadline of the application's on the call as a whole,
-and the response cut to a bounded size in stages. Those bound what the model
+requests at once, before it reads a body, tells a ninth to try again and
+ends a request whose body stalls for thirty seconds, each model request
+is given a two minute socket read timeout and two attempts, with no
+deadline of the application's on the call as a whole, and the response
+is cut to a bounded size in stages, down to the answer alone if need be. Those bound what the model
 asks for in a turn, and the README has the detail of each. The
 prompt itself is capped at four thousand characters before the model
 sees it and the restored conversation is windowed to the last forty
@@ -424,7 +428,9 @@ that counts are figures too. The second avoids asking the model to
 reproduce the gateway's rows in the source it writes. Both are
 instructions, which the model follows most of the time. What trusted code
 adds is a lexical check after the answer. Every figure in it is looked
-for, as written, in the whole of what `run_python` printed this turn,
+for, compared lexically after thousands separators are removed and with
+the exclusions below applied, in the whole of what `run_python` printed
+this turn,
 among the tokens of three or more digits, or with a decimal part, in
 the order tool's own results, which is what identifiers, years and
 amounts look like and what a quantity or a day of the month does not,
@@ -481,10 +487,12 @@ by naming a regional model directly. The model ARNs are not a list anyone
 maintains. The `aws_bedrock_inference_profile` data source reads them from
 the profile at plan time, so naming a different system cross-region
 profile in `model_id` changes the policy to match, and the variable
-accepts only that kind, the shape this was built and tested with. The only other change to the role is
-`bedrock-agentcore:GetEvent` on the memory, which the session manager uses
-to read a session back. No new resources are created, everything the model
-is handed already existed.
+accepts only that kind, the shape this was built and tested with. The only memory permission
+added in this demo is `bedrock-agentcore:GetEvent`, which the session
+manager uses to read a session back; the permissions carried forward from
+the earlier demos remain, and the live runs show them sufficient for the
+paths exercised rather than minimal. No new resources are created,
+everything the model is handed already existed.
 
 ## 4 - Running it
 
@@ -768,10 +776,11 @@ The agent now decides. A model is handed the gateway and the sandbox that
 posts 02 and 04 built as tools, with the memory of post 03 supplied as
 context, and it fetches, computes and
 answers a question that no code in the repository anticipated, with the
-trail of its choices returned alongside the answer. What kept the customer boundary where post 05 drew it while the model
-took over the choosing is that identity stayed where post 05 put it, and
-that boundary is keyed by the customer id, the pool username, so it holds
-for as long as a username is never given to a second person. Trusted code establishes the customer and
+trail of its choices returned alongside the answer. What kept the order lookup bound to the token's customer id while the
+model took over the choosing is that identity stayed where post 05 put
+it. The binding is to the customer id, the pool username, rather than to
+a person, so it holds for as long as a username is never given to a
+second person. Trusted code establishes the customer and
 holds the token, the model chooses arguments and code, and Policy in
 AgentCore refuses a lookup for a wrong customer before the tool runs. In
 five live attempts to be someone else, `c-1001` never reached the gateway,

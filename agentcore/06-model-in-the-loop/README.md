@@ -111,9 +111,9 @@ conversation by accident. Use a fresh, unguessable id for each conversation
 within the customer's own namespace, not an authorisation boundary, and
 turns for one customer and session run one at a time. The response carries
 the answer, the trail, every tool the model chose with the arguments it
-chose, whether the call succeeded and what `run_python` printed, and the
-figures in the answer that no tool result, the prompt or the date
-contains, as written:
+chose, whether the call succeeded and what `run_python` printed, the
+figures in the answer that the lexical check did not find (its rule is in
+the notes below), and whether the model was asked once to restate:
 
 ```json
 {"result": "...", "trail": [
@@ -243,7 +243,9 @@ stack, for looking at the minted token and calling the gateway directly.
   flight per process, a ninth being refused rather than queued, except a
   stop, which waits for a slot; the two sandbox stop attempts wait for at
   most 360 s in total, and the other closers, the agent's, the MCP
-  client's and the memory's, have no application deadline. The process
+  client's and the memory's, have no application deadline, which is why
+  the sandbox's stop is attempted first at the end of a turn and the
+  others after it. The process
   admits at most 8 requests at once (`main.MAX_TURNS_IN_FLIGHT`), before
   it reads a body, and answers a ninth with 503 rather than queueing it;
   the server still starts a thread per connection, which the runtime
@@ -254,7 +256,13 @@ stack, for looking at the minted token and calling the gateway directly.
   stages, re-serialised after each and marked: each step's code to a 2,000
   character preview (`input_truncated`), printed output and errors to 500
   (`output_truncated`, `error_truncated`), the answer to 8,000
-  (`result_truncated`), and last the trail dropped (`trail_truncated`). An abandoned
+  (`result_truncated`), the named figures to 20
+  (`unsupported_figures_truncated`), the trail dropped (`trail_truncated`),
+  and if anything unrecognised still carries it over, the answer alone
+  goes back (`response_truncated`). A run of more than 32 digits is not a
+  figure the check names, and the restate message names at most 10. The
+  handler's socket timeout is 30 s, so a declared body that stalls ends
+  the request and gives its slot back. An abandoned
   call keeps its slot until its HTTP attempt ends, and its code may still
   be running; the stop at the end of the turn ends it when the stop
   succeeds (logged as a stop with an abandoned call behind it), and the

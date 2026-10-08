@@ -734,6 +734,28 @@ def test_the_date_is_read_once_for_the_prompt_and_the_check(fakes, monkeypatch):
     assert turn["unsupported_figures"] == [] and turn["restated"] is False  # 2026 is the year the model was told
 
 
+def test_the_restate_message_and_the_figures_it_names_are_bounded(fakes, monkeypatch):
+    """A model that writes a great many figures, or a very long run of
+    digits, cannot make the restate message long: only the first few are
+    named and a run past MAX_FIGURE_CHARS is not a figure at all."""
+    prompts = []
+    flood = " ".join(str(n) for n in range(100, 150)) + " and " + "9" * 500
+    monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: prompts.append(prompt) or FakeResult(flood))
+    turn = model.answer("how many?", "c-1000", "session-1", "minted-token", "sub-1000")
+    assert len(turn["unsupported_figures"]) == 50 and "9" * 500 not in turn["unsupported_figures"]
+    assert "100, 101, 102, 103, 104, 105, 106, 107, 108, 109 and 40 more" in prompts[1]
+    assert len(prompts[1]) < len(model.RESTATE) + 200
+
+
+def test_the_sandbox_is_closed_first_then_the_rest_in_reverse(fakes, monkeypatch):
+    order = []
+    monkeypatch.setattr(sandbox.Sandbox, "close", lambda self: order.append("sandbox"))
+    monkeypatch.setattr(FakeManager, "close", lambda self: order.append("memory"))
+    monkeypatch.setattr(FakeAgent, "cleanup", lambda self: order.append("agent"))
+    model.answer("hi", "c-1000", "session-1", "minted-token", "sub-1000")
+    assert order[0] == "sandbox" and order[-1] == "memory" and "agent" in order
+
+
 def test_a_clean_answer_is_not_restated(fakes, monkeypatch):
     calls = []
     monkeypatch.setattr(FakeAgent, "__call__", lambda self, prompt: calls.append(prompt) or FakeResult("Nothing to report."))

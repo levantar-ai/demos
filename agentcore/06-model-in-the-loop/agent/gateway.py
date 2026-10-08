@@ -29,8 +29,9 @@ ALLOWED_TOOLS = ["orders___list_orders"]
 def orders_tools(gateway_token):
     """An MCP client for the order gateway, authenticated with the minted token.
 
-    Strands starts it when the agent loads its tools and stops it on
-    agent.cleanup(), so the connection lives exactly as long as one answer.
+    Strands starts it when the agent loads its tools, and stopping it is
+    attempted on agent.cleanup(), with a closer of its own in model.py for
+    the case where the agent's build fails part way: made for one answer.
     Only the allowlisted tools are loaded, whatever else the gateway lists.
     """
     return make_client(
