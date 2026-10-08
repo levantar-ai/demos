@@ -1208,9 +1208,14 @@ def test_a_failing_closes_message_stays_out_of_the_log(fakes, monkeypatch, capsy
 
 
 # --- the real Strands loop, with a scripted model ----------------------------
-class ScriptedModel:
+from strands.models import Model as _StrandsModel  # noqa: E402
+
+
+class ScriptedModel(_StrandsModel):
     """A Strands model that asks for the tools in its script, then answers.
-    The agent, the executor, the hooks and the tools are the real ones."""
+    The agent, the executor, the hooks and the tools are the real ones. It
+    subclasses the Strands base so that whatever the pinned or a newer
+    Agent reads off a model, such as `stateful`, is there."""
 
     def __init__(self, script):
         self.script, self.calls = list(script), 0
