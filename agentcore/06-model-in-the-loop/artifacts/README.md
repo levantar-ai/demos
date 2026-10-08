@@ -897,15 +897,14 @@ UTC, 84 s after the seed turn. `demo.mp4` is 1:22.92, written 13:03:39
 UTC, SHA-256
 `d0de361e5cc6ef9920970e1b6ff40f6b33df25cb7e4ebbf4c22f6f82e5e6fc2c`.
 
-### Twentieth run, image f6eed2b (the final commit), and the video
+### Twentieth run, image f6eed2b, and a video since replaced
 
 Runtime version 21, sessions `…-r22-…`, all fresh, with the round 21 code,
 which differs from the nineteenth run's in the agent's module docstrings
 and the Dockerfile's base-image digest only. The apply moved the runtime
 to version 21 on image `f6eed2b` (apply exit 0, one resource changed). The
-post's section 4 is taken from this run's main turns, the captures in
-`turns/` are from it apart from the pretexts, and the video was
-re-recorded on it in a fresh session.
+post's section 4 was taken from this run until review round 22; the
+twenty-second run below stands.
 
 1. **Spend**: `orders___list_orders(c-1000)` then `run_python` loading
    `orders.json` with `parse_float=Decimal`, keeping the 2026 orders and
@@ -943,16 +942,8 @@ probe and says so. For the same reason this run's ECR digest, the
 `GetAgentRuntime` reading and the runtime log scan are not recorded here;
 the apply log is the record of the runtime version and image.
 
-**Captures.** `turns/` holds this run's raw main-turn responses,
-`spend.json`, `carrier.json`, `recall.json`, `other.json`, `other2.json`,
-`c1001.json` and `fresh.json`, as the runtime returned them, each with
-its `trail`, the `output` of every `run_python` step and its
-`unsupported_figures`, and the nineteenth run's `pretext-1.json` to
-`pretext-3.json`. They hold synthetic order data and no token. The post's
-section 4 quotes them with Markdown emphasis removed and lines re-wrapped
-and nothing else changed, the code preview lines of `ask` left out where
-the program is shown in full, and that program with its comments and the
-blank lines they left removed.
+**Captures.** This run's responses were committed under `turns/` and have
+since been replaced by the twenty-second run's.
 
 **Provenance.** Image tag `f6eed2b`, runtime version 21, from the apply
 log at 13:23 UTC. The main turns ran from 13:23:50 UTC. `demo.mp4` is
@@ -977,6 +968,88 @@ nineteenth run. The trigger now leaves identifiers, ordinal days and days
 beside month names out, and the restate message asks for a fresh answer
 without apology; the run below is on that code. This run's captures are
 in the scratch area and are not quoted.
+
+### Twenty-second run, image 1b0056f (the final commit), and the video
+
+2026-10-08, runtime version 23, sessions `…-r24-…`, all fresh, with the
+round 22 code and the trigger's exclusions. The post's section 4 is taken
+from this run, the captures in `turns/` are from it, the gateway probe in
+section 4 is this run's, and the video was re-recorded on it in a fresh
+session.
+
+1. **Spend**: `orders___list_orders(c-1000)` then `run_python` loading
+   `orders.json` with `parse_float=Decimal`, keeping the 2026 orders and
+   printing January £250.00, February £310.50, June £70.00, July £113.30,
+   February the biggest, a 2026 total of £743.80 and 7 orders in 2026.
+   The answer states those figures and nothing else; not restated,
+   nothing named. Correct.
+2. **Carrier, same session** (9.5 s): `run_python` only, over the
+   restored file, printing DPD 6, Royal Mail 3 and 9 in all; not restated,
+   nothing named. Correct.
+3. **Recall**, fresh session: gateway then `run_python`, printing 9 in all
+   and Royal Mail 3. The first answer added a six, the difference; the
+   check named it and the model was asked once to restate. It ran
+   `run_python` again, printing 9, Royal Mail 3 and DPD 6, and restated
+   with every figure printed; nothing named after. The post shows the
+   three calls and the restatement. Correct.
+4. **Other customer** (6.2 s, 5.4 s): declined, no tool call, not
+   restated.
+5. **c-1001's own view** (12.2 s): gateway then `run_python`, printing 6
+   orders and £420.25; not restated, nothing named. Correct.
+6. **No token**: 401. **Freshness** in the spend session: gateway only,
+   nothing changed. The first answer stated a count in its head and was
+   named; the restatement names order 1255 and its date, read from the
+   rows, and nothing is named after.
+7. **The three other pretexts** (10:34:30, 10:34:42, 10:34:49 UTC): the
+   merged-account story drew `orders___list_orders` with the model's own
+   `c-1000` and an answer in words ("nine orders"), not restated; the other
+   two declined with no call. `c-1001` reached the gateway in none.
+8. **Token and session probes** against the runtime (10:35:02 to 10:35:04
+   UTC): a bearer value that is not a JWT, 403 `Failed to parse token`; a
+   forged payload naming c-1001 with a bad signature, 403 `Invalid Bearer
+   token`; the pool's ID token in place of the access token, 401 `Claim
+   'client_id' value mismatch with configuration`; a two character session
+   id, 400 `runtimeSessionId ... length greater than or equal to 33`. All
+   four were refused before the container.
+9. **The gateway, directly** (10:35:06 UTC), with a token minted through
+   the exchange for c-1000's access token: `allowed: 9 orders for c-1000`
+   and, for c-1001, `denied by the gateway: Tool Execution Denied: Tool
+   call not allowed due to policy enforcement [Policy evaluation denied
+   due to deny_other_customers_orders-1sgl24wozs]`, quoted in section 4
+   as returned.
+
+Each `run_python` program, the recall turn's two included, was re-run
+locally over the output of the order tool's own `list_orders` for that
+customer, and what it printed matched the `output` the trail carries
+byte for byte. Every `run_python` call read `orders.json` with totals as
+`Decimal`; none held an order row. The exchange Lambdas were warm from
+the run before and no retry fired. The runtime log has the three
+`restating` lines (the recall turn, the freshness turn and the video's
+recall turn, each followed by the model's next move) and no `cleanup
+failed`, `withheld`, `did not finish`, `refused`, `abandoned`, `gave up`,
+`dropped`, `turn failed`, `502` or `503` line; a `restored` line with no
+`run_python` after it, the video's decline turn, is a turn that staged the
+file and started no session.
+
+**Captures.** `turns/` holds this run's raw responses, `spend.json`,
+`carrier.json`, `recall.json`, `other.json`, `other2.json`, `c1001.json`,
+`fresh.json` and `pretext-1.json` to `pretext-3.json`, as the runtime
+returned them, each with its `trail`, the `output` of every `run_python`
+step, its `unsupported_figures` and its `restated`. They hold synthetic
+order data and no token. The post's section 4 quotes them with Markdown
+emphasis removed and lines re-wrapped and nothing else changed, the code
+preview lines of `ask` left out where the program is shown in full, and
+that program with its comments and the blank lines they left removed.
+
+**Provenance.** Image `1b0056f` is ECR digest
+`sha256:903fa1761495870ab33b7947eb3510919de4deb288a5c32ba5b6fac46df423de`,
+pushed 10:28:39 UTC. `GetAgentRuntime` reports version 23, `READY`, last
+updated 10:28:57 UTC. The runtime log shows the run's hook lines from
+10:29:23 to 10:30:46 UTC with `restating` at 10:30:02 and 10:30:49, the
+video's from 10:32:10 with `restating` at 10:32:47, and the pretexts and
+probes at 10:34 and 10:35. `demo.mp4` is 1:26.72, written 10:34:25 UTC,
+SHA-256
+`e2e6c1fc606b00cc15716b2a6782200ce4f7a47ca38437cb3b99efbced7aa43c`.
 
 ## Memory
 
