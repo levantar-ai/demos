@@ -2052,3 +2052,13 @@ reviewer raises after this is recorded here, not actioned.
 
 
 
+
+## The cut to a ten minute read
+
+On 2026-10-09 the post was cut from a 27 minute read to 8, by the site's
+own count of prose words. The code, the captures and the video are
+unchanged. The detail the post dropped, the bounds on each tool, the
+session grammar, the figures check's exclusions and the review history,
+stays in the README and this record. The GPT-5.6 gate could not run for
+this cut because the OpenAI account had no credits left, so the cut was
+checked by hand against `tool/orders.csv` and the recorded turns.
