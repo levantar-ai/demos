@@ -2,21 +2,14 @@
 
 ## TL;DR;
 
-Five posts built an order support agent out of AgentCore primitives, a
-runtime, a gateway, memory, a sandbox and an identity chain, and every
-one of them routed the prompt with code. This post hands a Bedrock model
-the gateway and the sandbox as tools, with the memory supplied as
-context, and lets it decide which to call, in what order and with what
-arguments, for a question with no code of its own in the repository.
-Trusted code still establishes who the customer is and brokers the token
-the gateway accepts, so the model chooses arguments and trusted code
-puts the token in none of its prompt, messages or tool arguments. Asked
-to be another customer it declines, and if it were ever talked round,
-the Cedar policy at the gateway refuses an order lookup for anyone else
-before the tool runs. That is a binding of
-the argument to the token's customer id, the pool username, rather than
-to a person, so it holds for as long as a username is never given to a
-second person.
+Five posts built an order support agent out of AgentCore primitives, and
+every one of them routed the prompt with code. This post hands a Bedrock
+model the gateway and the Code Interpreter sandbox as tools, with
+AgentCore Memory as context, and lets it decide what to call. Trusted code
+still decides who the customer is and holds the token the gateway accepts.
+Asked to be another customer, the model declines. If it were ever talked
+round, the Cedar policy at the gateway refuses the lookup before the tool
+runs.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop
@@ -25,143 +18,68 @@ second person.
 
 This series is building one thing, the order support agent for Brightwell,
 a small online retailer of outdoor kit that ships with DPD and Royal Mail.
-Post 01 put a container on AgentCore Runtime, post 02 put an orders Lambda
-behind AgentCore Gateway, post 03 added AgentCore Memory, post 04 the Code
-Interpreter sandbox and post 05 gave the agent an identity at both ends,
-with Policy in AgentCore refusing any order lookup for a customer other than
-the one whose token was presented. Each of those posts ended the same way,
-there is no model in this agent, the routing is code.
+Posts 01 to 05 gave it a runtime, a gateway in front of an orders Lambda,
+memory, a sandbox and an identity at both ends. Each of them ended the
+same way. There is no model in this agent, the routing is code.
 
-The reason to have the primitives is what happens when a model is given all
-of them at once, and this post is the smallest version of that. The
-handler's routing is gone. The prompt goes to Claude Sonnet 4.5
-on Bedrock, which is handed the gateway as an MCP server and the sandbox as
-a tool called `run_python`, with the conversation and the customer's
-remembered preferences supplied as context by the session manager, and it
-decides. Ask it how much you have spent this year month by month and it
-fetches your orders through the gateway, writes the code itself, runs it
-in the sandbox and reads the result back. No code in the repository computes spending by month. The model wrote
-that from the tools it had.
+This post removes the routing. The prompt goes to Claude Sonnet 4.5 on
+Bedrock through Strands Agents, the framework AWS uses in its AgentCore
+samples. The model gets the gateway as an MCP server and the sandbox as a
+tool called `run_python`, and the session manager puts the conversation and
+the customer's remembered preferences in front of it. Ask how much you have
+spent this year month by month and it fetches your orders, writes the code,
+runs it in the sandbox and reads the result back. No code in the repository
+computes spending by month.
 
-What keeps the order lookup inside the current customer's boundary is
-post 05, unchanged here, an argument bound to a token claim under the
-rule that a username is never reassigned. The runtime's authorizer validates the customer's token and forwards
-it. Trusted code decodes the forwarded, already-authorised token for the
-customer id, asks AgentCore Identity for a token for the order service on
-the customer's behalf, and builds the gateway client with that token in
-its header. The model is told the customer's id in its system prompt and
-chooses the `customer_id` argument itself. Trusted code puts neither token
-in the model's prompt, its messages or its tool arguments. So the question
-that matters for a model in the loop, what happens when it chooses wrongly,
-has an answer that does not depend on the model. The gateway's Cedar policy
-compares the argument with the token's `customer_id` claim and refuses a
-mismatch before the Lambda runs. The post 05 conclusion said this was the
-precondition for a model choosing the arguments, and this post is the first
-to rely on it.
-
-The agent framework is Strands Agents, which is used in AWS's AgentCore
-samples. It brings the MCP client, the tool decorator and the loop that
-sends tool results back to the model, and the `bedrock-agentcore` SDK brings a session manager that records
-each turn in AgentCore Memory and retrieves the customer's long-term
-records before the model sees a message. The HTTP contract is still the hand-rolled server from post 01. The SDK's
-`BedrockAgentCoreApp` is the alternative application abstraction, and
-moving these checks into it is not demonstrated here. Keeping the server
-keeps the diff between post 05 and this one about the model.
+Identity is post 05's, unchanged. The runtime validates the customer's
+token, and trusted code exchanges it through AgentCore Identity for a
+token the gateway accepts. That token goes in the MCP client's header. The
+model is told the customer id and chooses the `customer_id` argument
+itself, but it never sees either token. So what happens when it chooses
+wrongly does not depend on the model. Cedar at the gateway compares the
+argument with the token's claim and refuses a mismatch.
 
 ![A model handed the tools the series built, choosing what to call, with identity staying in trusted code](architecture.png)
 
 ## 1 - What the model is given
 
-The whole of the handler's routing is replaced by one function, shown
-here without its comments. It builds the tools and the memory for this
-customer and this conversation, hands them to the agent with the model,
-runs the prompt and returns the answer, the trail of what the model chose
-and the figures the check after the answer did not find.
+One function replaces the handler's routing. Trimmed to its core, it
+builds the tools and the memory for this customer and this conversation,
+then runs the prompt.
 
-<!-- cspell:ignore getattr qualname -->
 ```python
 def answer(prompt, customer, session, gateway_token, subject):
     sandbox = Sandbox()
     trail = Trail()
-    closers = [sandbox.close]
-    try:
-        memory = session_manager(subject, session)
-        closers.append(memory.close)
-        orders = orders_tools(gateway_token)
-        closers.append(lambda: orders.stop(None, None, None))
-        window = SlidingWindowConversationManager(window_size=WINDOW_MESSAGES, should_truncate_results=False)
-        date = today()
-        system_prompt = SYSTEM_PROMPT.format(customer=customer, today=date)
-        agent = make_agent(
-            model=make_model(model_id=os.environ["MODEL_ID"], region_name=region(), boto_client_config=MODEL_CONFIG),
-            system_prompt=system_prompt,
-            tools=[orders, sandbox.run_python],
-            hooks=[trail, Handoff(sandbox)],
-            session_manager=memory,
-            conversation_manager=window,
-            tool_executor=SequentialToolExecutor(),
-            callback_handler=None,
-        )
-        closers.append(agent.cleanup)
-        window.apply_management(agent)
-        restore(agent.messages, sandbox)
-        try:
-            text = str(agent(prompt))
-            unsupported = unsupported_figures(text, trail.evidence, agent.messages, date)
-            restated = False
-            if unsupported:
-                print(f"restating: {len(unsupported)} figure(s) no tool printed")
-                text = str(agent(RESTATE.format(figures=", ".join(unsupported))))
-                unsupported = unsupported_figures(text, trail.evidence, agent.messages, date)
-                restated = True
-        except EventLoopException as exc:
-            if isinstance(exc.original_exception, Exception):
-                raise exc.original_exception from exc
-            raise
-    finally:
-        for close in reversed(closers):
-            try:
-                close()
-            except Exception as exc:
-                print(f"cleanup failed in {getattr(close, '__qualname__', close)}: {describe(exc)}")
-    return {"result": text, "trail": trail.steps, "unsupported_figures": unsupported, "restated": restated}
+    memory = session_manager(subject, session)
+    orders = orders_tools(gateway_token)
+    window = SlidingWindowConversationManager(window_size=WINDOW_MESSAGES, should_truncate_results=False)
+    agent = make_agent(
+        model=make_model(model_id=os.environ["MODEL_ID"], region_name=region(), boto_client_config=MODEL_CONFIG),
+        system_prompt=SYSTEM_PROMPT.format(customer=customer, today=today()),
+        tools=[orders, sandbox.run_python],
+        hooks=[trail, Handoff(sandbox)],
+        session_manager=memory,
+        conversation_manager=window,
+        tool_executor=SequentialToolExecutor(),
+        callback_handler=None,
+    )
+    window.apply_management(agent)
+    restore(agent.messages, sandbox)
+    text = str(agent(prompt))
+    ...
 ```
 
-`make_agent`, `make_model` and `today` are the Strands `Agent` and
-`BedrockModel` classes and the clock behind module-level names, so the
-tests can stand fakes in for them, and `MCPClient.stop` takes the
-context-manager arguments, which is why its closer passes three. Strands
-wraps whatever ends its loop in its own exception, so the original is
-raised on for the handler to see what ended the turn. Tools run
-one at a time in the order the model asked for them, so a gateway result
-is in place before a `run_python` the model asked for in the same
-response, where the Strands default would run the two together. The
-window is applied to the restored conversation before `restore` scans it,
-so what it scans is what the model is shown, and it slides rather than
-truncates, because the manager's default answers an overfull
-conversation by blanking its latest tool results before it trims
-anything. Closing what the turn created is attempted when it ends, the sandbox's
-stop first, since it has a deadline of its own, then the rest in reverse
-order, and a close that fails is logged. Two things in the tools
-list and one beside it are the series so far.
+Two Strands defaults are changed. Tools run one at a time, so a gateway
+result is in place before a `run_python` the model asked for in the same
+response. The conversation window slides when it fills, rather than
+blanking the latest tool results. The full function, with its cleanup and
+the check from section 2, is in `agent/model.py`.
 
-The gateway arrives as an MCP server. Post 02 called a named tool from code.
-Here the gateway is connected as a server, Strands discovers the tools it
-lists, and the agent hands the model only the one it names, under the name
-the gateway gives it, `<target>___<tool>`, so the model sees
-`orders___list_orders` with the description and schema the gateway target
-declares. That is what AWS says the gateway is for.
-
-> it converts APIs, Lambda functions, and existing services into Model
-> Context Protocol (MCP)-compatible tools
-
-https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html
-
-The token the client presents is the one AgentCore Identity obtained on the
-customer's behalf, in an HTTP header that trusted code set. Strands starts the connection when the agent loads its tools, and
-stopping it is attempted at cleanup, with a closer of its own for the
-case where the agent's build fails part way, so the client is made for
-one answer and not kept.
+**The gateway** arrives as an MCP server. Strands discovers the tools it
+lists, and the agent hands the model only `orders___list_orders`, with the
+description and schema the gateway target declares. The allowlist narrows
+what the model sees. Cedar is the authorisation control.
 
 ```python
 ALLOWED_TOOLS = ["orders___list_orders"]
@@ -174,123 +92,24 @@ def orders_tools(gateway_token):
     )
 ```
 
-The allowlist reduces the tool surface the model sees, which is not an
-authorisation control. A target added to the gateway later is not handed
-to the model until the agent names it, and Cedar is the independent
-authorisation control for every call that does reach the gateway.
+**The sandbox** arrives as a tool the model writes code for. Its docstring
+is the description the model reads, the argument is the code it writes,
+and the return value is what the code printed. A failure goes back to the
+model as a tool error, so it can read the error, fix the code and run it
+again. The session is post 04's Code Interpreter in `SANDBOX` network mode,
+with no network and no credentials. It starts the first time the model
+reaches for the tool and stops when the turn ends. The agent bounds code
+size, output size, time per call and tool calls per turn, and the README
+lists each limit.
 
-The sandbox arrives as a tool the model writes code for. Post 04's handler
-wrote the pandas. Here the docstring is the tool description the model
-reads, the argument is the code it writes, and the return value is what the
-code printed. A failure is returned to the model as a tool error rather than raised at
-the caller, with the sandbox's error text in the next request to the
-model, which is what lets it read the error, fix the code and run it
-again.
-
-```python
-class Sandbox:
-    @tool
-    def run_python(self, code: str) -> str:
-        """Run Python code in an isolated sandbox and return what it prints.
-
-        Use this for any counting, summing, averaging, sorting or date
-        arithmetic over the customer's orders rather than working it out in
-        your head. pandas is installed. The sandbox has no network access and
-        no credentials. ... the agent writes that text into the sandbox as
-        orders.json ... before your code runs. Read that file with totals
-        as decimals ... and print money to two decimal places. Never put
-        order rows into the code. ... Print every figure your answer will
-        state, including how many orders a figure covers; do not state a
-        number the code did not print. ...
-        """
-        if len(code) > MAX_CODE_CHARS:
-            raise ValueError(f"code is {len(code)} characters, the limit is {MAX_CODE_CHARS}")
-        with self._lock:
-            if self.unavailable:
-                names = ", ".join(sorted(self.unavailable))
-                raise RuntimeError(
-                    f"{names} not available this turn: the latest call that provides it did not produce a result; "
-                    "call that tool again"
-                )
-            if self.session_id is None:
-                self.session_id = self.start(self.interpreter, "analysis")
-            for path in list(self.staged):
-                try:
-                    self.put(self.session_id, path, self.staged[path])
-                except Exception as exc:
-                    raise RuntimeError(f"{path} could not be written to the sandbox: {exc}; run again to retry") from exc
-                del self.staged[path]
-                self.written.append(path)
-            return self.execute(self.session_id, code)
-```
-
-The docstring is shortened here. The rest of it is in section 2's
-account of what the model is told.
-
-The session behind it is the Code Interpreter from post 04 in `SANDBOX`
-network mode, created the first time the model reaches for the tool, so a
-turn in which the model never runs code starts no session, with a stop attempted when the answer is out. The session is created
-with a 900 second timeout, and whether a running execution ends at that
-point is the service's behaviour, not something this stack sets or
-demonstrates. Variables from one `run_python` call are there for the next
-within a turn, and the session's operations run one at a time. Source over
-twenty
-thousand characters is refused, at most eight thousand characters of
-output are kept for the model plus a note that it was cut, the agent
-gives up on any call to the sandbox service three minutes after it asked
-and runs nothing more in that session for the turn, at most eight such
-calls are in flight in the process at once, the hook that records the
-trail allows eight tool attempts a turn, counted as the model asks,
-refuses the next with a message to answer from what it has, and ends the
-turn if the model keeps asking, and the process admits eight
-requests at once, before it reads a body, tells a ninth to try again and
-ends a request whose body stalls for thirty seconds, each model request
-is given a two minute socket read timeout and two attempts, with no
-deadline of the application's on the call as a whole, and the response
-is cut to a bounded size in stages, down to the answer alone if need be. Those bound what the model
-asks for in a turn, and the README has the detail of each. The
-prompt itself is capped at four thousand characters before the model
-sees it and the restored conversation is windowed to the last forty
-messages. Neither bounds what a tool result puts in the model's context.
-The gateway's result enters it whole, as every tool result does, and the
-two hundred thousand character cap on the handoff below bounds what is
-staged for the sandbox, not the context. `SANDBOX` mode
-supplies the network isolation that lets the model's code run at all, and
-the bounds above are the application's own.
-
-> This is critical in Agentic AI applications where the agents may execute
-> arbitrary code that can lead to data compromise or security risks. The
-> AgentCore Code Interpreter tool provides secure code execution, which helps
-> you avoid running into these issues.
-
-https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-interpreter-tool.html
-
-The data the model computes over reaches the sandbox without the model
-having to reproduce it. The sandbox has no access to the gateway, so left
-to itself the model would carry the orders across by typing them into the
-code it writes, which is fine for nine rows and is where a wrong figure
-would come from with three hundred. A second hook watches the gateway
-tool's result and stages its text, as returned, for the turn's sandbox
-under the name `orders.json`. The sandbox writes it into its session just
-before the model's code next runs, and the system prompt and the tool's
-own description tell the model to read that file and never to put rows in
-the code. The result is still in the model's context, as every tool
-result is. The sandbox session is new on every turn while the
-conversation is restored from memory, so before the model runs the same
-code stages the most recent gateway result found in the window for the
-fresh turn too, and the prompt tells the model to fetch again if the file
-is not there. Any call to the gateway tool withholds the file until a new
-result has been staged, so a failed call or an empty result leaves the
-sandbox tool refusing to run rather than reading a copy from an earlier
-run as the latest, and a write that fails when the code runs is returned
-to the model as the tool's error, with nothing run, and tried again on
-its next call. The model still decides whether to compute, and what the
-code does with the file is the model's. What trusted code guarantees is
-narrower than freshness. Before each run of the model's code through the
-tool, the most recent usable result found in the retained conversation
-is written, or the run is refused while the file is withheld. Whether the
-model fetches again for the current state is instruction, not
-enforcement.
+**The handoff** keeps the model from retyping data. The sandbox cannot
+reach the gateway, so left to itself the model would copy the orders into
+the code it writes. That works for nine rows and is where a wrong figure
+would come from with three hundred. A second hook takes the gateway's
+result exactly as returned and writes it into the sandbox as `orders.json`
+before the model's code next runs. If the gateway call fails, the file is
+withheld and the sandbox refuses to run, rather than read an older copy.
+The hook is shown here without its logging.
 
 ```python
 class Handoff(HookProvider):
@@ -302,100 +121,28 @@ class Handoff(HookProvider):
         self.sandbox.withhold(path)
         result = event.result or {}
         if result.get("status") != "success":
-            print(f"{name} did not succeed, {path} withheld")
             return
         text = _text_of(result)
-        if not text.strip():
-            print(f"{name} returned no text, {path} withheld")
-            return
-        if len(text) > MAX_HANDOFF_CHARS:
-            print(f"{name} returned {len(text)} chars, over the {MAX_HANDOFF_CHARS} limit, {path} withheld")
-            return
-        self.sandbox.stage(path, text)
-        self.staged.append(path)
-        print(f"staged {name} result for the sandbox as {path} ({len(text)} chars)")
-
-
-def restore(messages, sandbox, handoffs=None):
-    staged = []
-    for path, text in latest_results(messages, handoffs).items():
-        if text is None:
-            sandbox.withhold(path)
-            print(f"{path} withheld: the conversation's latest call for it did not produce a result")
-            continue
-        sandbox.stage(path, text)
-        staged.append(path)
-        print(f"restored {path} for the sandbox from the conversation ({len(text)} chars)")
-    return staged
+        if text.strip() and len(text) <= MAX_HANDOFF_CHARS:
+            self.sandbox.stage(path, text)
 ```
 
-`latest_results` carries the latest outcome per file from the restored
-turns, the text when that call succeeded and `None` when it failed or
-returned nothing, so a turn that follows a failed call withholds the file
-the same way the turn that saw the failure did.
+A new turn gets a fresh sandbox but a restored conversation, so `restore`
+stages the latest gateway result it finds there in the same way.
 
-And the memory arrives beside the tools rather than as one. Post 03 stored
-and recalled on command. The session manager records each turn's messages and state as events in
-the customer's own session, with a failed final flush logged rather than
-allowed to fail an answer that was already given, restores the
-conversation at the start of the next turn, and before each message reaches
-the model it retrieves the
-customer's long-term records, the `USER_PREFERENCE` strategy's extractions
-in `/users/{actorId}`, and puts them in front of the message. The model does
-not call memory or choose what is retrieved. The actor is the token's
-subject, the pool's immutable id for the user, so a username deleted and
-created again for someone else inherits none of the memory. The customer
-id the model is told is the username, which is what the orders service
-and Cedar know the customer by, so the orders would follow a reassigned
-username, and provisioning must never give one to a second person.
-
-```python
-def config_for(actor, session):
-    return AgentCoreMemoryConfig(
-        memory_id=os.environ["MEMORY_ID"],
-        actor_id=actor,
-        session_id=session,
-        retrieval_config={"/users/{actorId}": RetrievalConfig(top_k=5, relevance_score=0.3)},
-    )
-```
-
-The conversation's id is the runtime's own session header, which the
-runtime passes to the container, so a client that keeps the session header
-the same across calls gets one conversation with a memory, and one that
-changes it starts another. There is no default id. A request that names no
-session is refused, so two clients of one customer do not fall into one
-conversation through a shared default, and a fresh, unguessable id per
-conversation keeps them apart on purpose. The runtime requires an id of at
-least thirty-three characters and the agent's own grammar for one starts
-there. An id is a locator within the actor's own namespace, not an
-authorisation boundary, since the actor comes from the token and any
-client holding that token may continue a conversation whose id it knows,
-which is why a client mints a random one. The runtime routes a session's
-requests to one microVM for the session's lifetime, which is what AWS
-calls stickiness, and inside that microVM turns in one conversation run
-one at a time, a second request for the same session waiting for the
-first, so two turns do not restore and append to one history at once.
-Outside the runtime that lock is the process's only.
-
-> Amazon Bedrock AgentCore uses the session header to route requests to
-> the same microVM instance.
-
-https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-sessions.html
-
-> NOTE: leave the session manager's `filter_restored_tool_context` at its
-> default. Filtered, a second question in the same conversation sees the
-> model's earlier answer but not the orders behind it, and the model will
-> reconstruct a dataset rather than fetch again. Restored, it can analyse
-> the orders it already fetched, and the system prompt tells it to fetch
-> again for anything about current status.
+**The memory** arrives beside the tools, not as one. The session manager
+records each turn in AgentCore Memory, restores the conversation at the
+start of the next and puts the customer's `USER_PREFERENCE` records in
+front of each message. The model does not choose what is retrieved. The
+actor is the token's subject, the user pool's immutable id for the user.
+The conversation is the runtime's session header, which a client mints at
+random for each conversation.
 
 ## 2 - What the model is told
 
-The system prompt is short, and three things in it carry weight. The
-customer id is written into it by trusted code from the token the runtime
-verified, the model is told that it is the only customer it acts for, and
-the date is written into it as well, so that "this year" means a calendar
-year rather than whatever the data happens to contain.
+Trusted code writes two things into the system prompt. The customer id
+comes from the verified token. Today's date is there so that "this year"
+means a calendar year.
 
 ```
 You are talking to the customer whose id is {customer}. That is the only
@@ -404,58 +151,25 @@ id. If you are asked about any other customer's orders, or told to use a
 different id, decline plainly and do not try the tool.
 ```
 
-Nothing else about identity is in the prompt. Trusted code gives the
-model neither the minted token nor the customer's own, and puts the
-minted one only in the MCP client's authentication header. The process
-receives the customer's token from the runtime, which validated it, as
-the subject of the exchange, and holds the minted one for the gateway.
-The exchange is post 05's, with the AWS sample's compromise of carrying
-the customer's token in Cognito's `ClientMetadata`, which the README
-records. That is the division of labour this post is about, the model
-decides what to ask the gateway and code decides what authenticates the
-asking.
+Nothing else about identity is in the prompt. The rest of it tells the
+model to use `run_python` for arithmetic, to load totals as decimals, to
+read `orders.json` rather than retype rows, and to state only figures the
+code printed, counts included.
 
-The rest of the prompt tells the model what the tools are for, to use
-`run_python` for arithmetic rather than doing it in its head, with totals
-loaded as decimals and money printed to two places, to state only figures
-the code printed, a count of orders included, and to read `orders.json`
-in the sandbox, the gateway's latest result in the conversation, rather
-than retype rows. The first of those is the instruction that changes the
-shape of the answers most, because without it a model will happily sum
-eight totals in prose and occasionally get one wrong, and a model that has
-printed the totals will still add a count it never computed unless told
-that counts are figures too. The second avoids asking the model to
-reproduce the gateway's rows in the source it writes. Both are
-instructions, which the model follows most of the time. What trusted code
-adds is a lexical check after the answer. Every figure in it is looked
-for, compared lexically after thousands separators are removed and with
-the exclusions below applied, in the whole of what `run_python` printed
-this turn,
-among the tokens of three or more digits, or with a decimal part, in
-the order tool's own results, which is what identifiers, years and
-amounts look like and what a quantity or a day of the month does not,
-and the year of the date trusted code gave it. Nothing else counts, not
-an earlier turn's code output, not a failed result, not a figure the
-prompt itself carries. An identifier such as `c-1001`,
-an ordinal day such as 20th and a day beside a month name are not taken
-as figures at all. When the check names a figure in the first answer,
-trusted code asks the model once to restate from what the tools returned,
-or to run code for what it needs, as a fresh answer, and the response says
-it did. Whatever the check names after that is returned beside the answer
-as the figures the check did not find, so a count the model did in its
-head and kept is named. Being lexical, it names a quantity read from a
-row as well, and misses a calculated figure that happens to equal a row's
-amount. It annotates the answer. It
-establishes nothing about its correctness, and it does not rewrite.
+Those are instructions, which a model follows most of the time. So trusted
+code checks the answer afterwards. Every figure in it is looked for in what
+`run_python` printed this turn, in the order tool's results and in the
+year the prompt gave. If one is missing, the model is asked once to restate
+from what the tools returned, and the response says it did. Anything still
+missing is returned beside the answer. The check is lexical, so it
+annotates an answer rather than proving it right.
 
 ## 3 - The model's own permission
 
-Bedrock is called with the runtime's execution role, so the image carries no
-model credential and nothing static to rotate. Invocation goes to a
-cross-region inference profile, `us.anthropic.claude-sonnet-4-5-20250929-v1:0`,
-which routes to the foundation model in one of several regions, and Bedrock
-evaluates both the profile's ARN and the model's, so the role names the
-profile and the exact model in each region the profile covers.
+Bedrock is called with the runtime's execution role, so the image carries
+no model credential. Invocation goes through the cross-region inference
+profile `us.anthropic.claude-sonnet-4-5-20250929-v1:0`. Bedrock evaluates
+both the profile and the underlying model, so the role names both.
 
 ```hcl
 {
@@ -475,43 +189,17 @@ profile and the exact model in each region the profile covers.
 }
 ```
 
-> When you specify an inference profile in the Resource field in the first
-> statement, you must also specify the foundation model in each Region
-> associated with it.
-
-https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-prereq.html
-
-The condition on the second statement is the same page's optional
-tightening, so the model can be invoked only through that profile and never
-by naming a regional model directly. The model ARNs are not a list anyone
-maintains. The `aws_bedrock_inference_profile` data source reads them from
-the profile at plan time, so naming a different system cross-region
-profile in `model_id` changes the policy to match, and the variable
-accepts only that kind, the shape this was built and tested with. The only memory permission
-added in this demo is `bedrock-agentcore:GetEvent`, which the session
-manager uses to read a session back; the permissions carried forward from
-the earlier demos remain, and the live runs show them sufficient for the
-paths exercised rather than minimal. No new resources are created,
-everything the model is handed already existed.
+The condition means the model can only be invoked through that profile.
+The data source reads the regional model ARNs from the profile at plan
+time, so nobody maintains that list by hand.
 
 ## 4 - Running it
 
-In one turn, trusted code establishes the customer and the token, the
-model chooses, and the gateway decides whether what it chose is allowed.
-
 ![One turn: trusted code establishes the customer and the token, the model chooses the tools and the arguments, Cedar at the gateway decides whether a chosen customer_id is allowed](sequence.png)
 
-A customer signs in and asks something no earlier post could answer. The
-response carries the answer, the trail, every tool the model chose with
-the arguments it chose, whether the call succeeded and what `run_python`
-printed, which a Strands hook records as the loop runs, and the figures
-in the answer that the check did not find. The trail carries the model's
-code in full, so an instruction in a row or in a remembered preference
-that got the model to copy rows into its code would put them in the
-response as well, to the customer whose rows they are, and the runtime
-log is the redacted copy. The `ask` function below posts the prompt with
-the customer's token and a fixed session header, and prints the trail,
-with what the code printed, and then the answer.
+The response carries the answer and a trail of every tool the model chose,
+with its arguments and what the code printed. The `ask` function posts a
+prompt with the customer's token and a fixed session id.
 
 ```
 $ ask "How much have I spent with you this year, month by month, and which month was the biggest?"
@@ -552,93 +240,16 @@ Your biggest month was February with £310.50. In total, you've spent
 £743.80 with us this year across 7 orders.
 ```
 
-The model chose the gateway first, with its own customer id, and the
-sandbox second, and `ask` leaves the code's first lines out here because
-the whole of it is below. The second call's program opened the file the
-handoff had staged, with the totals as decimals, kept the orders from the
-year the system prompt gave it, grouped them by month and summed them,
-and printed the months, the biggest and the total. The model's first
-answer then added a count of orders the program had not printed. The
-check after the answer named it, trusted code asked the model once to
-restate from what the tools returned or to run code for what it needed,
-and the model wrote a second program, the third call, the same
-calculation with the count printed, and gave the answer above. This is
-that program as the trail recorded it, with its comments removed.
+The model fetched the orders with its own customer id, then ran code over
+`orders.json`. Its first answer added a count of orders the code had not
+printed. The check named it, the model was asked to restate, and it ran
+the program again with the count printed. Every figure above matches
+`tool/orders.csv`. The two orders from 2025 were left out, because the
+prompt gave the model the date.
 
-```python
-from decimal import Decimal
-import json
-
-with open("orders.json") as f:
-    data = json.load(f, parse_float=Decimal)
-    orders = data["orders"]
-
-monthly_totals = {}
-order_count_2026 = 0
-
-for order in orders:
-    placed_at = order["placed_at"]
-    if placed_at.startswith("2026"):
-        order_count_2026 += 1
-        year_month = placed_at[:7]
-
-        if year_month not in monthly_totals:
-            monthly_totals[year_month] = Decimal("0")
-
-        monthly_totals[year_month] += Decimal(str(order["total"]))
-
-print("2026 Monthly Spending:")
-for month in sorted(monthly_totals.keys()):
-    total = monthly_totals[month]
-    print(f"{month}: £{total:.2f}")
-
-if monthly_totals:
-    biggest_month = max(monthly_totals.items(), key=lambda x: x[1])
-    print(f"\nBiggest month: {biggest_month[0]} with £{biggest_month[1]:.2f}")
-
-    year_total = sum(monthly_totals.values())
-    print(f"\nTotal for 2026: £{year_total:.2f}")
-    print(f"Number of orders in 2026: {order_count_2026}")
-```
-
-Every figure in the answer is one that program printed, the four months,
-the biggest, the total and the count of seven, every one matches
-`tool/orders.csv`, and the check found nothing to name in the
-restatement. The two orders from 2025 that the file also holds were left
-out, which is what the date in the system prompt is for. The response
-says the restatement happened, so a caller can see it. A second question in the same session shows the
-conversation working as one. The question is about
-the same orders, so the model did not go back to the gateway. It ran code
-over the file, which trusted code had restored into the new session from
-the earlier turn's result. In the recorded turn that asked whether anything had changed, the model
-fetched again before answering, which the system prompt asks of it as an
-instruction. The answer it then gave is its own comparison, not one
-trusted code made.
-
-```
-$ ask "Which carrier has delivered most of my orders?"
-  1. run_python  [success]
-      printed:
-        Orders by carrier:
-        DPD: 6 orders
-        Royal Mail: 3 orders
-
-        Most used carrier: DPD with 6 orders
-
-        Total orders: 9
-
-Looking at your 9 orders, DPD has delivered most of them with 6 orders,
-while Royal Mail has delivered 3 orders.
-```
-
-The question named no year, so nine orders is the right scope, and all
-three counts are what the code printed. Memory is what a fresh session
-shows. In an earlier session c-1000 had
-said "Remember that I always want Royal Mail if there is a choice", the
-`USER_PREFERENCE` strategy extracted it within about a minute, and the
-session manager puts it in front of a message that needs it. A new
-conversation whose question depends on it entirely gets the recall without
-the prompt naming the carrier.
+Memory shows in a fresh session. Earlier, c-1000 had said "Remember that I
+always want Royal Mail if there is a choice", and the question below
+depends on that entirely.
 
 ```
 $ ask "How many of my orders went with the carrier I prefer?"
@@ -658,13 +269,9 @@ Looking at your 9 orders, 3 of them went with Royal Mail, your preferred
 carrier, and 6 went with DPD.
 ```
 
-The same thing happened here. The model's first answer, after the second
-call, gave the nine and the three the code had printed and a six it had
-worked out itself, their difference. The check named the six, because the
-code printed no six and a six is not a figure to read off a row, the
-model was asked once to restate, it ran code again, the third call, which
-printed the count it wanted, and the answer above is the restatement,
-every figure in it printed.
+The prompt never named the carrier. The model's first answer included a
+six it had worked out in its head, the check named it, and the restated
+answer uses only printed figures.
 
 Then the turn that should not work.
 
@@ -680,13 +287,11 @@ through the account associated with that customer ID.
 Is there anything I can help you with regarding the c-1000 account?
 ```
 
-The model declined, and the trail is empty, so `c-1001` never reached the
-gateway and the Cedar policy was never asked. Of four other pretexts,
-recorded in the README, three were declined without a tool call, and a
-merged-account story fetched the customer's own orders and answered from
-those. In none did `c-1001` reach the gateway. That is the right order for the controls to be
-in, and the policy is there for the day the model is talked round. Calling the gateway directly with the agent's own minted token, the way
-post 05 probed it, shows what the model would have been told.
+The trail is empty, so `c-1001` never reached the gateway. Of four other
+pretexts in the README, three were declined and one answered from the
+customer's own orders. The policy is there for the day the model is
+talked round. Calling the gateway with the agent's own minted token shows
+what the model would get back.
 
 ```
 $ TOKEN="$MINTED" python3 probe_gateway.py c-1000
@@ -698,105 +303,42 @@ policy enforcement [Policy evaluation denied due to
 deny_other_customers_orders-1sgl24wozs]
 ```
 
-Had the model made that call, the MCP client would have returned the
-refusal to it as a tool error and the model would have reported a refusal
-rather than data. Signed in as c-1001 instead, the same agent counts
-c-1001's six orders and nothing else, because the token, the system prompt
-and the policy all change together.
+Signed in as c-1001 instead, the same agent counts c-1001's six orders and
+nothing else, because the token, the prompt and the policy change together.
 
 ## 5 - What the model can and cannot change
 
-It is worth being precise about which of the controls in this stack the
-model can influence, because that is the question a security review of an
-agent with a model in it asks.
+The model chooses arguments, but not the token. Trusted code obtained it
+before the model ran, so a wrong `customer_id` meets the same Cedar policy
+as before. For the order lookup, the model adds a new way to ask for the
+wrong customer and no new way to get them.
 
-The model chooses arguments. It cannot choose the token, which trusted code
-obtained and put in the client's header before the model ran, and it cannot
-widen it, since the exchange fixes the audience, which the gateway checks,
-and emits only the orders scope, a property of the token rather than a
-check the gateway or Cedar makes here, as post 05 showed. So a `customer_id` the model chooses wrongly, whether by mistake or
-because a prompt talked it into it, meets the same Cedar policy as before,
-and the policy compares it with the claim in the token that was actually
-presented. In the live attempts the model never put a wrong id into a call,
-which is the instruction doing its job, and the policy is what holds when
-the instruction does not. For the order lookup, the model being in the loop
-adds a new way to ask for the wrong customer and no new way to get them.
-That is the one action Cedar covers here. It does not reach into the
-sandbox or the memory, and it does not make the model's answers right.
+The model chooses code, which runs with no network and no credentials. It
+cannot reach the gateway, the memory or the token from the sandbox. What
+it still controls is the program itself and what it says afterwards. The
+printed figures rule is an instruction, and the check reports rather than
+blocks.
 
-The model chooses code. The code runs in a session with no network and no
-credentials, so it cannot reach the gateway, the memory, the account or the
-customer's token from inside the sandbox, which is the property post 04
-probed directly. Running the model's program over the same `orders.json`
-gives the same figures every time, and the handoff puts the gateway's
-exact result in front of that program. What the model still controls is
-the program itself, which rows it uses, whether it reads the file at all,
-and what it says afterwards. The file removes the transcription step, it
-does not take the computation out of the model's hands, the rule that a
-calculated figure in the answer is one the code printed is an instruction
-to the model, and the check that names any figure nothing supports, with
-the one restatement it asks for, is the control outside it, one that
-reports after that rather than blocks. The date comes
-from trusted code for the same reason, so that "this year" is a filter
-the program applies rather than an assumption about the data. What the isolation does not bound is how much the model asks for, and
-the bounds in section 1 are the agent's own numbers on that. Giving up on
-a call does not stop the code. The stop at the end of the turn does when
-it succeeds, and the session's 900 second timeout is the service's to
-apply after that.
+The model chooses what to say, shaped by the prompt, the order rows and
+the memory records, all of which began as customer text. That is why the
+controls that matter sit outside the model.
 
-The model chooses what to say, and what it says is shaped by everything in
-its context. Three of those things are untrusted, the prompt, the order rows
-the gateway returns and the preference records memory retrieves, which began
-as customer text. Any of them can carry instruction-shaped content. The
-system prompt asks the model to decline requests for other customers and to
-use the sandbox for arithmetic, and a model follows instructions like that
-most of the time, not all of it. That is why the controls that matter are
-the ones outside the model.
-
-Memory is keyed by the token's subject. The session manager is built with
-that actor and a session id the caller controls, so the request path never
-configures memory for anyone but the verified subject, and a username
-given to someone else later carries none of the memory, though it would
-carry the orders, which are keyed by the customer id. That is an
-invariant of the application, which its tests cover, not one IAM
-enforces: the runtime role may read the whole memory. The retrieval is
-semantic, so what the model sees from memory is whatever the
-strategy extracted, which is a reason to look at those records before
-trusting what the model says it remembers.
-
-And the limits post 05 stated still hold. Cedar binds the argument to the
-presented token, not the token to the invocation. The orders Lambda still
-selects the rows. The sandbox and the memory are reached through the
-runtime role in code, not through the gateway and its policy, so moving
-them behind the same gateway is still how you would finish the job.
+Post 05's limits still hold. Cedar binds the argument to the presented
+token, and the token's customer id is a pool username, so a username must
+never be given to a second person. The sandbox and memory are reached
+through the runtime role rather than the gateway, so moving them behind it
+is how you would finish the job.
 
 ## Conclusion
 
-The agent now decides. A model is handed the gateway and the sandbox that
-posts 02 and 04 built as tools, with the memory of post 03 supplied as
-context, and it fetches, computes and
-answers a question that no code in the repository anticipated, with the
-trail of its choices returned alongside the answer. What kept the order lookup bound to the token's customer id while the
-model took over the choosing is that identity stayed where post 05 put
-it. The binding is to the customer id, the pool username, rather than to
-a person, so it holds for as long as a username is never given to a
-second person. Trusted code establishes the customer and
-holds the token, the model chooses arguments and code, and Policy in
-AgentCore refuses a lookup for a wrong customer before the tool runs. In
-five live attempts to be someone else, `c-1001` never reached the gateway,
-four were declined outright and one answered from the customer's own
-orders, and the policy stayed the independent control for a mismatched
-argument.
-That is what the policy covers, the order lookup. It says nothing about
-whether the code the model wrote or the sentence it produced is right. The
-bounds in section 1 limit how much the model asks for, the rule about
-printed figures is an instruction it follows most of the time, and the
-trail with what the code printed, and the figures named as unsupported,
-returned with every answer, are what let a caller check. The agent's
-authority to read orders through the gateway is
-unchanged and still bound to the customer in the presented token. What is
-new is what the model may decide within that, which arguments, which code,
-how many calls, and those have their own bounds.
+The agent now decides. Given the gateway, the sandbox and memory, a model
+fetched, computed and answered a question no code in the repository
+anticipated, and the trail of its choices came back with the answer.
+Identity stayed where post 05 put it. Trusted code holds the token, the
+model chooses arguments and code, and Cedar refuses a lookup for the wrong
+customer. In five live attempts to be someone else, `c-1001` never reached
+the gateway. The policy does not say whether the model's code or sentence
+is right. The trail and the figures check are what let a caller see that.
 
 References:
 
