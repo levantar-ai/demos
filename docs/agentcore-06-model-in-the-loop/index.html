@@ -36,7 +36,7 @@
   "image": "https://levantar-ai.github.io/demos/agentcore-06-model-in-the-loop/social.png",
   "datePublished": "2026-10-04",
   "dateModified": "2026-10-04",
-  "wordCount": 1800,
+  "wordCount": 2000,
   "inLanguage": "en-GB",
   "mainEntityOfPage": {
     "@type": "WebPage",
@@ -191,7 +191,7 @@
         <div class="who">
           <div><span class="name">Andy Rea</span></div>
           <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
-          <div class="facts"><time datetime="2026-10-04">4 October 2026</time><span class="sep">·</span>9 min read<span class="sep">·</span>AgentCore series</div>
+          <div class="facts"><time datetime="2026-10-04">4 October 2026</time><span class="sep">·</span>10 min read<span class="sep">·</span>AgentCore series</div>
         </div>
       </div>
       <nav class="series-nav prev">
@@ -208,7 +208,8 @@ AgentCore Memory as context, and lets it decide what to call. Trusted code
 still decides who the customer is and holds the token the gateway accepts.
 Asked to be another customer, the model declines. If it were ever talked
 into it, the Cedar policy at the gateway refuses the lookup before the tool
-runs.</p>
+runs. The model can still get a figure wrong, so as built here this suits
+an AI assistant for the business's own staff rather than customers.</p>
 <blockquote>
 <p>SOURCE CODE - All code for this post is available at:
 <a href="https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop">https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop</a></p>
@@ -469,6 +470,15 @@ cannot reach the gateway, the memory or the token from the sandbox. What
 it still controls is the program itself and what it says afterwards. The
 rule about printed figures is only an instruction, and the check reports
 problems rather than blocking them.</p>
+<p>None of this guarantees the figures. The orders reach the sandbox
+unchanged and the arithmetic runs as code, but the model writes that code
+and nothing checks its logic. It could leave out an order or filter the
+wrong year, and the answer would be wrong but consistent. The figures
+check only matches text, so it would not notice a total reported under the
+wrong month, and it flags an answer rather than blocking it. Without
+guardrails like these, a model will state figures it never calculated.
+With them, the risk is smaller but still there. Post 08 covers testing the
+agent's answers as a quality gate before they reach anyone.</p>
 <p>The model chooses what to say, and that depends on the prompt, the order
 rows and the memory records, all of which started as customer text. That
 is why the controls that matter sit outside the model.</p>
@@ -486,6 +496,10 @@ model chooses arguments and code, and Cedar refuses a lookup for the wrong
 customer. In five live attempts to be someone else, <code>c-1001</code> never reached
 the gateway. The policy cannot tell you whether the model's code or its answer is
 right. The trail and the figures check are what let a caller judge that.</p>
+<p>That makes this a good fit for an AI assistant used by Brightwell's own
+staff, who can read the answer and the trail before acting on it. Putting
+it in front of customers needs more than this post shows, and figures that
+drive refunds or billing should never rest on it alone.</p>
 <p>References:</p>
 <ul>
 <li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop">https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop</a></li>
