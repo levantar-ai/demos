@@ -334,8 +334,8 @@ is how you would finish the job.
 
 ## 6 - What we would do to let the sandbox fetch
 
-This post passes the orders into the sandbox. For larger or paged data,
-the model's code would be better off fetching them itself. We have not
+For larger or paged data, the model's code would be better off fetching
+the orders itself. We have not
 built that, but here is how we would.
 
 The sandbox would get its own token, never the agent's. Trusted code would
@@ -348,14 +348,15 @@ Revoking it when the sandbox finishes adds less than it sounds. The
 gateway checks a token's signature and expiry itself and never asks
 Cognito whether it was revoked, so the short lifetime is the real limit.
 
-For high security that is not enough, and the token should be single use.
-With revocation on, the default for new app clients, Cognito puts a unique
-`jti` claim in each access token. A request interceptor on the gateway, a
-Lambda that sees each validated token before the tool runs, would record
-that `jti` in DynamoDB with a conditional write and refuse any token it
-has seen before, and the record would expire with the token. Trusted code
-would then stage one token per call it allows. For this post, the five
-minute lifetime is enough.
+For high security that is not enough, and each call should need a
+credential that works once. Cognito does not offer that, so it would be
+built. A trusted broker would issue a short-lived credential for one call,
+bound to the tool and the customer id, and stage one per call it allows. A
+request interceptor on the gateway, a Lambda that runs after the gateway
+validates the token, would use it up with a conditional write to DynamoDB
+and refuse it the second time. A failed call still uses it up, and a thief
+who gets there first still wins. For this post, the five minute lifetime
+is enough.
 
 The interpreter would run in VPC mode, reaching the gateway through its
 private endpoint with no internet access. Trusted code would write the
