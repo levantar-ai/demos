@@ -9,8 +9,9 @@ AgentCore Memory as context, and lets it decide what to call. Trusted code
 still decides who the customer is and holds the token the gateway accepts.
 Asked to be another customer, the model declines. If it were ever talked
 into it, the Cedar policy at the gateway refuses the lookup before the tool
-runs. The model can still get a figure wrong, so the pattern suits an AI assistant for
-the business's own staff more than one for customers.
+runs. So each customer who signs in can only reach their own orders. The
+model can still get a figure wrong, though, so its answers should inform
+rather than decide anything that costs money.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop
@@ -369,12 +370,11 @@ customer. In five live attempts to be someone else, `c-1001` never reached
 the gateway. The policy cannot tell you whether the model's code or its answer is
 right. The trail and the figures check are what let a caller judge that.
 
-That makes the pattern a good fit for an AI assistant for Brightwell's own
-staff, who can read the answer and the trail before acting on it. This demo
-signs customers in, so a staff version would sign staff in as themselves,
-under a policy saying which customers they may look up. Putting
-it in front of customers needs more than this post shows, and figures that
-drive refunds or billing should never rest on it alone.
+That makes it a fit for a customer-facing AI assistant, where each
+customer signs in and can only reach their own orders. Its answers are
+there to inform. The model can still get a figure wrong, so anything that
+drives a refund or a bill should come from the order system itself, never
+from the model's answer alone.
 
 References:
 
