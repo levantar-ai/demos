@@ -2062,3 +2062,38 @@ session grammar, the figures check's exclusions and the review history,
 stays in the README and this record. The GPT-5.6 gate could not run for
 this cut because the OpenAI account had no credits left, so the cut was
 checked by hand against `tool/orders.csv` and the recorded turns.
+
+## Final review, 2026-10-11
+
+GPT-5.6 reviewed the published post after the cut and the additions of the
+staff positioning and section 6. Actioned in the post.
+
+- Section 6 no longer claims that filtering printed output protects a
+  credential in the sandbox. It says model code can leak what it reads,
+  which is why each credential is single use, and names a trusted proxy
+  that holds the credential as the safer design.
+- The staff positioning now says the pattern suits staff, and that a staff
+  version needs staff identities and a policy on which customers they may
+  look up, since this demo signs customers in.
+- "No code in the repository" became "no code we wrote", since the captures
+  hold the generated programs.
+- The sandbox stop is described as requested, the 180 second limit as how
+  long the agent waits for a sandbox call, the inference profile policy as
+  two statements, the probe token as the one minted for this customer, and
+  the handoff as passing the gateway's result unchanged.
+- "Moving the sandbox and memory behind the gateway" was replaced by memory
+  isolation being the application's job, since the runtime role can read
+  the whole memory.
+
+Recorded, not actioned.
+
+- The restatement's first answer and its internal instruction stay in the
+  session and so in memory. Excluding them needs a code change and a
+  redeploy.
+- The figures check accepts figures from any successful order result still
+  in the conversation, not only the latest.
+- The README's response example shows a failed restatement, while the
+  captures show successful ones. The handler trusts the runtime's JWT
+  validation, so it is not safe to expose outside the runtime.
+- Calls to delete section 6 and drop the series recap were declined, since
+  both are the author's choice.
