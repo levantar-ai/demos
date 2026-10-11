@@ -2072,9 +2072,11 @@ staff positioning and section 6. Actioned in the post.
   credential in the sandbox. It says model code can leak what it reads,
   which is why each credential is single use, and names a trusted proxy
   that holds the credential as the safer design.
-- The staff positioning now says the pattern suits staff, and that a staff
-  version needs staff identities and a policy on which customers they may
-  look up, since this demo signs customers in.
+- The reviewer objected to calling this a staff assistant, since the demo
+  signs customers in. Andy agreed, and the post now positions it as a
+  customer-facing assistant where each customer reaches only their own
+  orders, with answers that inform rather than decide anything that costs
+  money.
 - "No code in the repository" became "no code we wrote", since the captures
   hold the generated programs.
 - The sandbox stop is described as requested, the 180 second limit as how
