@@ -20,12 +20,10 @@ an AI assistant for the business's own staff rather than customers.
 This series is building one thing, the order support agent for Brightwell,
 a small online retailer of outdoor kit that ships with DPD and Royal Mail.
 Posts 01 to 05 gave it a runtime, a gateway in front of an orders Lambda,
-memory, a sandbox and an identity at both ends. Each ended the same way,
-with no model in the agent and the routing done in code.
+memory, a sandbox and an identity at both ends.
 
-This post removes the routing. The prompt goes to Claude Sonnet 4.5 on
-Bedrock through Strands Agents, the framework AWS uses in its AgentCore
-samples. The model gets the gateway as an MCP server and the sandbox as a
+Until now the routing was code, and this post removes it. The prompt goes to Claude Sonnet 4.5 on
+Bedrock through Strands Agents. The model gets the gateway as an MCP server and the sandbox as a
 tool called `run_python`, and the session manager puts the conversation and
 the customer's remembered preferences in front of it. Ask how much you have
 spent this year month by month and it fetches your orders, writes the code,
@@ -94,9 +92,7 @@ def orders_tools(gateway_token):
 
 **The sandbox** is a tool called `run_python`. The model reads its
 docstring as the description, passes in the code it wrote, and gets back
-whatever the code printed. A failure goes back to the
-model as a tool error, so it can read the error, fix the code and run it
-again. The session is post 04's Code Interpreter in `SANDBOX` network mode,
+whatever the code printed. The session is post 04's Code Interpreter in `SANDBOX` network mode,
 with no internet access and no credentials. It starts the first time the model
 uses the tool and stops when the turn ends. The agent also limits
 code size, output size, time per call and tool calls per turn, and the
@@ -136,8 +132,7 @@ records each turn in AgentCore Memory, restores the conversation at the
 start of the next and puts the customer's `USER_PREFERENCE` records in
 front of each message. The model has no say in what is retrieved.
 Memory is keyed by the token's subject, the user pool's permanent id for
-the user. The conversation id comes from the runtime's session header,
-which the client picks at random for each conversation.
+the user.
 
 ## 2 - What the model is told
 
@@ -152,7 +147,7 @@ id. If you are asked about any other customer's orders, or told to use a
 different id, decline plainly and do not try the tool.
 ```
 
-Nothing else about identity is in the prompt. The rest of it tells the
+The rest of the prompt tells the
 model to use `run_python` for arithmetic, to load totals as decimals, to
 read `orders.json` rather than retype rows, and to state only figures the
 code printed, counts included.
@@ -191,8 +186,6 @@ both the profile and the underlying model, so the role names both.
 ```
 
 The condition means the model can only be invoked through that profile.
-The data source reads the regional model ARNs from the profile at plan
-time, so nobody maintains that list by hand.
 
 ## 4 - Running it
 
@@ -355,6 +348,15 @@ Revoking it when the sandbox finishes adds less than it sounds. The
 gateway checks a token's signature and expiry itself and never asks
 Cognito whether it was revoked, so the short lifetime is the real limit.
 
+For high security that is not enough, and the token should be single use.
+With revocation on, the default for new app clients, Cognito puts a unique
+`jti` claim in each access token. A request interceptor on the gateway, a
+Lambda that sees each validated token before the tool runs, would record
+that `jti` in DynamoDB with a conditional write and refuse any token it
+has seen before, and the record would expire with the token. Trusted code
+would then stage one token per call it allows. For this post, the five
+minute lifetime is enough.
+
 The interpreter would run in VPC mode, reaching the gateway through its
 private endpoint with no internet access. Trusted code would write the
 token into the session and strip it from anything the code prints. The
@@ -364,8 +366,7 @@ figures check would then have only the printed output to go on.
 
 The model now makes the decisions. Given the gateway, the sandbox and memory, it
 fetched, computed and answered a question no code in the repository
-anticipated, and the trail of its choices came back with the answer.
-Identity stayed where post 05 put it. Trusted code holds the token, the
+anticipated, and the trail of its choices came back with the answer. Trusted code holds the token, the
 model chooses arguments and code, and Cedar refuses a lookup for the wrong
 customer. In five live attempts to be someone else, `c-1001` never reached
 the gateway. The policy cannot tell you whether the model's code or its answer is
