@@ -20,8 +20,8 @@ an AI assistant for the business's own staff rather than customers.
 This series is building one thing, the order support agent for Brightwell,
 a small online retailer of outdoor kit that ships with DPD and Royal Mail.
 Posts 01 to 05 gave it a runtime, a gateway in front of an orders Lambda,
-memory, a sandbox and an identity at both ends. Each of them ended the
-same way. There is no model in this agent, the routing is code.
+memory, a sandbox and an identity at both ends. Each ended the same way,
+with no model in the agent and the routing done in code.
 
 This post removes the routing. The prompt goes to Claude Sonnet 4.5 on
 Bedrock through Strands Agents, the framework AWS uses in its AgentCore
@@ -97,7 +97,7 @@ docstring as the description, passes in the code it wrote, and gets back
 whatever the code printed. A failure goes back to the
 model as a tool error, so it can read the error, fix the code and run it
 again. The session is post 04's Code Interpreter in `SANDBOX` network mode,
-with no network and no credentials. It starts the first time the model
+with no internet access and no credentials. It starts the first time the model
 uses the tool and stops when the turn ends. The agent also limits
 code size, output size, time per call and tool calls per turn, and the
 README lists each limit.
@@ -157,8 +157,8 @@ model to use `run_python` for arithmetic, to load totals as decimals, to
 read `orders.json` rather than retype rows, and to state only figures the
 code printed, counts included.
 
-Those are instructions, which a model follows most of the time. So trusted
-code checks the answer afterwards. It looks for every figure in the answer in
+A model follows instructions most of the time, so trusted code checks the
+answer afterwards. It looks for every figure in the answer in
 what `run_python` printed this turn, in the orders the gateway returned
 and in the year from the prompt. If one is missing, the model is asked once to restate
 from what the tools returned, and the response says it did. Anything still
@@ -304,8 +304,7 @@ policy enforcement [Policy evaluation denied due to
 deny_other_customers_orders-1sgl24wozs]
 ```
 
-Signed in as c-1001 instead, the same agent counts c-1001's six orders and
-nothing else, because the token and the prompt both follow the sign-in.
+Signed in as c-1001, the same agent counts only c-1001's six orders, because the token and the prompt both follow the sign-in.
 
 ## 5 - What the model can and cannot change
 
@@ -314,7 +313,7 @@ before the model ran, so a wrong `customer_id` meets the same Cedar policy
 as before. For the order lookup, the model adds a new way to ask for the
 wrong customer and no new way to get them.
 
-The model chooses code, which runs with no network and no credentials. It
+The model chooses code, which runs with no internet access and no credentials. It
 cannot reach the gateway, the memory or the token from the sandbox. What
 it still controls is the program itself and what it says afterwards. The
 rule about printed figures is only an instruction, and the check reports
@@ -339,6 +338,27 @@ token, and the token's customer id is a pool username, so a username must
 never be given to a second person. The sandbox and memory are reached
 through the runtime role rather than the gateway, so moving them behind it
 is how you would finish the job.
+
+## 6 - What we would do to let the sandbox fetch
+
+This post passes the orders into the sandbox. For larger or paged data,
+the model's code would be better off fetching them itself. We have not
+built that, but here is how we would.
+
+The sandbox would get its own token, never the agent's. Trusted code would
+ask the post 05 exchange for a second token for the same customer, issued
+to a separate sandbox client with a read-only scope and Cognito's shortest
+lifetime, five minutes. Cedar could then tell the two tokens apart and
+allow the sandbox's one only the order lookup.
+
+Revoking it when the sandbox finishes adds less than it sounds. The
+gateway checks a token's signature and expiry itself and never asks
+Cognito whether it was revoked, so the short lifetime is the real limit.
+
+The interpreter would run in VPC mode, reaching the gateway through its
+private endpoint with no internet access. Trusted code would write the
+token into the session and strip it from anything the code prints. The
+figures check would then have only the printed output to go on.
 
 ## Conclusion
 
