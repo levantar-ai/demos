@@ -9,8 +9,8 @@ AgentCore Memory as context, and lets it decide what to call. Trusted code
 still decides who the customer is and holds the token the gateway accepts.
 Asked to be another customer, the model declines. If it were ever talked
 into it, the Cedar policy at the gateway refuses the lookup before the tool
-runs. The model can still get a figure wrong, so as built here this suits
-an AI assistant for the business's own staff rather than customers.
+runs. The model can still get a figure wrong, so the pattern suits an AI assistant for
+the business's own staff more than one for customers.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/06-model-in-the-loop
@@ -27,8 +27,8 @@ Bedrock through Strands Agents. The model gets the gateway as an MCP server and 
 tool called `run_python`, and the session manager puts the conversation and
 the customer's remembered preferences in front of it. Ask how much you have
 spent this year month by month and it fetches your orders, writes the code,
-runs it in the sandbox and reads the result back. No code in the repository
-computes spending by month.
+runs it in the sandbox and reads the result back. No code we wrote computes spending
+by month.
 
 Identity works exactly as it did in post 05. The runtime validates the customer's
 token, and trusted code exchanges it through AgentCore Identity for a
@@ -94,9 +94,9 @@ def orders_tools(gateway_token):
 docstring as the description, passes in the code it wrote, and gets back
 whatever the code printed. The session is post 04's Code Interpreter in `SANDBOX` network mode,
 with no internet access and no credentials. It starts the first time the model
-uses the tool and stops when the turn ends. The agent also limits
-code size, output size, time per call and tool calls per turn, and the
-README lists each limit.
+uses the tool, and the agent asks for it to be stopped when the turn ends.
+The agent also limits code size, output size, how long it waits for each
+sandbox call and tool calls per turn.
 
 **The orders file** saves the model from retyping data. The sandbox cannot
 reach the gateway, so left to itself the model would copy the orders into
@@ -123,9 +123,6 @@ class Handoff(HookProvider):
         if text.strip() and len(text) <= MAX_HANDOFF_CHARS:
             self.sandbox.stage(path, text)
 ```
-
-Each turn gets a fresh sandbox, but the conversation carries over, so
-`restore` writes the latest gateway result from it into the new sandbox.
 
 **Memory** is not a tool at all. The session manager
 records each turn in AgentCore Memory, restores the conversation at the
@@ -185,7 +182,8 @@ both the profile and the underlying model, so the role names both.
 }
 ```
 
-The condition means the model can only be invoked through that profile.
+The first statement allows only that profile, and the condition stops the
+regional models being called directly.
 
 ## 4 - Running it
 
@@ -284,7 +282,7 @@ Is there anything I can help you with regarding the c-1000 account?
 The trail is empty, so `c-1001` never reached the gateway. The README records
 four other attempts. The model declined three and answered the fourth from
 the customer's own orders. The policy is there for the day the model is
-talked into it. Calling the gateway with the agent's own minted token shows
+talked into it. Calling the gateway with the token minted for this customer shows
 what the model would get back.
 
 ```
@@ -296,8 +294,6 @@ denied by the gateway: Tool Execution Denied: Tool call not allowed due to
 policy enforcement [Policy evaluation denied due to
 deny_other_customers_orders-1sgl24wozs]
 ```
-
-Signed in as c-1001, the same agent counts only c-1001's six orders, because the token and the prompt both follow the sign-in.
 
 ## 5 - What the model can and cannot change
 
@@ -312,7 +308,7 @@ it still controls is the program itself and what it says afterwards. The
 rule about printed figures is only an instruction, and the check reports
 problems rather than blocking them.
 
-None of this guarantees the figures. The orders reach the sandbox
+None of this guarantees the figures. The gateway's result reaches the sandbox
 unchanged and the arithmetic runs as code, but the model writes that code
 and nothing checks its logic. It could leave out an order or filter the
 wrong year, and the answer would be wrong but consistent. The figures
@@ -328,15 +324,13 @@ is why the controls that matter sit outside the model.
 
 Post 05's limits still hold. Cedar binds the argument to the presented
 token, and the token's customer id is a pool username, so a username must
-never be given to a second person. The sandbox and memory are reached
-through the runtime role rather than the gateway, so moving them behind it
-is how you would finish the job.
+never be given to a second person. Memory isolation is the application's job,
+since the runtime role can read the whole memory.
 
 ## 6 - What we would do to let the sandbox fetch
 
 For larger or paged data, the model's code would be better off fetching
-the orders itself. We have not
-built that, but here is how we would.
+the orders itself. We have not built it.
 
 The sandbox would get its own token, never the agent's. Trusted code would
 ask the post 05 exchange for a second token for the same customer, issued
@@ -359,22 +353,26 @@ who gets there first still wins. For this post, the five minute lifetime
 is enough.
 
 The interpreter would run in VPC mode, reaching the gateway through its
-private endpoint with no internet access. Trusted code would write the
-token into the session and strip it from anything the code prints. The
-figures check would then have only the printed output to go on.
+private endpoint with no internet access. Trusted code would write the credential into the session.
+Code the model wrote can leak anything it can read, however its output is
+filtered, which is why each credential works once, for one call. Safer
+still is a trusted proxy that holds the credential and makes the call for
+the code.
 
 ## Conclusion
 
 The model now makes the decisions. Given the gateway, the sandbox and memory, it
-fetched, computed and answered a question no code in the repository
-anticipated, and the trail of its choices came back with the answer. Trusted code holds the token, the
+fetched, computed and answered a question no code we
+wrote anticipated, and the trail of its choices came back with the answer. Trusted code holds the token, the
 model chooses arguments and code, and Cedar refuses a lookup for the wrong
 customer. In five live attempts to be someone else, `c-1001` never reached
 the gateway. The policy cannot tell you whether the model's code or its answer is
 right. The trail and the figures check are what let a caller judge that.
 
-That makes this a good fit for an AI assistant used by Brightwell's own
-staff, who can read the answer and the trail before acting on it. Putting
+That makes the pattern a good fit for an AI assistant for Brightwell's own
+staff, who can read the answer and the trail before acting on it. This demo
+signs customers in, so a staff version would sign staff in as themselves,
+under a policy saying which customers they may look up. Putting
 it in front of customers needs more than this post shows, and figures that
 drive refunds or billing should never rest on it alone.
 
