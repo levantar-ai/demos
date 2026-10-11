@@ -90,4 +90,4 @@ with Diagram(
     gateway >> Edge(label="evaluate", style="dashed") >> policy
     gateway >> Edge(label="matching customer_id:\npermit") >> orders
     model >> Edge(label="run_python(code)\nthe pandas it wrote") >> sandbox
-    model >> Edge(label="turns in, preferences out\n(done by the session manager,\nnot a tool call)", style="dashed") >> memory
+    model >> Edge(label="turns in, preferences out\n(session manager,\nnot a tool call)", style="dashed") >> memory
