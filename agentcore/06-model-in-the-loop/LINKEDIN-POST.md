@@ -6,22 +6,16 @@ og:image renders the 1200x630 card. The demo video uploads natively too.
 
 ---
 
-Post six of the AgentCore series. The same order-support agent, and for the
-first time a model decides what it does.
+Post six of the AgentCore series, where one order support agent gains a capability with each post. This time a model decides what the agent does.
 
-Five posts built the primitives, a runtime, a gateway, memory, a sandbox and
-an identity chain, and every one of them routed the prompt with code. This
-post hands those primitives to Claude on Bedrock as tools and asks a question
-nobody wrote code for. The model fetches the orders through the gateway,
-writes the code itself, runs it in the sandbox and answers, and the response
-carries the trail of what it chose.
+Claude on Bedrock gets the gateway and the Code Interpreter sandbox as tools, with AgentCore Memory as context. Ask how much you have spent this year by month and it fetches your orders, writes the code and runs it in the sandbox.
 
-What makes that safe is that identity stayed in trusted code. The model is
-told which customer it acts for and chooses the arguments. It never holds the
-token. Ask it to be someone else and it declines, and if it were ever talked
-round, the Cedar policy at the gateway refuses the call before the tool runs.
+Trusted code hands the order data to the sandbox, so the model never retypes rows. A check after each answer names any figure no tool printed and asks the model to restate.
 
-The full walkthrough and the code are here.
+Each customer who signs in can only reach their own orders. The model never holds the token, and the Cedar policy at the gateway refuses a lookup for anyone else.
+
+The model can still get a figure wrong, so its answers should inform rather than decide anything that costs money.
+
 https://levantar.ai/insights/agentcore-06-model-in-the-loop.html
 
-#AgentCore #AWS #AI #Agents #Bedrock
+#AgentCore #AWS #Bedrock #AIAgents
