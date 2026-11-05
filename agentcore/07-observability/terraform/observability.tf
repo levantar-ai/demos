@@ -21,15 +21,18 @@ locals {
   # The /aws/vendedlogs/ prefix is the one CloudWatch Logs grants delivery to
   # without a resource policy per group.
   vended_log_group = "/aws/vendedlogs/bedrock-agentcore/${local.name_prefix}"
+  # The service names the runtime's group after the runtime and its endpoint.
+  runtime_log_group = "/aws/bedrock-agentcore/runtimes/${aws_bedrockagentcore_agent_runtime.agent.agent_runtime_id}-DEFAULT"
 }
 
 # The gateway's application logs carry each request and response, the
 # customer's orders among them, so the groups are encrypted with the demo key
-# and kept for a fortnight, as any other store of that data would be.
+# and kept for a week, as the demo's other logs are.
 resource "aws_cloudwatch_log_group" "observed" {
+  # checkov:skip=CKV_AWS_338:Seven days is the retention for a teaching stack that is destroyed after the post
   for_each          = local.observed
   name              = "${local.vended_log_group}/${each.key}"
-  retention_in_days = 14
+  retention_in_days = 7
   kms_key_id        = aws_kms_key.demo.arn
 
   tags = {
@@ -78,4 +81,27 @@ resource "aws_cloudwatch_log_delivery" "traces" {
   for_each                 = local.observed
   delivery_source_name     = aws_cloudwatch_log_delivery_source.traces[each.key].name
   delivery_destination_arn = aws_cloudwatch_log_delivery_destination.traces.arn
+}
+
+# The runtime's own group holds what the agent's spans record: the system
+# prompt, the customer's question, every model reply and every tool result,
+# the customer's orders included. The service creates it with the runtime,
+# named after the runtime's id, with no expiry and no customer key, so
+# Terraform cannot create it first. This gives it the demo key and the same
+# week as the other groups once the runtime exists.
+resource "null_resource" "runtime_log_group" {
+  triggers = {
+    log_group = local.runtime_log_group
+    key       = aws_kms_key.demo.arn
+  }
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+      aws logs put-retention-policy --region ${var.aws_region} \
+        --log-group-name "${local.runtime_log_group}" --retention-in-days 7
+      aws logs associate-kms-key --region ${var.aws_region} \
+        --log-group-name "${local.runtime_log_group}" --kms-key-id "${aws_kms_key.demo.arn}"
+    EOT
+  }
 }

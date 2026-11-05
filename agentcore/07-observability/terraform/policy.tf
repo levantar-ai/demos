@@ -25,7 +25,7 @@ resource "aws_bedrockagentcore_policy_engine" "orders" {
 # and is refused. hasTag first: a token without the claim must not error into
 # a decision.
 resource "aws_bedrockagentcore_policy" "own_orders" {
-  name             = "own_orders_only"
+  name             = "demos_agentcore_07_own_orders_only"
   policy_engine_id = aws_bedrockagentcore_policy_engine.orders.policy_engine_id
   description      = "A customer may list only their own orders"
 
@@ -54,7 +54,7 @@ resource "aws_bedrockagentcore_policy" "own_orders" {
 # permit, keeps the invariant: the action is refused whenever the customer_id
 # argument is not the customer_id in the presented token.
 resource "aws_bedrockagentcore_policy" "deny_other_orders" {
-  name             = "deny_other_customers_orders"
+  name             = "demos_agentcore_07_deny_other_customers_orders"
   policy_engine_id = aws_bedrockagentcore_policy_engine.orders.policy_engine_id
   description      = "Forbid list_orders for any customer_id that is not the caller"
 

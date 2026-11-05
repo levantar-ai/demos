@@ -1,5 +1,5 @@
 # One customer-managed key for the demo's data at rest: the two exchange
-# secrets, the exchange, orders, gateway and memory log groups and API access log, the Lambda environment
+# secrets, the exchange, orders, runtime, gateway and memory log groups and API access log, the Lambda environment
 # variables and the agent's ECR repository. Nothing here is a signing key; the
 # exchange pool signs with Cognito's own keys.
 #
@@ -44,6 +44,7 @@ resource "aws_kms_key" "demo" {
               "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/apigateway/${local.name_prefix}-exchange",
               "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.name_prefix}-orders",
               "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/vendedlogs/bedrock-agentcore/${local.name_prefix}/*",
+              "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/bedrock-agentcore/runtimes/${local.runtime_name}-*",
             ]
           }
         }
