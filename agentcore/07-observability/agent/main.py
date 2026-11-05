@@ -27,10 +27,9 @@ import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from opentelemetry import baggage, context, propagate
-
 from identity import orders_token
 from model import answer
+from opentelemetry import baggage, context, propagate
 from trail import BudgetExceeded, describe
 
 PORT = 8080

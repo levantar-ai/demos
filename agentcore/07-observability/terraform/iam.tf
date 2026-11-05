@@ -85,10 +85,14 @@ resource "aws_iam_role_policy" "runtime" {
         Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/bedrock-agentcore/runtimes/${local.runtime_name}-*"
       },
       {
+        # DescribeLogGroups cannot be scoped to log groups. The runtime
+        # permissions page lists it on log-group:*, but the IAM policy
+        # simulator denies that for this action, so it is granted on "*".
+        # It lists log group metadata, never log events.
         Sid      = "DescribeLogGroups"
         Effect   = "Allow"
         Action   = ["logs:DescribeLogGroups"]
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:*"
+        Resource = "*"
       },
       {
         # Spans, and the sampling rules ADOT asks X-Ray for. X-Ray has no
