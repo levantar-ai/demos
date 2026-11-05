@@ -78,10 +78,10 @@ with Diagram(
 
     customer >> Edge(label="invoke, trace started") >> agent
     agent >> Edge(label="chat") >> model
-    agent >> Edge(label="tools/call\ntrace context") >> gateway
-    agent >> Edge(label="events\ntrace context") >> memory
+    agent >> Edge(label="tools/call\ntrace context", tailport="s") >> gateway
+    agent >> Edge(label="events\ntrace context", tailport="s") >> memory
 
-    agent >> Edge(label="spans and content", style="dashed") >> runtime_logs
+    agent >> Edge(label="spans and content", style="dashed", tailport="s") >> runtime_logs
     # Into the side of a node, so no arrow crosses the label under its icon.
     gateway >> Edge(label="spans", style="dashed", headport="w") >> xray
     memory >> Edge(label="spans", style="dashed", headport="w") >> xray

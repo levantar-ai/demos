@@ -175,3 +175,65 @@ Round 2. Two majors, verdict "not ready".
   expire with the group's seven-day retention. In the Terraform as it now
   stands the `null_resource` runs as soon as the runtime exists, before
   anything can invoke it, so a fresh deploy has no such records.
+
+## Third run, image `6def722`
+
+After the IAM change (`DescribeLogGroups` on `*`, simulator now `allowed`)
+and a runtime update to image `6def722`, the same two prompts in session
+`observability-625079a24a6929c4aee0d2b3693326b0` at 23:49 UTC, about 25
+minutes after the previous run. Both 200, the same figures, no token 401.
+
+- The first token exchange failed again, 5.1 s, `ERROR`, and the retry took
+  0.7 s. The exchange had gone cold while the stack sat idle, so the
+  failure follows a cold start, not only a deploy.
+- The spending turn was restated again for the count, and this time the
+  model called `run_python` a second time to print the count of 7 before
+  stating it, which is what the system prompt asks for.
+
+`show_trace.py` for that session:
+
+```
+
+trace 6aed160e27f6f9ab4554569b04bcdc86  103 spans
+    0.1s    5.1s  token exchange  ERROR
+    7.2s    0.7s  token exchange
+    9.2s   16.1s  agent
+    9.4s    0.2s    memory: RetrieveMemoryRecords
+    9.7s    2.2s    model  1595 tokens in
+   12.0s    0.5s    tool orders___list_orders
+   12.1s    0.1s      gateway: Cedar AuthorizeAction
+   12.2s    0.3s      gateway: orders Lambda
+   14.2s    6.6s    model  2079 tokens in
+   20.9s    1.1s    tool run_python
+   20.9s    0.9s      Code Interpreter: start
+   22.2s    3.1s    model  2625 tokens in
+   25.3s    8.1s  agent
+   25.5s    0.2s    memory: RetrieveMemoryRecords
+   25.7s    5.1s    model  2821 tokens in
+   30.9s    0.1s    tool run_python
+   31.2s    2.1s    model  3417 tokens in
+
+trace 6aed16380b6b4fb772207e5b4c91961d  55 spans
+    0.0s    0.1s  token exchange
+    1.2s    8.4s  agent
+    1.4s    0.2s    memory: RetrieveMemoryRecords
+    1.6s    4.2s    model  3524 tokens in
+    5.9s    1.0s    tool run_python
+    5.9s    0.8s      Code Interpreter: start
+    7.1s    2.4s    model  3875 tokens in
+```
+
+## Review round 3, gpt-5.6-sol
+
+On the post after the third run and the NCSC paragraph in section 7. Two
+majors and a minor, all on the new paragraph, verdict "not ready". It
+confirmed that the runtime role cannot read or delete its logs or change
+their retention.
+
+- "grants read access as narrowly as access to the orders" was not
+  something the demo does; it creates no reader access at all. Accepted;
+  the post now says that grant is the account owner's to make.
+- CloudWatch Logs data protection masks on read and query, not on
+  ingestion, and `logs:Unmask` reveals the original. Accepted and said.
+- Object Lock protects an exported copy, not the log group. Accepted and
+  said.

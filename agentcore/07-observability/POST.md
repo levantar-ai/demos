@@ -238,8 +238,10 @@ things the response did not.
 
 The first is the failed token exchange. AgentCore Identity calls the
 exchange post 05 built, an API Gateway and Lambda in front of a Cognito
-pool. On the very first request after a deploy, that Lambda and the four
+pool. On the first request after a deploy, that Lambda and the four
 Cognito triggers it sets off all started cold, one after another. The
+same happened on a later run after the stack had sat idle for about 25
+minutes, so it is any cold start, not only the first. The
 exchange took 5.1 s, Identity gave up waiting with `HTTP request failed
 against Token endpoint`, and the agent's single retry found everything
 warm. That retry went in during post 06 for exactly this case. The trace is
@@ -304,6 +306,34 @@ Anyone who can read the runtime's log group can read what customers asked
 and what they were told, so read access to it should be granted as
 narrowly as access to the orders.
 
+The NCSC's guidance on managing the cyber risk of agentic AI asks for the
+same trade. It wants the agent's transcripts and reasoning traces
+collected, and agent activity treated as a form of user activity, while
+warning that those logs "may contain sensitive data" and should be
+protected from modification or deletion. For a customer assistant that
+sensitive data is personal data, the customer's questions and their order
+history, copied word for word into `otel-rt-logs`. What this demo does
+about it
+
+- keeps the content only in log groups under the demo's key, for seven
+  days, long enough to debug a turn and no longer
+- lets the runtime's role write its own logs but not read them, delete them
+  or change their retention, so an agent talked into misbehaving cannot
+  tidy up after itself
+- leaves Strands' redaction available, which drops the conversation from
+  the spans where a trace without it is enough
+
+It leaves three things to whoever runs it for real. It creates no access
+for people to read the logs, so the narrow grant above is the account
+owner's to make. The logs are not immutable, which the NCSC recommends
+where possible. A continuous export to an S3 bucket with Object Lock gives
+an archive that cannot be altered, though the log group itself can still
+be changed by anyone with the rights to. And CloudWatch Logs' data
+protection policies mask personal data such as email addresses when the
+logs are read or queried, but the original stays stored for anyone granted
+`logs:Unmask`. Keeping it out altogether means redacting before the spans
+leave the container.
+
 ## Conclusion
 
 Tracing an AgentCore agent takes very little. The container starts under
@@ -328,3 +358,4 @@ References:
 - https://aws-otel.github.io/docs/getting-started/python-sdk
 - https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/
 - https://github.com/awslabs/amazon-bedrock-agentcore-samples
+- https://www.ncsc.gov.uk/blogs/managing-the-cyber-risk-of-agentic-ai

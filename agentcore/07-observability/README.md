@@ -243,8 +243,10 @@ from `artifacts/trace-turn-1.json`, the spans the live run recorded.
 - The token exchange's Lambdas trace into traces of their own. AgentCore
   Identity calls the exchange without passing the trace context, so their
   spans are in `aws/spans` beside the turn's trace rather than in it.
-- On the first request after a deploy the exchange and its four Cognito
-  triggers start cold one after another, and the exchange took 5.1 s.
+- On a request after the exchange has gone cold, the first after a deploy
+  or after about 25 minutes idle on these runs, the exchange and its four
+  Cognito triggers start cold one after another, and the exchange took
+  5.1 s.
   AgentCore Identity gave up with `HTTP request failed against Token
   endpoint` after 6.1 s and the agent's one retry succeeded. Provisioned
   concurrency on the exchange Lambda would remove the wait; the retry is

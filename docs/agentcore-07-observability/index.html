@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tracing an AgentCore agent, one turn at a time — Levantar Demos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace. It covers the runtime, every model call, the gateway's Cedar check and the orders Lambda, the sandbox and the memory, and every span the agent starts carries the conversation's s">
+<link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-07-observability/">
+<meta name="author" content="Andy Rea">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Levantar">
+<meta property="og:locale" content="en_GB">
+<meta property="og:title" content="Tracing an AgentCore agent, one turn at a time">
+<meta property="og:description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace. It covers the runtime, every model call, the gateway's Cedar check and the orders Lambda, the sandbox and the memory, and every span the agent starts carries the conversation's s">
+<meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-07-observability/social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Tracing an AgentCore agent, one turn at a time">
+<meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-07-observability/">
+<meta property="article:published_time" content="2026-11-06">
+<meta property="article:author" content="Andy Rea">
+<meta property="article:section" content="Engineering">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Tracing an AgentCore agent, one turn at a time">
+<meta name="twitter:description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace. It covers the runtime, every model call, the gateway's Cedar check and the orders Lambda, the sandbox and the memory, and every span the agent starts carries the conversation's s">
+<meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-07-observability/social.png">
+<meta name="twitter:image:alt" content="Tracing an AgentCore agent, one turn at a time">
+<link rel="icon" type="image/png" href="../favicon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Tracing an AgentCore agent, one turn at a time",
+  "description": "The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace. It covers the runtime, every model call, the gateway's Cedar check and the orders Lambda, the sandbox and the memory, and every span the agent starts carries the conversation's s",
+  "image": "https://levantar-ai.github.io/demos/agentcore-07-observability/social.png",
+  "datePublished": "2026-11-06",
+  "dateModified": "2026-11-06",
+  "wordCount": 2200,
+  "inLanguage": "en-GB",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://levantar-ai.github.io/demos/agentcore-07-observability/"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "Andy Rea",
+    "jobTitle": "Co-Founder & CTO",
+    "worksFor": {
+      "@type": "Organization",
+      "name": "Levantar",
+      "url": "https://levantar.ai"
+    }
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Levantar",
+    "url": "https://levantar.ai",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://levantar-ai.github.io/demos/levantar-logo-white.png"
+    }
+  },
+  "isPartOf": {
+    "@type": "CreativeWorkSeries",
+    "name": "AgentCore series"
+  }
+}
+</script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-7C1NXQ0H0E');
+</script>
+<style>
+  :root {
+    --bg: #0b1120; --card: #152037; --line: #243352; --fg: #e7edf7;
+    --muted: #93a4c3; --accent: #22d3ee; --hl: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 24px 80px; color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%) var(--bg);
+    line-height: 1.7; overflow-wrap: break-word;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+  .top a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  .top a:hover { color: var(--accent); }
+  .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--fg) !important; font-weight: 600; font-size: 15px; }
+  .brand img { height: 32px; }
+  article h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.25; margin: 0 0 6px; }
+  article h2 { font-size: 21px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  article p, article li { color: #c6d2e6; font-size: 16px; }
+  article a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+  article a:hover { text-decoration: underline; }
+  article img { max-width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 10px; margin: 10px 0; }
+  article code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; overflow-wrap: anywhere; }
+  article pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  article pre code { background: none; border: none; padding: 0; font-size: 13.5px; line-height: 1.6; color: #d8e2f3; overflow-wrap: normal; }
+  .table-wrap { max-width: 100%; margin: 14px 0; overflow-x: auto; overscroll-behavior-x: contain; }
+  article table { border-collapse: collapse; width: 100%; margin: 0; font-size: 14.5px; }
+  article th, article td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  article th { background: var(--card); }
+  article blockquote { border-left: 3px solid var(--accent); margin: 0; padding: 2px 18px; color: var(--muted); }
+  .post-meta {
+    display: flex; align-items: center; gap: 14px;
+    margin: 16px 0 34px; padding-bottom: 22px; border-bottom: 1px solid var(--line);
+  }
+  .post-meta .avatar {
+    width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%;
+    object-fit: cover; border: 1px solid var(--line); background: var(--card);
+  }
+  .post-meta .who { min-width: 0; line-height: 1.45; }
+  .post-meta .name {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--fg); font-weight: 600; font-size: 15px; text-decoration: none;
+  }
+  .post-meta a.name:hover { color: var(--accent); text-decoration: none; }
+  .post-meta a.name:hover svg { color: var(--accent); }
+  .post-meta .name svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
+  .post-meta .role { color: var(--muted); font-size: 13.5px; }
+  .post-meta .role a.org { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .post-meta .role a.org:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .post-meta .facts { color: var(--muted); font-size: 13px; }
+  .post-meta .facts .sep { padding: 0 5px; opacity: 0.45; }
+  .series-nav a {
+    display: block; padding: 13px 17px; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--card); text-decoration: none;
+    transition: border-color 0.15s ease;
+  }
+  .series-nav a:hover { border-color: var(--accent); text-decoration: none; }
+  .series-nav .label {
+    display: block; font-size: 11.5px; color: var(--muted);
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .series-nav .title {
+    display: block; margin-top: 3px; font-size: 15px;
+    color: var(--fg); font-weight: 600; line-height: 1.4;
+  }
+  .series-nav.prev { margin: 0 0 32px; }
+  .series-nav.next { margin: 44px 0 0; }
+  @media (max-width: 640px) {
+    body { padding: 32px 16px 64px; }
+    .top { margin-bottom: 28px; }
+    article h1 { font-size: 25px; }
+    article h2 { font-size: 19px; margin: 32px 0 10px; }
+    article p, article li { font-size: 15.5px; }
+    article pre { padding: 14px 15px; border-radius: 10px; }
+    article pre code { font-size: 12.5px; }
+    .post-meta { gap: 12px; margin-bottom: 28px; }
+    .post-meta .avatar { width: 46px; height: 46px; flex-basis: 46px; }
+  }
+  /* Image lightbox, the same behaviour as levantar.ai: a magnifier chip on each
+     content image, the image as a modal on click, a close control. */
+  .zoomable { display: block; position: relative; width: 100%; margin: 10px 0; padding: 0; border: 0; background: none; cursor: zoom-in; font: inherit; text-align: inherit; }
+  .zoomable img { margin: 0; }
+  .zoomable:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .zoomable-hint { position: absolute; right: 18px; bottom: 18px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(11, 17, 32, 0.78); color: #e7edf7; opacity: 0.85; transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
+  .zoomable-hint svg { width: 18px; height: 18px; }
+  .zoomable:hover .zoomable-hint, .zoomable:focus-visible .zoomable-hint { opacity: 1; transform: scale(1.06); }
+  .lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 56px 24px 24px; background: rgba(5, 9, 18, 0.94); opacity: 0; transition: opacity 180ms ease; }
+  .lightbox[hidden] { display: none; }
+  .lightbox.is-open { opacity: 1; }
+  .lightbox img { display: block; max-width: min(96vw, 1800px); max-height: calc(100vh - 80px); width: auto; height: auto; margin: 0; padding: 10px; border: 0; border-radius: 14px; background: #fff; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+  .lightbox-close { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(231, 237, 247, 0.35); border-radius: 999px; background: rgba(11, 17, 32, 0.6); color: #e7edf7; cursor: pointer; padding: 0; }
+  .lightbox-close svg { width: 19px; height: 19px; }
+  .lightbox-close:hover, .lightbox-close:focus-visible { background: var(--accent); border-color: var(--accent); color: #0b1120; outline: none; }
+  .lightbox-caption { position: absolute; left: 24px; right: 72px; bottom: 20px; margin: 0; color: rgba(231, 237, 247, 0.8); font-size: 14px; line-height: 1.4; }
+  body.lightbox-open { overflow: hidden; }
+  @media (prefers-reduced-motion: reduce) { .lightbox, .zoomable-hint { transition: none; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
+        <img src="../levantar-logo-white.png" alt="Levantar"><span>Levantar</span>
+      </a>
+      <a href="../">← All demos</a>
+    </div>
+    <article>
+      <h1>Tracing an AgentCore agent, one turn at a time</h1>
+      <div class="post-meta">
+        <img class="avatar" src="../avatar.jpg" alt="Andy Rea" width="52" height="52">
+        <div class="who">
+          <div><span class="name">Andy Rea</span></div>
+          <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
+          <div class="facts"><time datetime="2026-11-06">6 November 2026</time><span class="sep">·</span>11 min read<span class="sep">·</span>AgentCore series</div>
+        </div>
+      </div>
+      <nav class="series-nav prev">
+        <a href="../agentcore-06-model-in-the-loop/">
+          <span class="label">Previous in this series</span>
+          <span class="title">Letting the model choose, with the tools the series built</span>
+        </a>
+      </nav>
+<h2>TL;DR;</h2>
+<p>The order support agent from post 06 now sends OpenTelemetry traces to
+CloudWatch. One customer's turn becomes one trace. It covers the runtime,
+every model call, the gateway's Cedar check and the orders Lambda, the
+sandbox and the memory, and every span the agent starts carries the
+conversation's session id. The change to the agent is a package, a start command and about twenty
+lines of Python, plus log deliveries for the gateway and the memory. On the
+first live run the trace showed two things the response never could, a
+token exchange that failed on a cold start and was retried, and a figure
+the model stated without having computed it.</p>
+<blockquote>
+<p>SOURCE CODE - All code for this post is available at:
+<a href="https://github.com/levantar-ai/demos/tree/main/agentcore/07-observability">https://github.com/levantar-ai/demos/tree/main/agentcore/07-observability</a></p>
+</blockquote>
+<h2>Longer version</h2>
+<p>This series is building one thing, the order support agent for Brightwell,
+a small online retailer of outdoor kit that ships with DPD and Royal Mail.
+Post 06 handed a Bedrock model the gateway, the Code Interpreter sandbox
+and AgentCore Memory, and let it decide what to call. Each response carries
+a trail of the tools the model chose, which tells the caller what happened
+in that one turn.</p>
+<p>An operator needs more than that. They need every turn, for every
+customer, with how long each step took, what the model was sent and what
+it said back, and any errors along the way. That is what AgentCore
+Observability gives you. The runtime starts a trace for every request,
+the agent's spans and the gateway's and the memory's join it, and
+CloudWatch shows them as one trace per request.</p>
+<p>Nothing the agent does changes in this post. The model, the tools, the
+identity chain and the Cedar policy are post 06's.</p>
+<p><img alt="The agent of post 06, traced, one turn is one trace across the runtime, the gateway and the memory" src="architecture.png" /></p>
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
+<h2>1 - Sending the spans</h2>
+<p>AgentCore Runtime injects the OpenTelemetry settings into the container as
+environment variables. What reads them is the AWS Distro for OpenTelemetry
+(ADOT), and a container runs whatever command its image names, so the image
+installs ADOT and starts the agent under it. Two lines of the Dockerfile
+change:</p>
+<pre><code class="language-dockerfile">RUN pip install --no-cache-dir boto3==1.43.108 strands-agents==1.57.2 bedrock-agentcore==1.24.0 aws-opentelemetry-distro==0.22.0
+
+CMD [&quot;opentelemetry-instrument&quot;, &quot;python&quot;, &quot;main.py&quot;]
+</code></pre>
+<p><code>opentelemetry-instrument</code> sets up the exporters before <code>main.py</code> imports
+anything. From then on Strands Agents emits a span for the agent, each
+event loop cycle, each model call and each tool, and the botocore and MCP
+instrumentation emit one for every AWS call and MCP request the agent
+makes.</p>
+<p>The runtime role already had <code>xray:PutTraceSegments</code> and
+<code>cloudwatch:PutMetricData</code> from post 01. It gains the rest of what the
+AgentCore runtime permissions page lists for observability, scoped to this
+runtime's own log groups where IAM allows it:</p>
+<pre><code class="language-json">{
+  &quot;Sid&quot;: &quot;LogsForTraces&quot;,
+  &quot;Effect&quot;: &quot;Allow&quot;,
+  &quot;Action&quot;: [&quot;logs:DescribeLogStreams&quot;, &quot;logs:PutResourcePolicy&quot;],
+  &quot;Resource&quot;: &quot;arn:aws:logs:us-east-1:111122223333:log-group:/aws/bedrock-agentcore/runtimes/demos_agentcore_07_observability-*&quot;
+},
+{
+  &quot;Sid&quot;: &quot;Tracing&quot;,
+  &quot;Effect&quot;: &quot;Allow&quot;,
+  &quot;Action&quot;: [&quot;xray:PutTraceSegments&quot;, &quot;xray:PutTelemetryRecords&quot;, &quot;xray:GetSamplingRules&quot;, &quot;xray:GetSamplingTargets&quot;],
+  &quot;Resource&quot;: &quot;*&quot;
+}
+</code></pre>
+<p><code>logs:DescribeLogGroups</code> is granted on <code>*</code>. That page lists it on
+<code>log-group:*</code>, but the action cannot be scoped to log groups and the IAM
+policy simulator denies it written that way. It lists log group names and
+settings, never their contents.</p>
+<p>NOTE: spans only reach CloudWatch once CloudWatch Transaction Search is
+enabled. It is a setting for the whole account and Region rather than for
+one agent, so it is not part of this demo's Terraform. The demo's README
+has the three commands that enable it, and
+<code>aws xray get-trace-segment-destination</code> shows <code>CloudWatchLogs</code> and
+<code>ACTIVE</code> when it is on.</p>
+<h2>2 - Keeping the turn in the runtime's trace</h2>
+<p>The runtime starts a trace for every request and passes its context to
+the container in the request headers. ADOT picks those headers up for the
+web frameworks it instruments. This agent's server is the standard
+library's <code>http.server</code>, which ADOT does not instrument, so nothing reads
+them. Left alone, every span of the turn would start a trace of its own,
+cut off from the runtime's invocation.</p>
+<p>So the handler reads them itself, before the turn runs:</p>
+<pre><code class="language-python">@contextmanager
+def traced(headers, session):
+    ctx = propagate.extract(headers)
+    if baggage.get_baggage(&quot;session.id&quot;, ctx) != session:
+        ctx = baggage.set_baggage(&quot;session.id&quot;, session, ctx)
+    token = context.attach(ctx)
+    try:
+        yield
+    finally:
+        context.detach(token)
+</code></pre>
+<pre><code class="language-python">with traced(self.headers, session), one_turn(subject, session):
+    gateway_token = self.exchange(bearer_from(self.headers))
+    turn = self.respond(prompt, customer, session, gateway_token, subject)
+</code></pre>
+<p><code>propagate.extract</code> uses the propagators ADOT configured, W3C baggage,
+X-Ray and W3C trace context, so every span the turn starts becomes a child
+of the runtime's. The session id goes into the baggage, and ADOT's span
+processor copies <code>session.id</code> from the baggage onto every span the agent
+starts inside the block. That one attribute is what lets CloudWatch group
+a conversation's turns, and what lets you query them.</p>
+<p>The botocore and MCP spans carry the trace context out of the container.
+The gateway and the memory receive it with each call, so their own spans
+land in the same trace. The memory's spans carry the session id too, as
+the memory's own session. The gateway's and the orders Lambda's are tied
+to the turn by the trace id alone.</p>
+<h2>3 - The gateway and the memory</h2>
+<p>The runtime sends its logs and spans to CloudWatch on its own. The gateway
+and the memory leave their destinations to you, so each one gets two
+CloudWatch Logs deliveries, its application logs to a log group and its
+spans to X-Ray:</p>
+<pre><code class="language-hcl">resource &quot;aws_cloudwatch_log_delivery_source&quot; &quot;traces&quot; {
+  for_each     = local.observed # the gateway and the memory
+  name         = &quot;${local.name_prefix}-${each.key}-traces&quot;
+  log_type     = &quot;TRACES&quot;
+  resource_arn = each.value
+}
+
+resource &quot;aws_cloudwatch_log_delivery_destination&quot; &quot;traces&quot; {
+  name                      = &quot;${local.name_prefix}-traces&quot;
+  delivery_destination_type = &quot;XRAY&quot;
+}
+
+resource &quot;aws_cloudwatch_log_delivery&quot; &quot;traces&quot; {
+  for_each                 = local.observed
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.traces[each.key].name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.traces.arn
+}
+</code></pre>
+<p>The <code>APPLICATION_LOGS</code> deliveries have the same shape, with a log group as
+the destination. Transaction Search writes the X-Ray spans to the
+<code>aws/spans</code> log group, where the gateway shows up as inbound
+authorisation, the Cedar <code>AuthorizeAction</code>, the tool invocation and the
+orders Lambda behind it, and the memory as each <code>ListEvents</code>,
+<code>CreateEvent</code> and <code>RetrieveMemoryRecords</code>.</p>
+<h2>4 - One turn, one trace</h2>
+<p>The customer asked the same question as in post 06, how much they had
+spent this year by month and which month was the biggest. The agent's
+answer was right. Here is the trace of that turn, drawn from the spans
+CloudWatch stored for it.</p>
+<p><img alt="One turn's trace, from the token exchange through the model calls, the gateway, the sandbox and the memory" src="trace.png" /></p>
+<p>Read from the top, the turn did this.</p>
+<ul>
+<li>It exchanged the customer's token for a gateway token through AgentCore
+  Identity. The first attempt failed after 6.1 s, and the retry succeeded
+  in 0.6 s. More on that below.</li>
+<li>It read the conversation and the customer's remembered preferences from
+  memory, and opened an MCP session with the gateway.</li>
+<li>The model asked for <code>orders___list_orders</code>. The gateway checked the
+  token, Cedar allowed the call, and the orders Lambda answered. The Cedar
+  span records the decision, <code>ALLOW</code>, and the policy that decided it,
+  <code>demos_agentcore_07_own_orders_only</code>.</li>
+<li>The model wrote pandas and asked for <code>run_python</code>. The sandbox started
+  and ran it.</li>
+<li>The model answered, and then the agent ran again with one more model
+  call, restating that answer.</li>
+<li>Memory recorded each step as an event as it went.</li>
+</ul>
+<h2>5 - Finding a turn by its session</h2>
+<p>Every span the agent starts carries <code>session.id</code>, so a conversation can be
+pulled out of the runtime's log group with Logs Insights. This shows how many model calls
+each turn made and the tokens they used:</p>
+<pre><code>filter @logStream = &quot;spans&quot; and name = &quot;chat&quot;
+  and `attributes.session.id` = &quot;observability-1bb95ff61c1f2d386eb7a797917bce3e&quot;
+| stats min(startTimeUnixNano) as started, count(*) as model_calls,
+        sum(`attributes.gen_ai.usage.input_tokens`) as input_tokens,
+        sum(`attributes.gen_ai.usage.output_tokens`) as output_tokens
+  by traceId
+| sort started
+</code></pre>
+<pre><code>traceId                           model_calls  input_tokens  output_tokens
+6aed10634132265a7f45d13b4678d66b  4            8960          644
+6aed108000cd74fb1039183c788fa4db  2            5966          284
+</code></pre>
+<p>The first turn, the spending question, made four model calls. The second,
+which carrier delivered most of the orders, made two. And this finds every
+span that failed, across every session:</p>
+<pre><code>filter @logStream = &quot;spans&quot; and status.code = &quot;ERROR&quot;
+| fields @timestamp, name, round(durationNano / 1000000) as ms, status.message
+| sort @timestamp
+</code></pre>
+<pre><code>2026-11-05 23:25:30.206  Bedrock AgentCore.GetResourceOauth2Token  6123
+  ValidationException: ... GetResourceOauth2Token operation: HTTP request failed against Token endpoint
+</code></pre>
+<p>The CloudWatch console shows the same data as a session list, a trace
+timeline and each span's attributes, under GenAI Observability, AgentCore.</p>
+<h2>6 - What the trace showed</h2>
+<p>Both turns came back with a 200 and a correct answer. The trace shows two
+things the response did not.</p>
+<p>The first is the failed token exchange. AgentCore Identity calls the
+exchange post 05 built, an API Gateway and Lambda in front of a Cognito
+pool. On the first request after a deploy, that Lambda and the four
+Cognito triggers it sets off all started cold, one after another. The
+same happened on a later run after the stack had sat idle for about 25
+minutes, so it is any cold start, not only the first. The
+exchange took 5.1 s, Identity gave up waiting with <code>HTTP request failed
+against Token endpoint</code>, and the agent's single retry found everything
+warm. That retry went in during post 06 for exactly this case. The trace is
+what shows the six seconds the customer waited for it. Those Lambdas run
+in traces of their own, because AgentCore Identity calls the exchange
+without passing on the trace context, so their spans sit beside this
+trace in <code>aws/spans</code> rather than inside it.</p>
+<p>The second is the extra model call. The first answer ended "In total,
+you've spent £743.80 with us this year across 7 orders." The model's code
+printed the monthly totals, the biggest month and the year's total, but
+never a count. The model had counted the orders itself. The figure check
+post 06 added found 7 in no tool result and asked the model once to
+restate, which it did without the count. ADOT records the model's input
+and output on the turn's log records, so the original answer, the code
+the model wrote and the restate request can all be read against the
+<code>chat</code> spans they belong to. The restatement cost one model call and
+2,740 input tokens.</p>
+<h2>7 - The trace is customer data</h2>
+<p>What makes a trace useful here is that it records the model's input and
+output. That means the system prompt, the customer's question, every tool
+result including the customer's orders, and every answer. Treat the logs
+that hold it as you would the order data itself.</p>
+<p>The gateway's and the memory's log groups are this demo's own, encrypted
+with the demo's KMS key and kept for seven days. The runtime's group is
+created by the service when the runtime is, named after the runtime's id,
+with no expiry and no customer-managed key. Terraform cannot create it
+first, so it sets both once the runtime exists:</p>
+<pre><code class="language-hcl">resource &quot;null_resource&quot; &quot;runtime_log_group&quot; {
+  triggers = {
+    log_group = local.runtime_log_group
+    key       = aws_kms_key.demo.arn
+  }
+  provisioner &quot;local-exec&quot; {
+    interpreter = [&quot;bash&quot;, &quot;-c&quot;]
+    command     = &lt;&lt;-EOT
+      set -euo pipefail
+      aws logs put-retention-policy --region ${var.aws_region} \
+        --log-group-name &quot;${local.runtime_log_group}&quot; --retention-in-days 7
+      aws logs associate-kms-key --region ${var.aws_region} \
+        --log-group-name &quot;${local.runtime_log_group}&quot; --kms-key-id &quot;${aws_kms_key.demo.arn}&quot;
+    EOT
+  }
+}
+</code></pre>
+<p>The gateway's, the memory's and the orders Lambda's spans are a different
+case. Transaction Search writes them to <code>aws/spans</code>, which belongs to the
+account rather than to this demo. In this account it keeps them for 30
+days with no customer-managed key, and this demo does not change that.
+They hold attributes, the tool name, the Cedar decision, the memory's
+actor and session ids, rather than the requests and responses, which are
+in the application logs above. Whoever owns the account decides the
+retention, key and access for <code>aws/spans</code>.</p>
+<p>Anyone who can read the runtime's log group can read what customers asked
+and what they were told, so read access to it should be granted as
+narrowly as access to the orders.</p>
+<p>The NCSC's guidance on managing the cyber risk of agentic AI asks for the
+same trade. It wants the agent's transcripts and reasoning traces
+collected, and agent activity treated as a form of user activity, while
+warning that those logs "may contain sensitive data" and should be
+protected from modification or deletion. For a customer assistant that
+sensitive data is personal data, the customer's questions and their order
+history, copied word for word into <code>otel-rt-logs</code>. What this demo does
+about it</p>
+<ul>
+<li>keeps the content only in log groups under the demo's key, for seven
+  days, long enough to debug a turn and no longer</li>
+<li>lets the runtime's role write its own logs but not read them, delete them
+  or change their retention, so an agent talked into misbehaving cannot
+  tidy up after itself</li>
+<li>leaves Strands' redaction available, which drops the conversation from
+  the spans where a trace without it is enough</li>
+</ul>
+<p>It leaves three things to whoever runs it for real. It creates no access
+for people to read the logs, so the narrow grant above is the account
+owner's to make. The logs are not immutable, which the NCSC recommends
+where possible. A continuous export to an S3 bucket with Object Lock gives
+an archive that cannot be altered, though the log group itself can still
+be changed by anyone with the rights to. And CloudWatch Logs' data
+protection policies mask personal data such as email addresses when the
+logs are read or queried, but the original stays stored for anyone granted
+<code>logs:Unmask</code>. Keeping it out altogether means redacting before the spans
+leave the container.</p>
+<h2>Conclusion</h2>
+<p>Tracing an AgentCore agent takes very little. The container starts under
+ADOT, the handler joins the trace the runtime started, and the gateway and
+the memory are given somewhere to send their spans. After that, one
+customer's turn is one trace, from the runtime through the model calls,
+the gateway's Cedar check and the orders Lambda, to the sandbox and the
+memory, and the agent's spans carry the session id.</p>
+<p>It is worth having before anything goes wrong. On its first run it showed
+a cold-start failure that a retry was hiding, and the model counting in
+its head where the agent's rules say it must compute. Neither was visible
+in a response that was right.</p>
+<p>References:</p>
+<ul>
+<li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/07-observability">https://github.com/levantar-ai/demos/tree/main/agentcore/07-observability</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability.html</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-configure.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-configure.html</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-permissions.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-permissions.html</a></li>
+<li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Enable-TransactionSearch.html">https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Enable-TransactionSearch.html</a></li>
+<li><a href="https://aws-otel.github.io/docs/getting-started/python-sdk">https://aws-otel.github.io/docs/getting-started/python-sdk</a></li>
+<li><a href="https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/">https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/</a></li>
+<li><a href="https://github.com/awslabs/amazon-bedrock-agentcore-samples">https://github.com/awslabs/amazon-bedrock-agentcore-samples</a></li>
+<li><a href="https://www.ncsc.gov.uk/blogs/managing-the-cyber-risk-of-agentic-ai">https://www.ncsc.gov.uk/blogs/managing-the-cyber-risk-of-agentic-ai</a></li>
+</ul>
+
+    </article>
+  </div>
+  <script>
+  (function () {
+    'use strict';
+    var zoomable_images = document.querySelectorAll('article p > img');
+    if (!zoomable_images.length) return;
+    var MAGNIFIER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg>';
+    var CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var box = document.createElement('div');
+    box.className = 'lightbox';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.hidden = true;
+    box.innerHTML = '<button type="button" class="lightbox-close" aria-label="Close">' + CLOSE + '</button><img alt=""><p class="lightbox-caption"></p>';
+    document.body.appendChild(box);
+    var boxImg = box.querySelector('img');
+    var boxCaption = box.querySelector('.lightbox-caption');
+    var closeButton = box.querySelector('.lightbox-close');
+    var opener = null;
+    var close = function () {
+      if (box.hidden) return;
+      box.classList.remove('is-open');
+      box.hidden = true;
+      document.body.classList.remove('lightbox-open');
+      boxImg.removeAttribute('src');
+      if (opener) opener.focus();
+      opener = null;
+    };
+    var open = function (img, trigger) {
+      opener = trigger;
+      boxImg.src = img.currentSrc || img.src;
+      boxImg.alt = img.alt || '';
+      boxCaption.textContent = img.alt || '';
+      box.setAttribute('aria-label', img.alt || 'Image');
+      box.hidden = false;
+      document.body.classList.add('lightbox-open');
+      void box.offsetWidth;
+      box.classList.add('is-open');
+      closeButton.focus();
+    };
+    closeButton.addEventListener('click', close);
+    box.addEventListener('click', function (event) { if (event.target === box) close(); });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') close(); });
+    Array.prototype.forEach.call(zoomable_images, function (img) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'zoomable';
+      button.setAttribute('aria-label', 'Enlarge image' + (img.alt ? ': ' + img.alt : ''));
+      img.parentNode.insertBefore(button, img);
+      button.appendChild(img);
+      var hint = document.createElement('span');
+      hint.className = 'zoomable-hint';
+      hint.innerHTML = MAGNIFIER;
+      button.appendChild(hint);
+      button.addEventListener('click', function () { open(img, button); });
+    });
+  })();
+  </script>
+</body>
+</html>
