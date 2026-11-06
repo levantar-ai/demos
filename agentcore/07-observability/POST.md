@@ -3,14 +3,13 @@
 ## TL;DR;
 
 The order support agent from post 06 now sends OpenTelemetry traces to
-CloudWatch. One customer's turn becomes one trace. It covers the runtime,
-every model call, the gateway's Cedar check and the orders Lambda, the
-sandbox and the memory, and every span the agent starts carries the
-conversation's session id. The change to the agent is a package, a start command and about twenty
-lines of Python, plus log deliveries for the gateway and the memory. On the
-first live run the trace showed two things the response never could, a
-token exchange that failed on a cold start and was retried, and a figure
-the model stated without having computed it.
+CloudWatch. One customer's turn becomes one trace, across the model calls,
+the gateway's Cedar check, the orders Lambda, the sandbox and the memory,
+and every span the agent starts carries the conversation's session id. The
+change is a package, a start command, about twenty lines of Python and log
+deliveries for the gateway and the memory. On the first live run the trace
+showed two things the response never could, a token exchange that failed
+and was retried, and a figure the model stated without computing it.
 
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/07-observability
@@ -18,31 +17,24 @@ the model stated without having computed it.
 ## Longer version
 
 This series is building one thing, the order support agent for Brightwell,
-a small online retailer of outdoor kit that ships with DPD and Royal Mail.
-Post 06 handed a Bedrock model the gateway, the Code Interpreter sandbox
-and AgentCore Memory, and let it decide what to call. Each response carries
-a trail of the tools the model chose, which tells the caller what happened
-in that one turn.
+a small online retailer of outdoor kit. Post 06 handed a Bedrock model the
+gateway, the Code Interpreter sandbox and AgentCore Memory, and let it
+decide what to call. Each response tells the caller which tools the model
+chose in that one turn.
 
-An operator needs more than that. They need every turn, for every
-customer, with how long each step took, what the model was sent and what
-it said back, and any errors along the way. That is what AgentCore
-Observability gives you. The runtime starts a trace for every request,
-the agent's spans and the gateway's and the memory's join it, and
-CloudWatch shows them as one trace per request.
-
-Nothing the agent does changes in this post. The model, the tools, the
-identity chain and the Cedar policy are post 06's.
+An operator needs every turn, for every customer, with how long each step
+took, what the model was sent and what it said back. That is what AgentCore
+Observability gives you. The runtime starts a trace for every request, the
+agent's spans and the gateway's and the memory's join it, and CloudWatch
+shows the turn as one trace. Nothing the agent does changes in this post.
 
 ![The agent of post 06, traced, one turn is one trace across the runtime, the gateway and the memory](architecture.png)
 
 ## 1 - Sending the spans
 
-AgentCore Runtime injects the OpenTelemetry settings into the container as
-environment variables. What reads them is the AWS Distro for OpenTelemetry
-(ADOT), and a container runs whatever command its image names, so the image
-installs ADOT and starts the agent under it. Two lines of the Dockerfile
-change:
+The runtime injects the OpenTelemetry settings into the container. What
+reads them is the AWS Distro for OpenTelemetry (ADOT), so the image
+installs it and starts the agent under it:
 
 ```dockerfile
 RUN pip install --no-cache-dir boto3==1.43.108 strands-agents==1.57.2 bedrock-agentcore==1.24.0 aws-opentelemetry-distro==0.22.0
@@ -50,54 +42,24 @@ RUN pip install --no-cache-dir boto3==1.43.108 strands-agents==1.57.2 bedrock-ag
 CMD ["opentelemetry-instrument", "python", "main.py"]
 ```
 
-`opentelemetry-instrument` sets up the exporters before `main.py` imports
-anything. From then on Strands Agents emits a span for the agent, each
-event loop cycle, each model call and each tool, and the botocore and MCP
-instrumentation emit one for every AWS call and MCP request the agent
-makes.
-
-The runtime role already had `xray:PutTraceSegments` and
-`cloudwatch:PutMetricData` from post 01. It gains the rest of what the
-AgentCore runtime permissions page lists for observability, scoped to this
-runtime's own log groups where IAM allows it:
-
-```json
-{
-  "Sid": "LogsForTraces",
-  "Effect": "Allow",
-  "Action": ["logs:DescribeLogStreams", "logs:PutResourcePolicy"],
-  "Resource": "arn:aws:logs:us-east-1:111122223333:log-group:/aws/bedrock-agentcore/runtimes/demos_agentcore_07_observability-*"
-},
-{
-  "Sid": "Tracing",
-  "Effect": "Allow",
-  "Action": ["xray:PutTraceSegments", "xray:PutTelemetryRecords", "xray:GetSamplingRules", "xray:GetSamplingTargets"],
-  "Resource": "*"
-}
-```
-
-`logs:DescribeLogGroups` is granted on `*`. That page lists it on
-`log-group:*`, but the action cannot be scoped to log groups and the IAM
-policy simulator denies it written that way. It lists log group names and
-settings, never their contents.
+From then on Strands Agents emits a span for the agent, each event loop
+cycle, each model call and each tool, and the botocore and MCP
+instrumentation emit one for every AWS call and MCP request. The runtime
+role gains the log and X-Ray permissions the AgentCore runtime permissions
+page lists for observability.
 
 > NOTE: spans only reach CloudWatch once CloudWatch Transaction Search is
-> enabled. It is a setting for the whole account and Region rather than for
-> one agent, so it is not part of this demo's Terraform. The demo's README
-> has the three commands that enable it, and
-> `aws xray get-trace-segment-destination` shows `CloudWatchLogs` and
-> `ACTIVE` when it is on.
+> enabled. It is a setting for the whole account and Region, so it is not
+> in this demo's Terraform. The README has the three commands that turn it
+> on.
 
 ## 2 - Keeping the turn in the runtime's trace
 
-The runtime starts a trace for every request and passes its context to
-the container in the request headers. ADOT picks those headers up for the
-web frameworks it instruments. This agent's server is the standard
-library's `http.server`, which ADOT does not instrument, so nothing reads
-them. Left alone, every span of the turn would start a trace of its own,
-cut off from the runtime's invocation.
-
-So the handler reads them itself, before the turn runs:
+The runtime passes its trace context to the container in the request
+headers. ADOT reads those headers for the web frameworks it instruments,
+but this agent's server is the standard library's `http.server`, so
+nothing reads them and the turn's spans would form a trace of their own,
+cut off from the runtime's. The handler reads them itself:
 
 ```python
 @contextmanager
@@ -118,25 +80,19 @@ with traced(self.headers, session), one_turn(subject, session):
     turn = self.respond(prompt, customer, session, gateway_token, subject)
 ```
 
-`propagate.extract` uses the propagators ADOT configured, W3C baggage,
-X-Ray and W3C trace context, so every span the turn starts becomes a child
-of the runtime's. The session id goes into the baggage, and ADOT's span
-processor copies `session.id` from the baggage onto every span the agent
-starts inside the block. That one attribute is what lets CloudWatch group
-a conversation's turns, and what lets you query them.
-
-The botocore and MCP spans carry the trace context out of the container.
-The gateway and the memory receive it with each call, so their own spans
-land in the same trace. The memory's spans carry the session id too, as
-the memory's own session. The gateway's and the orders Lambda's are tied
-to the turn by the trace id alone.
+Every span the turn starts becomes a child of the runtime's, and a span
+processor ADOT adds copies `session.id` from the baggage onto each one.
+Plain OpenTelemetry leaves baggage off the spans. That attribute is what
+groups a conversation's turns in CloudWatch and what you query them by.
+The botocore and MCP spans carry the trace context on to the gateway and
+the memory, so their spans join the same trace. The memory's carry the
+session id as well. The gateway's join by the trace id alone.
 
 ## 3 - The gateway and the memory
 
-The runtime sends its logs and spans to CloudWatch on its own. The gateway
-and the memory leave their destinations to you, so each one gets two
-CloudWatch Logs deliveries, its application logs to a log group and its
-spans to X-Ray:
+The gateway and the memory leave their telemetry's destination to you.
+Each gets two CloudWatch Logs deliveries, its application logs to a log
+group and its spans to X-Ray:
 
 ```hcl
 resource "aws_cloudwatch_log_delivery_source" "traces" {
@@ -158,44 +114,36 @@ resource "aws_cloudwatch_log_delivery" "traces" {
 }
 ```
 
-The `APPLICATION_LOGS` deliveries have the same shape, with a log group as
-the destination. Transaction Search writes the X-Ray spans to the
-`aws/spans` log group, where the gateway shows up as inbound
-authorisation, the Cedar `AuthorizeAction`, the tool invocation and the
-orders Lambda behind it, and the memory as each `ListEvents`,
-`CreateEvent` and `RetrieveMemoryRecords`.
+The application log deliveries have the same shape, with a log group as
+the destination.
 
 ## 4 - One turn, one trace
 
-The customer asked the same question as in post 06, how much they had
-spent this year by month and which month was the biggest. The agent's
-answer was right. Here is the trace of that turn, drawn from the spans
-CloudWatch stored for it.
+The customer asked the post 06 question, how much they had spent this year
+by month and which month was the biggest. The answer was right. This is the
+trace of that turn, drawn from the spans CloudWatch stored.
 
 ![One turn's trace, from the token exchange through the model calls, the gateway, the sandbox and the memory](trace.png)
 
-Read from the top, the turn did this.
+- The agent exchanged the customer's token for a gateway token through
+  AgentCore Identity. The first attempt failed after 6.1 s and the retry
+  took 0.6 s.
+- It read the conversation and the customer's preferences from memory.
+- The model asked for `orders___list_orders`. Cedar allowed it, and the
+  span records the decision and the policy that made it,
+  `demos_agentcore_07_own_orders_only`. The orders Lambda answered.
+- The model wrote pandas and asked for `run_python`, which the sandbox ran.
+- The model answered, and the agent made one more model call to restate it.
 
-- It exchanged the customer's token for a gateway token through AgentCore
-  Identity. The first attempt failed after 6.1 s, and the retry succeeded
-  in 0.6 s. More on that below.
-- It read the conversation and the customer's remembered preferences from
-  memory, and opened an MCP session with the gateway.
-- The model asked for `orders___list_orders`. The gateway checked the
-  token, Cedar allowed the call, and the orders Lambda answered. The Cedar
-  span records the decision, `ALLOW`, and the policy that decided it,
-  `demos_agentcore_07_own_orders_only`.
-- The model wrote pandas and asked for `run_python`. The sandbox started
-  and ran it.
-- The model answered, and then the agent ran again with one more model
-  call, restating that answer.
-- Memory recorded each step as an event as it went.
+The exchange's own Lambdas are not in this trace. AgentCore Identity calls
+them without passing on the trace context, so their spans are in traces of
+their own, found by time rather than by id.
 
 ## 5 - Finding a turn by its session
 
-Every span the agent starts carries `session.id`, so a conversation can be
-pulled out of the runtime's log group with Logs Insights. This shows how many model calls
-each turn made and the tokens they used:
+With `session.id` on every span the agent starts, a conversation can be
+pulled out of the runtime's log group with Logs Insights. This counts each
+turn's model calls and tokens:
 
 ```
 filter @logStream = "spans" and name = "chat"
@@ -213,9 +161,7 @@ traceId                           model_calls  input_tokens  output_tokens
 6aed108000cd74fb1039183c788fa4db  2            5966          284
 ```
 
-The first turn, the spending question, made four model calls. The second,
-which carrier delivered most of the orders, made two. And this finds every
-span that failed, across every session:
+And this finds every failed span, in any session:
 
 ```
 filter @logStream = "spans" and status.code = "ERROR"
@@ -228,125 +174,64 @@ filter @logStream = "spans" and status.code = "ERROR"
   ValidationException: ... GetResourceOauth2Token operation: HTTP request failed against Token endpoint
 ```
 
-The CloudWatch console shows the same data as a session list, a trace
-timeline and each span's attributes, under GenAI Observability, AgentCore.
+The CloudWatch console shows the same data under GenAI Observability, as a
+session list, a timeline per trace and each span's attributes.
 
 ## 6 - What the trace showed
 
-Both turns came back with a 200 and a correct answer. The trace shows two
-things the response did not.
+Both turns returned a correct answer. The trace shows two things the
+response did not.
 
-The first is the failed token exchange. AgentCore Identity calls the
-exchange post 05 built, an API Gateway and Lambda in front of a Cognito
-pool. On the first request after a deploy, that Lambda and the four
-Cognito triggers it sets off all started cold, one after another. The
-same happened on a later run after the stack had sat idle for about 25
-minutes, so it is any cold start, not only the first. The
-exchange took 5.1 s, Identity gave up waiting with `HTTP request failed
-against Token endpoint`, and the agent's single retry found everything
-warm. That retry went in during post 06 for exactly this case. The trace is
-what shows the six seconds the customer waited for it. Those Lambdas run
-in traces of their own, because AgentCore Identity calls the exchange
-without passing on the trace context, so their spans sit beside this
-trace in `aws/spans` rather than inside it.
+The first is the failed token exchange. Identity gave up on the exchange
+post 05 built after 6.1 s, with `HTTP request failed against Token
+endpoint`, and the agent's retry took 0.6 s. The exchange's own spans,
+found beside the trace by time, show its Lambda and Cognito triggers
+starting cold. It happened again after the stack sat idle for 25 minutes,
+so cold starts are the likely cause. The customer saw no error, only six
+extra seconds, and the traces show where they went.
 
-The second is the extra model call. The first answer ended "In total,
-you've spent £743.80 with us this year across 7 orders." The model's code
-printed the monthly totals, the biggest month and the year's total, but
-never a count. The model had counted the orders itself. The figure check
-post 06 added found 7 in no tool result and asked the model once to
-restate, which it did without the count. ADOT records the model's input
-and output on the turn's log records, so the original answer, the code
-the model wrote and the restate request can all be read against the
-`chat` spans they belong to. The restatement cost one model call and
+The second is the extra model call. The first answer ended "across 7
+orders", but the model's code never printed a count, so post 06's figure
+check asked for a restatement, which dropped it. The 7 was right. It just
+had no tool result behind it, and the restatement cost one model call and
 2,740 input tokens.
 
 ## 7 - The trace is customer data
 
-What makes a trace useful here is that it records the model's input and
-output. That means the system prompt, the customer's question, every tool
-result including the customer's orders, and every answer. Treat the logs
-that hold it as you would the order data itself.
+ADOT writes the model's input and output as log records beside the spans,
+from the Strands instrumentation rather than from AgentCore on its own.
+That is what makes the trace useful, and it means the logs hold the system
+prompt, the customer's question, their orders and every answer. Treat them
+as you would the order data.
 
-The gateway's and the memory's log groups are this demo's own, encrypted
-with the demo's KMS key and kept for seven days. The runtime's group is
-created by the service when the runtime is, named after the runtime's id,
-with no expiry and no customer-managed key. Terraform cannot create it
-first, so it sets both once the runtime exists:
+The demo's log groups are encrypted with its KMS key and kept for seven
+days, and the runtime's role can write its logs but not read, delete or
+change them. The gateway's, the memory's and the Lambda's spans go to the
+account's `aws/spans` log group instead, which holds attributes such as
+the tool and the Cedar decision rather than the conversation.
 
-```hcl
-resource "null_resource" "runtime_log_group" {
-  triggers = {
-    log_group = local.runtime_log_group
-    key       = aws_kms_key.demo.arn
-  }
-  provisioner "local-exec" {
-    interpreter = ["bash", "-c"]
-    command     = <<-EOT
-      set -euo pipefail
-      aws logs put-retention-policy --region ${var.aws_region} \
-        --log-group-name "${local.runtime_log_group}" --retention-in-days 7
-      aws logs associate-kms-key --region ${var.aws_region} \
-        --log-group-name "${local.runtime_log_group}" --kms-key-id "${aws_kms_key.demo.arn}"
-    EOT
-  }
-}
-```
-
-The gateway's, the memory's and the orders Lambda's spans are a different
-case. Transaction Search writes them to `aws/spans`, which belongs to the
-account rather than to this demo. In this account it keeps them for 30
-days with no customer-managed key, and this demo does not change that.
-They hold attributes, the tool name, the Cedar decision, the memory's
-actor and session ids, rather than the requests and responses, which are
-in the application logs above. Whoever owns the account decides the
-retention, key and access for `aws/spans`.
-
-Anyone who can read the runtime's log group can read what customers asked
-and what they were told, so read access to it should be granted as
-narrowly as access to the orders.
-
-The NCSC's guidance on managing the cyber risk of agentic AI asks for the
-same trade. It wants the agent's transcripts and reasoning traces
-collected, and agent activity treated as a form of user activity, while
-warning that those logs "may contain sensitive data" and should be
-protected from modification or deletion. For a customer assistant that
-sensitive data is personal data, the customer's questions and their order
-history, copied word for word into `otel-rt-logs`. What this demo does
-about it
-
-- keeps the content only in log groups under the demo's key, for seven
-  days, long enough to debug a turn and no longer
-- lets the runtime's role write its own logs but not read them, delete them
-  or change their retention, so an agent talked into misbehaving cannot
-  tidy up after itself
-- leaves Strands' redaction available, which drops the conversation from
-  the spans where a trace without it is enough
-
-It leaves three things to whoever runs it for real. It creates no access
-for people to read the logs, so the narrow grant above is the account
-owner's to make. The logs are not immutable, which the NCSC recommends
-where possible. A continuous export to an S3 bucket with Object Lock gives
-an archive that cannot be altered, though the log group itself can still
-be changed by anyone with the rights to. And CloudWatch Logs' data
-protection policies mask personal data such as email addresses when the
-logs are read or queried, but the original stays stored for anyone granted
-`logs:Unmask`. Keeping it out altogether means redacting before the spans
-leave the container.
+The NCSC's guidance on managing the cyber risk of agentic AI makes the
+same point. It wants agent transcripts and traces collected, warns that
+they "may contain sensitive data", and asks for them to be protected from
+change or deletion. Here that means personal data, so before real
+customers use it, decide who may read these logs, consider an immutable
+archive, and use Strands' redaction where a trace without the conversation
+is enough.
 
 ## Conclusion
 
 Tracing an AgentCore agent takes very little. The container starts under
 ADOT, the handler joins the trace the runtime started, and the gateway and
 the memory are given somewhere to send their spans. After that, one
-customer's turn is one trace, from the runtime through the model calls,
-the gateway's Cedar check and the orders Lambda, to the sandbox and the
-memory, and the agent's spans carry the session id.
+customer's turn is one trace, and the agent's spans carry the session id.
 
 It is worth having before anything goes wrong. On its first run it showed
-a cold-start failure that a retry was hiding, and the model counting in
-its head where the agent's rules say it must compute. Neither was visible
-in a response that was right.
+a failure a retry was hiding, and the model counting in its head where the
+agent's rules say it must compute. Neither was visible in a response that
+was right.
+
+A trace shows what the agent did, not whether it should have. Testing that
+is the next post, evaluations as a quality gate.
 
 References:
 
