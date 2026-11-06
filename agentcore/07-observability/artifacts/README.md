@@ -237,3 +237,29 @@ their retention.
   ingestion, and `logs:Unmask` reveals the original. Accepted and said.
 - Object Lock protects an exported copy, not the log group. Accepted and
   said.
+
+## Review round 4, two passes
+
+After the post was cut to its subject (the IAM JSON, the log group
+creation and the `null_resource` moved out to the README and the
+Terraform), two passes ran on it. The usual one reads the post, the code
+and these artifacts with no web access. A second reads only the post, as a
+reader would, with web search to check claims against current docs; it was
+added after a reader-level review run outside this repo raised points the
+first pass is told not to look for.
+
+Both found the same two errors, and both are fixed.
+
+- Without `traced()` the turn's spans would form a trace of their own, cut
+  off from the runtime's, not one trace per span.
+- CloudWatch Logs data protection masks only the identifiers a configured
+  policy names. The sentence is gone; section 7 now ends on what to decide
+  before real customers use it.
+
+The reader pass also asked for the cold-start reconstruction and the
+figure-check mechanics to be cut to their tracing lesson, for section 7
+to be shorter, and for the baggage-to-span copy to be named as ADOT's
+rather than OpenTelemetry's. All done. Its scope notes (sampling and cost,
+alarms, exporter reliability, governance at scale) are left to later
+posts, and the `null_resource` having no retry for a log group the
+service has not created yet has not happened in four applies.
