@@ -55,12 +55,15 @@ def main():
     fields = "fields traceId, name, startTimeUnixNano, durationNano, status.code, " \
              "`attributes.gen_ai.usage.input_tokens`"
     mine = f'filter @logStream = "spans" and `attributes.session.id` = "{session}" | {fields} | limit 10000'
-    rows, seen = [], -1
+    # Logs Insights can answer with part of what it holds while it indexes, so
+    # keep the fullest answer and stop once another query matches it.
+    rows = []
     for _ in range(40):
-        rows = query(logs, group, mine, start)
-        if rows and len(rows) == seen:
+        found = query(logs, group, mine, start)
+        if rows and len(found) == len(rows):
             break
-        seen = len(rows)
+        if len(found) > len(rows):
+            rows = found
         print(f"{len(rows)} spans so far, checking again in 10 s", flush=True)
         time.sleep(10)
     traces = sorted({r["traceId"] for r in rows})
