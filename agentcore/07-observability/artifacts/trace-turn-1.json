@@ -1,0 +1,2364 @@
+{
+ "session": "observability-1bb95ff61c1f2d386eb7a797917bce3e",
+ "traceId": "6aed10634132265a7f45d13b4678d66b",
+ "spans": [
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.GetWorkloadAccessTokenForJWT",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "8f49939f12ad9be0",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921123984555081,
+   "end": 1793921124083643508,
+   "attributes": {
+    "aws.remote.operation": "GetWorkloadAccessTokenForJWT",
+    "http.status_code": 200,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.GetResourceOauth2Token",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "2c96edd2afea9fa0",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "message": "ValidationException: An error occurred (ValidationException) when calling the GetResourceOauth2Token operation: HTTP request failed against Token endpoint",
+    "code": "ERROR"
+   },
+   "start": 1793921124084019352,
+   "end": 1793921130206657078,
+   "attributes": {
+    "aws.remote.operation": "GetResourceOauth2Token",
+    "http.status_code": 400,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::OAuth2CredentialProvider",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.GetResourceOauth2Token",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "64c35d1b9e4c3fce",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132207215418,
+   "end": 1793921132848504155,
+   "attributes": {
+    "aws.remote.operation": "GetResourceOauth2Token",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::OAuth2CredentialProvider",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.ListEvents",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "4394eac0f446938d",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921133071986756,
+   "end": 1793921133140161501,
+   "attributes": {
+    "aws.remote.operation": "ListEvents",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "ListEvents",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "0e90659945714b3e",
+   "parentSpanId": "4394eac0f446938d",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133105000000,
+   "end": 1793921133130000000,
+   "attributes": {
+    "http.status_code": 200,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.ListEvents",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "be6b569194383734",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921133140904680,
+   "end": 1793921133189430686,
+   "attributes": {
+    "aws.remote.operation": "ListEvents",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "ListEvents",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "a6bc2be3d622cd00",
+   "parentSpanId": "be6b569194383734",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133158000000,
+   "end": 1793921133180000000,
+   "attributes": {
+    "http.status_code": 200,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "5df020e304126333",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921133190061259,
+   "end": 1793921133294279433,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "40d03a08b2cf21e5",
+   "parentSpanId": "5df020e304126333",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133203000000,
+   "end": 1793921133285000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "mcp.session",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "846a439163afaf62",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921133547451223,
+   "end": 1793921151794084213,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "MCP send server/discover",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "4ef8c8ba2168a72e",
+   "parentSpanId": "846a439163afaf62",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921133556256236,
+   "end": 1793921133716234616,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e",
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.InboundAuth",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "4879170e176c3b2e",
+   "parentSpanId": "e3cfaaa994f54e3f",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133574000000,
+   "end": 1793921133703000000,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.Unknown",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "e3cfaaa994f54e3f",
+   "parentSpanId": "4ef8c8ba2168a72e",
+   "kind": "SERVER",
+   "status": {
+    "code": "ERROR"
+   },
+   "start": 1793921133574000000,
+   "end": 1793921133712000000,
+   "attributes": {
+    "http.status_code": 400
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Identity.Authorize",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "909ac1c6ff1c2fc7",
+   "parentSpanId": "4879170e176c3b2e",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133585000000,
+   "end": 1793921133702000000,
+   "attributes": {
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.EvaluateRoutingRules",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "cbe4c9afa8955c3a",
+   "parentSpanId": "e3cfaaa994f54e3f",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133705000000,
+   "end": 1793921133706000000,
+   "attributes": {}
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "MCP send initialize",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "0a76d41fec727942",
+   "parentSpanId": "846a439163afaf62",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921133716512450,
+   "end": 1793921133770970862,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e",
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.InboundAuth",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "c2abceaa7957d100",
+   "parentSpanId": "0a8f7b0a0cd1b3ec",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133723000000,
+   "end": 1793921133760000000,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.Initialize",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "0a8f7b0a0cd1b3ec",
+   "parentSpanId": "0a76d41fec727942",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133723000000,
+   "end": 1793921133768000000,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Identity.Authorize",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "4b961b3b1648a667",
+   "parentSpanId": "c2abceaa7957d100",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133731000000,
+   "end": 1793921133760000000,
+   "attributes": {
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.EvaluateRoutingRules",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "8a15b979b730954c",
+   "parentSpanId": "0a8f7b0a0cd1b3ec",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133762000000,
+   "end": 1793921133762000000,
+   "attributes": {}
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "MCP send tools/list",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "d9c8648019eaa9e3",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921133772983104,
+   "end": 1793921133996660199,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e",
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.InboundAuth",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "1d2407f504308047",
+   "parentSpanId": "491d3fa360661dfd",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133781000000,
+   "end": 1793921133817000000,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.NotificationsInitialized",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "491d3fa360661dfd",
+   "parentSpanId": "846a439163afaf62",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133781000000,
+   "end": 1793921133824000000,
+   "attributes": {
+    "http.status_code": 202
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Identity.Authorize",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "36533894c4931b59",
+   "parentSpanId": "1d2407f504308047",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133790000000,
+   "end": 1793921133816000000,
+   "attributes": {
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.EvaluateRoutingRules",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "65af6c1278ea48d4",
+   "parentSpanId": "491d3fa360661dfd",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133819000000,
+   "end": 1793921133819000000,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.InboundAuth",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "e8c935b7227787eb",
+   "parentSpanId": "70dae71d80060caf",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133842000000,
+   "end": 1793921133875000000,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.ListTools",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "70dae71d80060caf",
+   "parentSpanId": "d9c8648019eaa9e3",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133842000000,
+   "end": 1793921133993000000,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Identity.Authorize",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "ce62600e1d9262cf",
+   "parentSpanId": "e8c935b7227787eb",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133851000000,
+   "end": 1793921133875000000,
+   "attributes": {
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.EvaluateRoutingRules",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "52e86cb5b0579b05",
+   "parentSpanId": "70dae71d80060caf",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133877000000,
+   "end": 1793921133877000000,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Policy.PartiallyAuthorizeActions",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "de5871b3c98f6c80",
+   "parentSpanId": "70dae71d80060caf",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921133901000000,
+   "end": 1793921133990000000,
+   "attributes": {
+    "aws.remote.operation": "PartiallyAuthorizeActions",
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "e737c641188e0f7b",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921133999763674,
+   "end": 1793921134098657204,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "fde9ada585005c58",
+   "parentSpanId": "e737c641188e0f7b",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921134017000000,
+   "end": 1793921134090000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "invoke_agent Strands Agents",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "c878932b6df8e502",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921134099770246,
+   "end": 1793921148951779176,
+   "attributes": {
+    "gen_ai.usage.prompt_tokens": 6220,
+    "gen_ai.usage.output_tokens": 558,
+    "gen_ai.usage.cache_write_input_tokens": 0,
+    "gen_ai.usage.total_tokens": 6778,
+    "gen_ai.usage.completion_tokens": 558,
+    "gen_ai.usage.input_tokens": 6220,
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "gen_ai.usage.cache_read_input_tokens": 0,
+    "gen_ai.usage.cache_creation.input_tokens": 0,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e",
+    "gen_ai.usage.cache_read.input_tokens": 0
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "ecb9f7945ea0cb86",
+   "parentSpanId": "c878932b6df8e502",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921134100310750,
+   "end": 1793921134216327915,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "fb5179ba21d4755f",
+   "parentSpanId": "ecb9f7945ea0cb86",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921134116000000,
+   "end": 1793921134204000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "e863edad9c2a8fc0",
+   "parentSpanId": "c878932b6df8e502",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921134217058443,
+   "end": 1793921134321553950,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "9c32e097d79c2ba3",
+   "parentSpanId": "e863edad9c2a8fc0",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921134234000000,
+   "end": 1793921134310000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.RetrieveMemoryRecords",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "bf1151021d2c1cc0",
+   "parentSpanId": "c878932b6df8e502",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921134322507616,
+   "end": 1793921134548188502,
+   "attributes": {
+    "aws.remote.operation": "RetrieveMemoryRecords",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "RetrieveMemoryRecords",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "d7f0abe505146f77",
+   "parentSpanId": "bf1151021d2c1cc0",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921134339000000,
+   "end": 1793921134539000000,
+   "attributes": {
+    "http.status_code": 200,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "execute_event_loop_cycle",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "6498428460ee977e",
+   "parentSpanId": "c878932b6df8e502",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921134549611246,
+   "end": 1793921138721535736,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "chat",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "bb06b37468ab3342",
+   "parentSpanId": "6498428460ee977e",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921134550511070,
+   "end": 1793921137757402610,
+   "attributes": {
+    "gen_ai.usage.prompt_tokens": 1595,
+    "gen_ai.usage.output_tokens": 76,
+    "gen_ai.usage.total_tokens": 1671,
+    "gen_ai.usage.completion_tokens": 76,
+    "gen_ai.usage.input_tokens": 1595,
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "chat us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "0880bd9b37d5f40e",
+   "parentSpanId": "bb06b37468ab3342",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921134553187583,
+   "end": 1793921137756775525,
+   "attributes": {
+    "aws.remote.operation": "ConverseStream",
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "gen_ai.usage.output_tokens": 76,
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::Bedrock::Model",
+    "gen_ai.usage.input_tokens": 1595,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "166d14590aa13d52",
+   "parentSpanId": "6498428460ee977e",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921137757928829,
+   "end": 1793921137859323159,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "e70eda8f7c671575",
+   "parentSpanId": "166d14590aa13d52",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921137775000000,
+   "end": 1793921137851000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "execute_tool orders___list_orders",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "2b5af12d6bc0dca8",
+   "parentSpanId": "6498428460ee977e",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921137860377978,
+   "end": 1793921138511231556,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "MCP send tools/call orders___list_orders",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "766c48fd75fee7bb",
+   "parentSpanId": "2b5af12d6bc0dca8",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921137862053875,
+   "end": 1793921138509886235,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e",
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.InvokeTool",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "b2f1a63ebafc5a4e",
+   "parentSpanId": "766c48fd75fee7bb",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921137872000000,
+   "end": 1793921138505000000,
+   "attributes": {
+    "tool.name": "orders___list_orders",
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.InboundAuth",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "b986d7ef61e3e476",
+   "parentSpanId": "b2f1a63ebafc5a4e",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921137873000000,
+   "end": 1793921137923000000,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Identity.Authorize",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "da9d61798de0928b",
+   "parentSpanId": "b986d7ef61e3e476",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921137883000000,
+   "end": 1793921137922000000,
+   "attributes": {
+    "aws.remote.operation": "UnknownRemoteOperation"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.EvaluateRoutingRules",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "beaa4d21a9c113e7",
+   "parentSpanId": "b2f1a63ebafc5a4e",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921137926000000,
+   "end": 1793921137927000000,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Policy.AuthorizeAction",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "ff9abe3e5308fdda",
+   "parentSpanId": "b2f1a63ebafc5a4e",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921137981000000,
+   "end": 1793921138042000000,
+   "attributes": {
+    "aws.remote.operation": "AuthorizeAction",
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.InvokeTool.orders___list_orders",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "ab5ac251aaa90c15",
+   "parentSpanId": "b2f1a63ebafc5a4e",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921138043000000,
+   "end": 1793921138501000000,
+   "attributes": {
+    "aws.remote.operation": "UnknownRemoteOperation",
+    "tool.name": "orders___list_orders"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "AgentCore.Gateway.TargetInvocation",
+   "service": "demos-agentcore-07-observability-gw-towk2q2cyy",
+   "spanId": "c189844e0ba8b5be",
+   "parentSpanId": "ab5ac251aaa90c15",
+   "kind": "CLIENT",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921138045000000,
+   "end": 1793921138501000000,
+   "attributes": {
+    "aws.remote.operation": "UnknownRemoteOperation",
+    "tool.name": "orders___list_orders"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "demos-agentcore-07-observability-orders/LambdaService",
+   "service": "demos-agentcore-07-observability-orders",
+   "spanId": "10f6f853cb7d0f7c",
+   "parentSpanId": "b2f1a63ebafc5a4e",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921138088999936,
+   "end": 1793921138499000064,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Init/LambdaExecutionEnvironment",
+   "service": "Init",
+   "spanId": "3d212a7d269d8f8b",
+   "parentSpanId": "0420d62c5bb7f2a8",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921138387182080,
+   "end": 1793921138476211968,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "demos-agentcore-07-observability-orders/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-orders",
+   "spanId": "0420d62c5bb7f2a8",
+   "parentSpanId": "10f6f853cb7d0f7c",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921138480970240,
+   "end": 1793921138500966144,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "3ab5cc131674a25b",
+   "parentSpanId": "0420d62c5bb7f2a8",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921138499000064,
+   "end": 1793921138499623936,
+   "attributes": {}
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "4e0871532fd60ee3",
+   "parentSpanId": "6498428460ee977e",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921138511657296,
+   "end": 1793921138618720951,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "d4490950e9e21e36",
+   "parentSpanId": "4e0871532fd60ee3",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921138527000000,
+   "end": 1793921138611000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "519ef07b29790210",
+   "parentSpanId": "6498428460ee977e",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921138619472130,
+   "end": 1793921138721051806,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "44d16e858020f098",
+   "parentSpanId": "519ef07b29790210",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921138633000000,
+   "end": 1793921138713000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "execute_event_loop_cycle",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "24ea21be17021137",
+   "parentSpanId": "c878932b6df8e502",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921138721921205,
+   "end": 1793921145879833391,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "chat",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "ca417514d32ce213",
+   "parentSpanId": "24ea21be17021137",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921138722357185,
+   "end": 1793921144071306272,
+   "attributes": {
+    "gen_ai.usage.prompt_tokens": 2079,
+    "gen_ai.usage.output_tokens": 389,
+    "gen_ai.usage.total_tokens": 2468,
+    "gen_ai.usage.completion_tokens": 389,
+    "gen_ai.usage.input_tokens": 2079,
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "chat us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "acda0dfa80069c6a",
+   "parentSpanId": "ca417514d32ce213",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921138723223827,
+   "end": 1793921144070744737,
+   "attributes": {
+    "aws.remote.operation": "ConverseStream",
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "gen_ai.usage.output_tokens": 389,
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::Bedrock::Model",
+    "gen_ai.usage.input_tokens": 2079,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "2be7924a56837afa",
+   "parentSpanId": "24ea21be17021137",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921144071791135,
+   "end": 1793921144176576652,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "2b35e8104fa0a378",
+   "parentSpanId": "2be7924a56837afa",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921144088000000,
+   "end": 1793921144164000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "execute_tool run_python",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "71593ec05bc424da",
+   "parentSpanId": "24ea21be17021137",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921144177439993,
+   "end": 1793921145673666393,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.StartCodeInterpreterSession",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "07dea268f6e753e2",
+   "parentSpanId": "71593ec05bc424da",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921144182425734,
+   "end": 1793921145449036600,
+   "attributes": {
+    "aws.remote.operation": "StartCodeInterpreterSession",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::CodeInterpreterCustom",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.InvokeCodeInterpreter",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "8899971304672b04",
+   "parentSpanId": "71593ec05bc424da",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921145449494832,
+   "end": 1793921145536335776,
+   "attributes": {
+    "aws.remote.operation": "InvokeCodeInterpreter",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::CodeInterpreterCustom",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.InvokeCodeInterpreter",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "3c704d12b48f328f",
+   "parentSpanId": "71593ec05bc424da",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921145537178606,
+   "end": 1793921145672434902,
+   "attributes": {
+    "aws.remote.operation": "InvokeCodeInterpreter",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::CodeInterpreterCustom",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "24450af08c55d169",
+   "parentSpanId": "24ea21be17021137",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921145674092854,
+   "end": 1793921145782537039,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "7cb808de46f3dc30",
+   "parentSpanId": "24450af08c55d169",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921145691000000,
+   "end": 1793921145773000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "ede3e68a01dc2a8e",
+   "parentSpanId": "24ea21be17021137",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921145783261256,
+   "end": 1793921145879301781,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "a5aebf95be68465d",
+   "parentSpanId": "ede3e68a01dc2a8e",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921145797000000,
+   "end": 1793921145867000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "execute_event_loop_cycle",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "f1c005a51424ab7a",
+   "parentSpanId": "c878932b6df8e502",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921145880191398,
+   "end": 1793921148951504993,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "chat",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "703de3c4f5115d20",
+   "parentSpanId": "f1c005a51424ab7a",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921145880700591,
+   "end": 1793921148854305797,
+   "attributes": {
+    "gen_ai.usage.prompt_tokens": 2546,
+    "gen_ai.usage.output_tokens": 93,
+    "gen_ai.usage.total_tokens": 2639,
+    "gen_ai.usage.completion_tokens": 93,
+    "gen_ai.usage.input_tokens": 2546,
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "chat us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "5dff6f17684a95fc",
+   "parentSpanId": "703de3c4f5115d20",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921145881750167,
+   "end": 1793921148853696378,
+   "attributes": {
+    "aws.remote.operation": "ConverseStream",
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "gen_ai.usage.output_tokens": 93,
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::Bedrock::Model",
+    "gen_ai.usage.input_tokens": 2546,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "91e7eb3e0eaf5332",
+   "parentSpanId": "f1c005a51424ab7a",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921148854756669,
+   "end": 1793921148950695262,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "62a678ec0f267ab3",
+   "parentSpanId": "91e7eb3e0eaf5332",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921148872000000,
+   "end": 1793921148942000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "invoke_agent Strands Agents",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "79adac5b9abf42aa",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921148953411290,
+   "end": 1793921151674531951,
+   "attributes": {
+    "gen_ai.usage.prompt_tokens": 8960,
+    "gen_ai.usage.output_tokens": 644,
+    "gen_ai.usage.cache_write_input_tokens": 0,
+    "gen_ai.usage.total_tokens": 9604,
+    "gen_ai.usage.completion_tokens": 644,
+    "gen_ai.usage.input_tokens": 8960,
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "gen_ai.usage.cache_read_input_tokens": 0,
+    "gen_ai.usage.cache_creation.input_tokens": 0,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e",
+    "gen_ai.usage.cache_read.input_tokens": 0
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "5771d3f2d79ea77e",
+   "parentSpanId": "79adac5b9abf42aa",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921148953907898,
+   "end": 1793921149056988472,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "0f93595da504a0e8",
+   "parentSpanId": "5771d3f2d79ea77e",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921148971000000,
+   "end": 1793921149049000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.RetrieveMemoryRecords",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "7808558bbbacac71",
+   "parentSpanId": "79adac5b9abf42aa",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921149057868185,
+   "end": 1793921149268476184,
+   "attributes": {
+    "aws.remote.operation": "RetrieveMemoryRecords",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "RetrieveMemoryRecords",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "4a643c31d469d875",
+   "parentSpanId": "7808558bbbacac71",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921149074000000,
+   "end": 1793921149260000000,
+   "attributes": {
+    "http.status_code": 200,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "execute_event_loop_cycle",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "8e883022e87a8973",
+   "parentSpanId": "79adac5b9abf42aa",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921149269320057,
+   "end": 1793921151674301920,
+   "attributes": {
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "chat",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "90b1cdda81e00663",
+   "parentSpanId": "8e883022e87a8973",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921149269952763,
+   "end": 1793921151580389510,
+   "attributes": {
+    "gen_ai.usage.prompt_tokens": 2740,
+    "gen_ai.usage.output_tokens": 86,
+    "gen_ai.usage.total_tokens": 2826,
+    "gen_ai.usage.completion_tokens": 86,
+    "gen_ai.usage.input_tokens": 2740,
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "chat us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "c4d40c235cfd28e5",
+   "parentSpanId": "90b1cdda81e00663",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921149270930125,
+   "end": 1793921151579771369,
+   "attributes": {
+    "aws.remote.operation": "ConverseStream",
+    "gen_ai.request.model": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "gen_ai.usage.output_tokens": 86,
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::Bedrock::Model",
+    "gen_ai.usage.input_tokens": 2740,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.CreateEvent",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "b3ae9f1f54059051",
+   "parentSpanId": "8e883022e87a8973",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921151580849202,
+   "end": 1793921151673468484,
+   "attributes": {
+    "aws.remote.operation": "CreateEvent",
+    "http.status_code": 201,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::Memory",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "CreateEvent",
+   "service": "demos_agentcore_07_memory-yjV7Mz9ppd",
+   "spanId": "c2c8f66dcc96de2a",
+   "parentSpanId": "b3ae9f1f54059051",
+   "kind": "SERVER",
+   "status": {
+    "code": "OK"
+   },
+   "start": 1793921151594000000,
+   "end": 1793921151666000000,
+   "attributes": {
+    "http.status_code": 201,
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  },
+  {
+   "source": "runtime",
+   "traceId": "6aed10634132265a7f45d13b4678d66b",
+   "name": "Bedrock AgentCore.StopCodeInterpreterSession",
+   "service": "demos_agentcore_07_observability.DEFAULT",
+   "spanId": "a0322615e43dea1b",
+   "parentSpanId": "83a7c966a11ad2d1",
+   "kind": "CLIENT",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921151675748575,
+   "end": 1793921151793196090,
+   "attributes": {
+    "aws.remote.operation": "StopCodeInterpreterSession",
+    "http.status_code": 200,
+    "aws.remote.resource.type": "AWS::BedrockAgentCore::CodeInterpreterCustom",
+    "session.id": "observability-1bb95ff61c1f2d386eb7a797917bce3e"
+   }
+  }
+ ],
+ "exchange_spans": [
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106431d81aed69a2e6c328cc59f8",
+   "name": "demos-agentcore-07-observability-exchange/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange",
+   "spanId": "2a00dafb17db2c3b",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921124173000192,
+   "end": 1793921125120999936,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106431d81aed69a2e6c328cc59f8",
+   "name": "Init/LambdaExecutionEnvironment",
+   "service": "Init",
+   "spanId": "c59f4037cb8c2bdf",
+   "parentSpanId": "38e66183e284bb82",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921124404662016,
+   "end": 1793921125115931136,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106431d81aed69a2e6c328cc59f8",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "932a90f8f901e0ba",
+   "parentSpanId": "38e66183e284bb82",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921125120000000,
+   "end": 1793921125120431872,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106431d81aed69a2e6c328cc59f8",
+   "name": "demos-agentcore-07-observability-exchange/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange",
+   "spanId": "38e66183e284bb82",
+   "parentSpanId": "2a00dafb17db2c3b",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921125120097280,
+   "end": 1793921125122028032,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10654790ea9a0061d5201c65b408",
+   "name": "demos-agentcore-07-observability-exchange/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange",
+   "spanId": "133fc572318d190a",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921125237999872,
+   "end": 1793921130385999872,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10654790ea9a0061d5201c65b408",
+   "name": "demos-agentcore-07-observability-exchange/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange",
+   "spanId": "0e455ea3625f7d19",
+   "parentSpanId": "133fc572318d190a",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921125243813888,
+   "end": 1793921130386192128,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106547cd57f2342cf52f065719b5",
+   "name": "demos-agentcore-07-observability-exchange-define/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-define",
+   "spanId": "7209d24c0ee6b1a2",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921125776999936,
+   "end": 1793921126816999936,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106547cd57f2342cf52f065719b5",
+   "name": "Init/LambdaExecutionEnvironment",
+   "service": "Init",
+   "spanId": "f64049a4f566e89f",
+   "parentSpanId": "12b4f4128cb3dc3f",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921125980651264,
+   "end": 1793921126719026944,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106547cd57f2342cf52f065719b5",
+   "name": "demos-agentcore-07-observability-exchange-define/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-define",
+   "spanId": "12b4f4128cb3dc3f",
+   "parentSpanId": "7209d24c0ee6b1a2",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921126723456000,
+   "end": 1793921126818563072,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106547cd57f2342cf52f065719b5",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "2437e908990c29bf",
+   "parentSpanId": "12b4f4128cb3dc3f",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921126816999936,
+   "end": 1793921126817545984,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10667ac8a29265630362490ee931",
+   "name": "demos-agentcore-07-observability-exchange-create/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-create",
+   "spanId": "61831322113de192",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921126839000064,
+   "end": 1793921127887000064,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10667ac8a29265630362490ee931",
+   "name": "Init/LambdaExecutionEnvironment",
+   "service": "Init",
+   "spanId": "5919c08feb34601b",
+   "parentSpanId": "228fcee9b0f34298",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921127118052096,
+   "end": 1793921127801208064,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10667ac8a29265630362490ee931",
+   "name": "demos-agentcore-07-observability-exchange-create/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-create",
+   "spanId": "228fcee9b0f34298",
+   "parentSpanId": "61831322113de192",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921127805096960,
+   "end": 1793921127888329984,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10667ac8a29265630362490ee931",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "59989a87062148a4",
+   "parentSpanId": "228fcee9b0f34298",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921127886000128,
+   "end": 1793921127886521088,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106855d26ee07b06838e645f2634",
+   "name": "demos-agentcore-07-observability-exchange-verify/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-verify",
+   "spanId": "4b1df98546219f14",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921128069999872,
+   "end": 1793921129164000000,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106855d26ee07b06838e645f2634",
+   "name": "Init/LambdaExecutionEnvironment",
+   "service": "Init",
+   "spanId": "b46bd4336ba7457b",
+   "parentSpanId": "e3ff1e574be955b3",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921128309739776,
+   "end": 1793921128987969024,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106855d26ee07b06838e645f2634",
+   "name": "demos-agentcore-07-observability-exchange-verify/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-verify",
+   "spanId": "e3ff1e574be955b3",
+   "parentSpanId": "4b1df98546219f14",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921128992253952,
+   "end": 1793921129168621056,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106855d26ee07b06838e645f2634",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "c2b8dc44c9e2f740",
+   "parentSpanId": "e3ff1e574be955b3",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921129164000000,
+   "end": 1793921129167426048,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10690b2be7900044a25453e74683",
+   "name": "demos-agentcore-07-observability-exchange-define/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-define",
+   "spanId": "708b79d1cd8e7793",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921129183000064,
+   "end": 1793921129192000000,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10690b2be7900044a25453e74683",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "03914d01e2e8dff6",
+   "parentSpanId": "66f22f31d8be1740",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921129190000128,
+   "end": 1793921129190551040,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10690b2be7900044a25453e74683",
+   "name": "demos-agentcore-07-observability-exchange-define/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-define",
+   "spanId": "66f22f31d8be1740",
+   "parentSpanId": "708b79d1cd8e7793",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921129190518784,
+   "end": 1793921129192317952,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106948f1deac658f92db292f8971",
+   "name": "demos-agentcore-07-observability-exchange-pretoken/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-pretoken",
+   "spanId": "6a9f67c381196c60",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921129260000000,
+   "end": 1793921130352000000,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106948f1deac658f92db292f8971",
+   "name": "Init/LambdaExecutionEnvironment",
+   "service": "Init",
+   "spanId": "2794b69413112203",
+   "parentSpanId": "fef38cfb2915da28",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921129457466112,
+   "end": 1793921130151118080,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106948f1deac658f92db292f8971",
+   "name": "demos-agentcore-07-observability-exchange-pretoken/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-pretoken",
+   "spanId": "fef38cfb2915da28",
+   "parentSpanId": "6a9f67c381196c60",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921130155390976,
+   "end": 1793921130361381888,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106948f1deac658f92db292f8971",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "2fb2f34672576354",
+   "parentSpanId": "fef38cfb2915da28",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921130350000128,
+   "end": 1793921130359329280,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed10654790ea9a0061d5201c65b408",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "5664676c345aa60a",
+   "parentSpanId": "0e455ea3625f7d19",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921130384000000,
+   "end": 1793921130384541952,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c49e9ac350aaa13fd1ba0cb04",
+   "name": "demos-agentcore-07-observability-exchange/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange",
+   "spanId": "7590dfcb10099a75",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132364999936,
+   "end": 1793921132812999936,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c49e9ac350aaa13fd1ba0cb04",
+   "name": "demos-agentcore-07-observability-exchange/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange",
+   "spanId": "0ab11e32fa2c6fbb",
+   "parentSpanId": "7590dfcb10099a75",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132370595072,
+   "end": 1793921132813606912,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c42120ffa62d2e7c41ff27cd4",
+   "name": "demos-agentcore-07-observability-exchange-define/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-define",
+   "spanId": "2e71a622ab0a0b62",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132512000000,
+   "end": 1793921132517999872,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c42120ffa62d2e7c41ff27cd4",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "3365ea8cb9d3ffb7",
+   "parentSpanId": "c75103370564fec2",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132516999936,
+   "end": 1793921132517425152,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c42120ffa62d2e7c41ff27cd4",
+   "name": "demos-agentcore-07-observability-exchange-define/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-define",
+   "spanId": "c75103370564fec2",
+   "parentSpanId": "2e71a622ab0a0b62",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132517641984,
+   "end": 1793921132519216896,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c0da79dbe17eb390a35f844ac",
+   "name": "demos-agentcore-07-observability-exchange-create/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-create",
+   "spanId": "69a8c827ab11fd1e",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132526000128,
+   "end": 1793921132532000000,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c0da79dbe17eb390a35f844ac",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "9f8cf14330690ca4",
+   "parentSpanId": "76dafca3cd7b3459",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132531000064,
+   "end": 1793921132531415296,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c0da79dbe17eb390a35f844ac",
+   "name": "demos-agentcore-07-observability-exchange-create/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-create",
+   "spanId": "76dafca3cd7b3459",
+   "parentSpanId": "69a8c827ab11fd1e",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132531322112,
+   "end": 1793921132532882944,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c0ce6358911df3fcd5a53c963",
+   "name": "demos-agentcore-07-observability-exchange-verify/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-verify",
+   "spanId": "4fdd91f2db7b97de",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132724000000,
+   "end": 1793921132731000064,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c0ce6358911df3fcd5a53c963",
+   "name": "demos-agentcore-07-observability-exchange-verify/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-verify",
+   "spanId": "aed05eb9d57b0de5",
+   "parentSpanId": "4fdd91f2db7b97de",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132729811200,
+   "end": 1793921132732057088,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c0ce6358911df3fcd5a53c963",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "28760e6fb4dc97fe",
+   "parentSpanId": "aed05eb9d57b0de5",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132729999872,
+   "end": 1793921132730415872,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c27afba527b4fe96829e9c16f",
+   "name": "demos-agentcore-07-observability-exchange-define/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-define",
+   "spanId": "588f13f0d45a7310",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132740000000,
+   "end": 1793921132747000064,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c27afba527b4fe96829e9c16f",
+   "name": "demos-agentcore-07-observability-exchange-define/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-define",
+   "spanId": "2f0f4d66ab607fc6",
+   "parentSpanId": "588f13f0d45a7310",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132745308928,
+   "end": 1793921132747526912,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c27afba527b4fe96829e9c16f",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "2c3b8374e972d39b",
+   "parentSpanId": "2f0f4d66ab607fc6",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132745999872,
+   "end": 1793921132746511616,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c7c6e4ce241ac5d3e173fdd19",
+   "name": "demos-agentcore-07-observability-exchange-pretoken/LambdaService",
+   "service": "demos-agentcore-07-observability-exchange-pretoken",
+   "spanId": "29fe66ffe5a373a0",
+   "parentSpanId": null,
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132776000000,
+   "end": 1793921132786000128,
+   "attributes": {
+    "http.status_code": 200
+   }
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c7c6e4ce241ac5d3e173fdd19",
+   "name": "demos-agentcore-07-observability-exchange-pretoken/LambdaExecutionEnvironment",
+   "service": "demos-agentcore-07-observability-exchange-pretoken",
+   "spanId": "639998940a6403e9",
+   "parentSpanId": "29fe66ffe5a373a0",
+   "kind": "SERVER",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132784978176,
+   "end": 1793921132787192064,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c7c6e4ce241ac5d3e173fdd19",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "dc206c780c445c9b",
+   "parentSpanId": "639998940a6403e9",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132784999936,
+   "end": 1793921132785443840,
+   "attributes": {}
+  },
+  {
+   "source": "aws/spans",
+   "traceId": "6aed106c49e9ac350aaa13fd1ba0cb04",
+   "name": "Overhead/LambdaExecutionEnvironment",
+   "service": "Overhead",
+   "spanId": "1af194d97995281f",
+   "parentSpanId": "0ab11e32fa2c6fbb",
+   "kind": "INTERNAL",
+   "status": {
+    "code": "UNSET"
+   },
+   "start": 1793921132812000000,
+   "end": 1793921132812488960,
+   "attributes": {}
+  }
+ ]
+}

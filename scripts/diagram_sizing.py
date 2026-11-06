@@ -32,6 +32,12 @@ BOOST = int(os.environ.get("DIAGRAM_FONT_BOOST", "0"))
 _LINE_RATIO = 2.1  # was 1.4; the extra headroom keeps 3-line labels inside their boxes at the boost, where 1.4 left them bleeding onto the cluster border
 
 
+# Extra height under the icon. The fonts graphviz resolves "Sans" to after the
+# 2026-11 system upgrade sit taller, and without this the first label line
+# overlaps the bottom of the icon at boost 0 too.
+_LABEL_GAP = 0.25
+
+
 def fs(size):
     """Font size with the boost applied, as graphviz wants it, a string."""
     return str(int(size) + BOOST)
@@ -39,7 +45,7 @@ def fs(size):
 
 def node_height(lines=1):
     """Node height in inches that holds `lines` of label at the boosted font."""
-    return str(round(1.9 + 0.4 * (lines - 1) + lines * BOOST * _LINE_RATIO / 72, 2))
+    return str(round(1.9 + _LABEL_GAP + 0.4 * (lines - 1) + lines * BOOST * _LINE_RATIO / 72, 2))
 
 
 def cluster_margin(base=25):
