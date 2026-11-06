@@ -81,12 +81,12 @@ runtime's own log groups where IAM allows it:
 policy simulator denies it written that way. It lists log group names and
 settings, never their contents.
 
-NOTE: spans only reach CloudWatch once CloudWatch Transaction Search is
-enabled. It is a setting for the whole account and Region rather than for
-one agent, so it is not part of this demo's Terraform. The demo's README
-has the three commands that enable it, and
-`aws xray get-trace-segment-destination` shows `CloudWatchLogs` and
-`ACTIVE` when it is on.
+> NOTE: spans only reach CloudWatch once CloudWatch Transaction Search is
+> enabled. It is a setting for the whole account and Region rather than for
+> one agent, so it is not part of this demo's Terraform. The demo's README
+> has the three commands that enable it, and
+> `aws xray get-trace-segment-destination` shows `CloudWatchLogs` and
+> `ACTIVE` when it is on.
 
 ## 2 - Keeping the turn in the runtime's trace
 

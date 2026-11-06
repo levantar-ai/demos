@@ -59,11 +59,17 @@ Enter
 Wait
 Sleep 5s
 
+# CloudWatch takes a minute or so to index the turn's spans. Waiting off
+# camera means show_trace finds them all at once instead of polling on screen.
+Hide
+Sleep 90s
+Show
+
 Type "# the trace tells the operator the rest: every model call, the gateway's Cedar check, the sandbox and the memory, found by the session id"
 Enter
 Sleep 1s
 
-Type `clear; python3 show_trace.py "$RUNTIME_LOGS" "$SESSION" "$REGION"`
+Type `python3 show_trace.py "$RUNTIME_LOGS" "$SESSION" "$REGION"`
 Enter
 Wait
 Sleep 8s

@@ -1,7 +1,7 @@
 """Print one turn of the agent readably: the trail the model took, then its answer.
 
 Reads the runtime's JSON response on stdin. Used by demo.tape so the video
-shows the model's choices as a short list rather than a wall of JSON.
+shows the tools the model called and its answer, not the code or the JSON.
 """
 
 import json
@@ -21,22 +21,8 @@ if "error" in turn:
     sys.exit(0)
 
 for i, step in enumerate(turn.get("trail", []), 1):
-    args = step.get("input", {})
-    if step["tool"] == "run_python":
-        code = args.get("code", "")
-        lines = code.strip().splitlines()
-        shown = "\n".join(f"      {line}" for line in lines[:8])
-        if len(lines) > 8:
-            shown += f"\n      ... ({len(lines) - 8} more lines)"
-        print(f"  {i}. run_python  [{step.get('status', '?')}]\n{shown}")
-        if step.get("output"):
-            printed = step["output"].strip().splitlines()
-            print("      printed:")
-            print("\n".join(f"        {line}" for line in printed[:8]))
-            if len(printed) > 8:
-                print(f"        ... ({len(printed) - 8} more lines)")
-    else:
-        print(f"  {i}. {step['tool']}({json.dumps(args)})  [{step.get('status', '?')}]")
+    # Post 07's video is about the trace, so the turn is only the tools and the answer.
+    print(f"  {i}. {step['tool']}  [{step.get('status', '?')}]")
     if step.get("error"):
         print(f"      {step['error']}")
 if turn.get("restated"):
@@ -44,4 +30,4 @@ if turn.get("restated"):
 if turn.get("unsupported_figures"):
     print(f"  figures in the answer no tool printed: {', '.join(turn['unsupported_figures'])}")
 print()
-print(turn.get("result", ""))
+print(turn.get("result", "").replace("**", ""))
