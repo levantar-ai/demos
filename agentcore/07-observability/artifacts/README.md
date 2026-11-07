@@ -263,3 +263,39 @@ rather than OpenTelemetry's. All done. Its scope notes (sampling and cost,
 alarms, exporter reliability, governance at scale) are left to later
 posts, and the `null_resource` having no retry for a log group the
 service has not created yet has not happened in four applies.
+
+## Review round 5, `scripts/review-post.py`
+
+The first run of the repo's review script, at reasoning effort high, on
+the live post after round 4. Round 4's fixes had shipped without a further
+review. Its two outputs are `review-defects.md` and `review-reader.md`
+beside this file, overwritten by each run.
+
+Fixed in the post.
+
+- The token exchange cost about eight extra seconds, not six. The failed
+  call took 6.1 s and the agent waits 2 s before retrying.
+- The trace holds no `InvokeAgentRuntime` span, so the post no longer says
+  it runs across the runtime. The spans join the runtime's trace context.
+- The sandbox appears only as the agent's own client spans, because the
+  demo does not turn on Code Interpreter's service spans. The post says so.
+- Where the exchange loses the trace context is not proven, so the post
+  says it is lost between AgentCore Identity and the exchange.
+- The botocore spans cover the agent's own AWS calls, not every AWS call.
+- The runtime role holds `logs:PutResourcePolicy` for trace delivery, so
+  section 7 no longer says the role cannot change anything about its logs.
+
+Not acted on. The defects pass flagged the exchange sending the subject
+token in Cognito `ClientMetadata`, which is post 05's documented demo
+compromise and outside this post. The reader pass's scope notes (cost and
+sampling, alarms, a baggage allowlist, governance) and reproduction notes
+(Transaction Search delay, arm64 builds, the `null_resource` retry) are
+left as they were in round 4.
+
+## Review round 6, confirming
+
+The defects pass found nothing ("ready to publish"). The reader pass found
+one wrong claim, that Strands has its own redaction, and section 7 now says
+to strip the conversation with a redaction library or at a collector. Its
+other points ask for hedges the post already makes (the likely cause, the
+exchange and sandbox outside the trace) or are scope, and are left there.

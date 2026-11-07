@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Tracing an AgentCore agent, one turn at a time — Levantar Demos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace, across the model calls, the gateway's Cedar check, the orders Lambda, the sandbox and the memory, and every span the agent starts carries the conversation's session id. The chang">
+<meta name="description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace, across the model calls, the gateway's Cedar check, the orders Lambda, the sandbox calls and the memory, and every span the agent starts carries the conversation's session id. The">
 <link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-07-observability/">
 <meta name="author" content="Andy Rea">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -12,7 +12,7 @@
 <meta property="og:site_name" content="Levantar">
 <meta property="og:locale" content="en_GB">
 <meta property="og:title" content="Tracing an AgentCore agent, one turn at a time">
-<meta property="og:description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace, across the model calls, the gateway's Cedar check, the orders Lambda, the sandbox and the memory, and every span the agent starts carries the conversation's session id. The chang">
+<meta property="og:description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace, across the model calls, the gateway's Cedar check, the orders Lambda, the sandbox calls and the memory, and every span the agent starts carries the conversation's session id. The">
 <meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-07-observability/social.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -23,7 +23,7 @@
 <meta property="article:section" content="Engineering">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Tracing an AgentCore agent, one turn at a time">
-<meta name="twitter:description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace, across the model calls, the gateway's Cedar check, the orders Lambda, the sandbox and the memory, and every span the agent starts carries the conversation's session id. The chang">
+<meta name="twitter:description" content="The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace, across the model calls, the gateway's Cedar check, the orders Lambda, the sandbox calls and the memory, and every span the agent starts carries the conversation's session id. The">
 <meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-07-observability/social.png">
 <meta name="twitter:image:alt" content="Tracing an AgentCore agent, one turn at a time">
 <link rel="icon" type="image/png" href="../favicon.png">
@@ -32,7 +32,7 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "Tracing an AgentCore agent, one turn at a time",
-  "description": "The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace, across the model calls, the gateway's Cedar check, the orders Lambda, the sandbox and the memory, and every span the agent starts carries the conversation's session id. The chang",
+  "description": "The order support agent from post 06 now sends OpenTelemetry traces to CloudWatch. One customer's turn becomes one trace, across the model calls, the gateway's Cedar check, the orders Lambda, the sandbox calls and the memory, and every span the agent starts carries the conversation's session id. The",
   "image": "https://levantar-ai.github.io/demos/agentcore-07-observability/social.png",
   "datePublished": "2026-11-06",
   "dateModified": "2026-11-06",
@@ -203,7 +203,7 @@
 <h2>TL;DR;</h2>
 <p>The order support agent from post 06 now sends OpenTelemetry traces to
 CloudWatch. One customer's turn becomes one trace, across the model calls,
-the gateway's Cedar check, the orders Lambda, the sandbox and the memory,
+the gateway's Cedar check, the orders Lambda, the sandbox calls and the memory,
 and every span the agent starts carries the conversation's session id. The
 change is a package, a start command, about twenty lines of Python and log
 deliveries for the gateway and the memory. On the first live run the trace
@@ -224,7 +224,7 @@ took, what the model was sent and what it said back. That is what AgentCore
 Observability gives you. The runtime starts a trace for every request, the
 agent's spans and the gateway's and the memory's join it, and CloudWatch
 shows the turn as one trace. Nothing the agent does changes in this post.</p>
-<p><img alt="The agent of post 06, traced, one turn is one trace across the runtime, the gateway and the memory" src="architecture.png" /></p>
+<p><img alt="The agent of post 06, traced, one turn is one trace across the agent, the gateway and the memory" src="architecture.png" /></p>
 <video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
 <h2>1 - Sending the spans</h2>
 <p>The runtime injects the OpenTelemetry settings into the container. What
@@ -236,7 +236,7 @@ CMD [&quot;opentelemetry-instrument&quot;, &quot;python&quot;, &quot;main.py&quo
 </code></pre>
 <p>From then on Strands Agents emits a span for the agent, each event loop
 cycle, each model call and each tool, and the botocore and MCP
-instrumentation emit one for every AWS call and MCP request. The runtime
+instrumentation emit one for each AWS call and MCP request the agent makes. The runtime
 role gains the log and X-Ray permissions the AgentCore runtime permissions
 page lists for observability.</p>
 <blockquote>
@@ -313,9 +313,11 @@ trace of that turn, drawn from the spans CloudWatch stored.</p>
 <li>The model wrote pandas and asked for <code>run_python</code>, which the sandbox ran.</li>
 <li>The model answered, and the agent made one more model call to restate it.</li>
 </ul>
-<p>The exchange's own Lambdas are not in this trace. AgentCore Identity calls
-them without passing on the trace context, so their spans are in traces of
-their own, found by time rather than by id.</p>
+<p>The exchange's own Lambdas are not in this trace. The trace context is lost
+somewhere between AgentCore Identity and the exchange, so their spans are in
+traces of their own, found by time rather than by id. The sandbox shows only
+the agent's own calls to it, as the demo does not turn on Code Interpreter's
+service spans.</p>
 <h2>5 - Finding a turn by its session</h2>
 <p>With <code>session.id</code> on every span the agent starts, a conversation can be
 pulled out of the runtime's log group with Logs Insights. This counts each
@@ -350,8 +352,9 @@ post 05 built after 6.1 s, with <code>HTTP request failed against Token
 endpoint</code>, and the agent's retry took 0.6 s. The exchange's own spans,
 found beside the trace by time, show its Lambda and Cognito triggers
 starting cold. It happened again after the stack sat idle for 25 minutes,
-so cold starts are the likely cause. The customer saw no error, only six
-extra seconds, and the traces show where they went.</p>
+so cold starts are the likely cause. The customer saw no error, only about
+eight extra seconds, 6.1 s for the failed call and the agent's 2 s pause
+before retrying, and the traces show where they went.</p>
 <p>The second is the extra model call. The first answer ended "across 7
 orders", but the model's code never printed a count, so post 06's figure
 check asked for a restatement, which dropped it. The 7 was right. It just
@@ -364,8 +367,9 @@ That is what makes the trace useful, and it means the logs hold the system
 prompt, the customer's question, their orders and every answer. Treat them
 as you would the order data.</p>
 <p>The demo's log groups are encrypted with its KMS key and kept for seven
-days, and the runtime's role can write its logs but not read, delete or
-change them. The gateway's, the memory's and the Lambda's spans go to the
+days. The runtime's role can write its logs but not read or delete them or
+change their retention or key. It can set the log resource policy that trace
+delivery needs. The gateway's, the memory's and the Lambda's spans go to the
 account's <code>aws/spans</code> log group instead, which holds attributes such as
 the tool and the Cedar decision rather than the conversation.</p>
 <p>The NCSC's guidance on managing the cyber risk of agentic AI makes the
@@ -373,8 +377,8 @@ same point. It wants agent transcripts and traces collected, warns that
 they "may contain sensitive data", and asks for them to be protected from
 change or deletion. Here that means personal data, so before real
 customers use it, decide who may read these logs, consider an immutable
-archive, and use Strands' redaction where a trace without the conversation
-is enough.</p>
+archive, and strip the conversation with a redaction library or at a
+collector where a trace without it is enough.</p>
 <h2>Conclusion</h2>
 <p>Tracing an AgentCore agent takes very little. The container starts under
 ADOT, the handler joins the trace the runtime started, and the gateway and

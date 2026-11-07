@@ -247,7 +247,8 @@
     "fullmatch",
     "apologise",
     "recognisable",
-    "unrecognised"
+    "unrecognised",
+    "loadr"
   ],
   "ignorePaths": [
     "node_modules/**",
@@ -263,6 +264,7 @@
     "**/dist/**",
     "levantar-d3/catalog/logo.js",
     "docs/levantar-d3/catalog/logo.js",
-    "**/artifacts/turns/**"
+    "**/artifacts/turns/**",
+    "**/artifacts/review-*.md"
   ]
 }
