@@ -4,7 +4,7 @@
 
 The order support agent from post 06 now sends OpenTelemetry traces to
 CloudWatch. One customer's turn becomes one trace, across the model calls,
-the gateway's Cedar check, the orders Lambda, the sandbox and the memory,
+the gateway's Cedar check, the orders Lambda, the sandbox calls and the memory,
 and every span the agent starts carries the conversation's session id. The
 change is a package, a start command, about twenty lines of Python and log
 deliveries for the gateway and the memory. On the first live run the trace
@@ -28,7 +28,7 @@ Observability gives you. The runtime starts a trace for every request, the
 agent's spans and the gateway's and the memory's join it, and CloudWatch
 shows the turn as one trace. Nothing the agent does changes in this post.
 
-![The agent of post 06, traced, one turn is one trace across the runtime, the gateway and the memory](architecture.png)
+![The agent of post 06, traced, one turn is one trace across the agent, the gateway and the memory](architecture.png)
 
 ## 1 - Sending the spans
 
@@ -44,7 +44,7 @@ CMD ["opentelemetry-instrument", "python", "main.py"]
 
 From then on Strands Agents emits a span for the agent, each event loop
 cycle, each model call and each tool, and the botocore and MCP
-instrumentation emit one for every AWS call and MCP request. The runtime
+instrumentation emit one for each AWS call and MCP request the agent makes. The runtime
 role gains the log and X-Ray permissions the AgentCore runtime permissions
 page lists for observability.
 
@@ -135,9 +135,11 @@ trace of that turn, drawn from the spans CloudWatch stored.
 - The model wrote pandas and asked for `run_python`, which the sandbox ran.
 - The model answered, and the agent made one more model call to restate it.
 
-The exchange's own Lambdas are not in this trace. AgentCore Identity calls
-them without passing on the trace context, so their spans are in traces of
-their own, found by time rather than by id.
+The exchange's own Lambdas are not in this trace. The trace context is lost
+somewhere between AgentCore Identity and the exchange, so their spans are in
+traces of their own, found by time rather than by id. The sandbox shows only
+the agent's own calls to it, as the demo does not turn on Code Interpreter's
+service spans.
 
 ## 5 - Finding a turn by its session
 
@@ -187,8 +189,9 @@ post 05 built after 6.1 s, with `HTTP request failed against Token
 endpoint`, and the agent's retry took 0.6 s. The exchange's own spans,
 found beside the trace by time, show its Lambda and Cognito triggers
 starting cold. It happened again after the stack sat idle for 25 minutes,
-so cold starts are the likely cause. The customer saw no error, only six
-extra seconds, and the traces show where they went.
+so cold starts are the likely cause. The customer saw no error, only about
+eight extra seconds, 6.1 s for the failed call and the agent's 2 s pause
+before retrying, and the traces show where they went.
 
 The second is the extra model call. The first answer ended "across 7
 orders", but the model's code never printed a count, so post 06's figure
@@ -205,8 +208,9 @@ prompt, the customer's question, their orders and every answer. Treat them
 as you would the order data.
 
 The demo's log groups are encrypted with its KMS key and kept for seven
-days, and the runtime's role can write its logs but not read, delete or
-change them. The gateway's, the memory's and the Lambda's spans go to the
+days. The runtime's role can write its logs but not read or delete them or
+change their retention or key. It can set the log resource policy that trace
+delivery needs. The gateway's, the memory's and the Lambda's spans go to the
 account's `aws/spans` log group instead, which holds attributes such as
 the tool and the Cedar decision rather than the conversation.
 
@@ -215,8 +219,8 @@ same point. It wants agent transcripts and traces collected, warns that
 they "may contain sensitive data", and asks for them to be protected from
 change or deletion. Here that means personal data, so before real
 customers use it, decide who may read these logs, consider an immutable
-archive, and use Strands' redaction where a trace without the conversation
-is enough.
+archive, and strip the conversation with a redaction library or at a
+collector where a trace without it is enough.
 
 ## Conclusion
 
