@@ -24,7 +24,7 @@ chose in that one turn.
 
 An operator needs every turn, for every customer, with how long each step
 took, what the model was sent and what it said back. That is what AgentCore
-Observability gives you. The runtime starts a trace for every request, the
+Observability gives you. The runtime starts a trace for every sampled request, the
 agent's spans and the gateway's and the memory's join it, and CloudWatch
 shows the turn as one trace. Nothing the agent does changes in this post.
 
@@ -87,6 +87,10 @@ groups a conversation's turns in CloudWatch and what you query them by.
 The botocore and MCP spans carry the trace context on to the gateway and
 the memory, so their spans join the same trace. The memory's carry the
 session id as well. The gateway's join by the trace id alone.
+
+With the SDK's `BedrockAgentCoreApp` the header reading is done for you.
+It is built on Starlette, which ADOT instruments. `traced()` exists because
+this series kept post 01's hand-written server.
 
 ## 3 - The gateway and the memory
 
@@ -214,13 +218,16 @@ delivery needs. The gateway's, the memory's and the Lambda's spans go to the
 account's `aws/spans` log group instead, which holds attributes such as
 the tool and the Cedar decision rather than the conversation.
 
-The NCSC's guidance on managing the cyber risk of agentic AI makes the
+The NCSC's interim advice on managing the cyber risk of agentic AI makes the
 same point. It wants agent transcripts and traces collected, warns that
 they "may contain sensitive data", and asks for them to be protected from
 change or deletion. Here that means personal data, so before real
 customers use it, decide who may read these logs, consider an immutable
-archive, and strip the conversation with a redaction library or at a
-collector where a trace without it is enough.
+archive, and redact where a trace without the conversation is enough.
+There is no collector to do it on the runtime, so it happens in the agent.
+ADOT's `AWS_REDACT_SPAN_ATTRIBUTES` takes a list of attribute names and
+replaces their values before export, before the content is moved to the
+logs, so it never leaves the container.
 
 ## Conclusion
 
