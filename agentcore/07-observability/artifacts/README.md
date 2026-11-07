@@ -299,3 +299,25 @@ one wrong claim, that Strands has its own redaction, and section 7 now says
 to strip the conversation with a redaction library or at a collector. Its
 other points ask for hedges the post already makes (the likely cause, the
 exchange and sandbox outside the trace) or are scope, and are left there.
+
+## Review round 7, after a second outside read
+
+An outside ChatGPT read of the live post recommended `BedrockAgentCoreApp`
+for new agents and ADOT's `AWS_REDACT_SPAN_ATTRIBUTES` for redaction. Both
+were checked in the package source before going in. In ADOT 0.22.0 the
+redacting span processor is registered ahead of the batch processor whose
+exporter moves content to the log records, so the logs get the redacted
+values. In bedrock-agentcore 1.24.0 `BedrockAgentCoreApp` subclasses
+Starlette, which ADOT instruments.
+
+The defects pass found nothing. The reader pass caught one error in the
+new text, that the SDK's own baggage processor copies `session.id`. It
+stamps only the routing experiment attributes; ADOT's processor does the
+copy, as section 2 already said. The sentence now claims only the header
+reading. It also noted that the runtime skips spans for requests an
+upstream marks unsampled, so "every request" is now "every sampled
+request". Its other points repeat round 6's hedges and scope notes.
+
+Round 8 confirmed: defects pass "ready to publish", reader pass found no
+material error. The NCSC post is now called interim advice, as NCSC
+describes it, rather than guidance.

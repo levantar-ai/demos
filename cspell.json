@@ -248,7 +248,8 @@
     "apologise",
     "recognisable",
     "unrecognised",
-    "loadr"
+    "loadr",
+    "Starlette"
   ],
   "ignorePaths": [
     "node_modules/**",

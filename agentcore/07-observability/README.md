@@ -238,6 +238,12 @@ from `artifacts/trace-turn-1.json`, the spans the live run recorded.
   contains `gen_ai_unredacted_attributes=` with an empty list. This demo
   keeps the content, because it is what makes a trace useful for an agent,
   and treats the log groups that hold it as customer data.
+- ADOT's `AWS_REDACT_SPAN_ATTRIBUTES` (a comma-separated list, `*`
+  wildcards allowed) replaces matching span, event and link attribute
+  values with `REDACTED`. ADOT 0.22 registers it ahead of the exporter
+  that moves the content to `otel-rt-logs`, so the logs get the redacted
+  values. The names to list depend on which GenAI conventions Strands
+  emits; check a span before relying on a list.
 - The runtime's spans go to its own log group's `spans` stream, the default
   for runtimes created now; older runtimes send them to `aws/spans`.
 - The token exchange's Lambdas trace into traces of their own. AgentCore
