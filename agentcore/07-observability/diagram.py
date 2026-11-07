@@ -42,7 +42,7 @@ edge_attr = {"fontsize": _fs(12), "fontcolor": "#4a5158"}
 # as one trace.
 
 with Diagram(
-    "The agent of post 06, traced: one turn is one trace across the runtime, the gateway and the memory",
+    "The agent of post 06, traced: one turn is one trace across the agent, the gateway and the memory",
     filename=os.environ.get("DIAGRAM_OUT", "architecture"),
     outformat="png",
     show=False,

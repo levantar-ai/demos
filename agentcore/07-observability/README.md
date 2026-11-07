@@ -3,9 +3,9 @@
 Demo 06's agent with AgentCore Observability turned on. Nothing the agent
 does changes; the model, the tools, the identity chain and the Cedar policy
 are demo 06's. What changes is that every turn is now one OpenTelemetry
-trace in CloudWatch, across the runtime, each model call, the gateway's
-inbound auth and Cedar decision, the orders Lambda, the Code Interpreter
-and the memory, with the conversation's session id on every span the agent
+trace in CloudWatch, joined to the runtime's trace context, across each
+model call, the gateway's inbound auth and Cedar decision, the orders
+Lambda, the agent's Code Interpreter calls and the memory, with the conversation's session id on every span the agent
 starts and on the memory's.
 
 Three things make that happen.
