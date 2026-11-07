@@ -249,7 +249,8 @@
     "recognisable",
     "unrecognised",
     "loadr",
-    "Starlette"
+    "Starlette",
+    "unsampled"
   ],
   "ignorePaths": [
     "node_modules/**",
