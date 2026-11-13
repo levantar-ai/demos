@@ -18,6 +18,8 @@ triggers added on top.
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity
 
+<!-- -->
+
 > NOTE: since this post was published, Amazon Cognito has added OAuth 2.0
 > token exchange itself, which does the job of this post's front door,
 > exchange pool and triggers. What it removes, and what caught us out when
