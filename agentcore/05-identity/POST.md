@@ -18,6 +18,12 @@ triggers added on top.
 > SOURCE CODE - All code for this post is available at:
 > https://github.com/levantar-ai/demos/tree/main/agentcore/05-identity
 
+> NOTE: since this post was published, Amazon Cognito has added OAuth 2.0
+> token exchange itself, which does the job of this post's front door,
+> exchange pool and triggers. What it removes, and what caught us out when
+> we ran it behind AgentCore Identity, is in
+> https://levantar.ai/insights/cognito-token-exchange.html
+
 **Be warned that this post is a step up from the four before it. Each of
 those centred on one AgentCore capability and a small change to the agent's
 code. This one adds a workload identity, a credential provider, a
