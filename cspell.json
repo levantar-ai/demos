@@ -252,7 +252,8 @@
     "Starlette",
     "unsampled",
     "redactions",
-    "tokenx"
+    "tokenx",
+    "Noto"
   ],
   "ignorePaths": [
     "node_modules/**",
