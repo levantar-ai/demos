@@ -250,7 +250,9 @@
     "unrecognised",
     "loadr",
     "Starlette",
-    "unsampled"
+    "unsampled",
+    "redactions",
+    "tokenx"
   ],
   "ignorePaths": [
     "node_modules/**",

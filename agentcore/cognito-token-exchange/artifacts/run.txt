@@ -1,0 +1,18 @@
+customer's own token {"username": "c-1000", "client_id": "<customer client>", "scope": "aws.cognito.signin.user.admin", "lifetime_s": 3600, "exp": 1794658428}
+
+AgentCore Identity, impersonation {"username": "c-1000", "client_id": "<agent client>", "aud": "orders", "lifetime_s": 3597, "exp": 1794658427}
+  expires no later than the customer's token: True
+
+AgentCore Identity, delegation {"username": "c-1000", "client_id": "<agent client>", "aud": "orders", "act": {"sub": "<agent client>", "client_id": "<agent client>", "iss": "https://cognito-idp.us-east-1.amazonaws.com/<pool>", "token_type": "urn:ietf:params:oauth:token-type:access_token"}, "lifetime_s": 3596, "exp": 1794658427}
+  expires no later than the customer's token: True
+
+Refused
+  AgentCore without the subject token type: Token exchange failed with HTTP status 400
+  token endpoint, subject typed as a generic JWT: 400 {"error": "invalid_request", "error_description": "Unsupported token type: urn:ietf:params:oauth:token-type:jwt"}
+  token endpoint, asking for orders/read: 400 {"error": "invalid_request"}
+
+deleted provider demos-tokenx-5c0035a2-impersonation
+deleted provider demos-tokenx-5c0035a2-delegation
+deleted workload identity
+deleted domain
+deleted pool
