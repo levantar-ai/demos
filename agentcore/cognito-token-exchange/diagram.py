@@ -48,6 +48,7 @@ with Diagram(
     edge_attr=edge_attr,
 ):
     customer = User("customer\n(Bearer JWT)", height=_h(2))
+    sign_in = Cognito("customer pool", height=_h(1))
 
     with Cluster(
         "AgentCore Runtime (the test called AgentCore Identity directly)",
@@ -62,7 +63,7 @@ with Diagram(
     ):
         identity = Bedrock("workload identity,\nOBO credential provider,\nToken Vault", height=_h(3))
 
-    cognito = Cognito("customer pool\nsign in, and RFC 8693\nexchange, Cognito mints", height=_h(3))
+    cognito = Cognito("the same customer pool,\ntoken endpoint,\nCognito mints", height=_h(3))
 
     with Cluster(
         "AgentCore Gateway, trusts the customer pool, Cedar per call (not yet run)",
@@ -74,6 +75,7 @@ with Diagram(
 
     orders = Lambda("orders\n(not yet run)", height=_h(2))
 
+    customer >> Edge(label="sign in", style="dashed") >> sign_in
     customer >> Edge(label="invoke\n(Bearer JWT)") >> rt_auth
     rt_auth >> Edge(label="validated") >> agent
 
