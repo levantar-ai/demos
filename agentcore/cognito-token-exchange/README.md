@@ -77,6 +77,8 @@ AgentCore Identity calls.
 
 ## The diagram
 
-`diagram.py` draws [after.png](after.png), the post 05 architecture on
-Cognito's exchange. The before is
-[post 05's architecture.png](../05-identity/architecture.png).
+[removed.png](removed.png) is post 05's published architecture with the part
+Cognito's exchange removes, the front door and the exchange pool, marked in
+red. `highlight.py` draws it over
+[post 05's architecture.png](../05-identity/architecture.png), which it reads
+unchanged.
