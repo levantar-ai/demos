@@ -180,7 +180,7 @@ sandbox, and the response carries the trail and the answer, which ends:
   1. orders___list_orders  [success]
   2. run_python  [success]
 
-Your biggest month was February with £310.50, and you've spent £743.80 with us this year in total.
+February was your biggest month at £310.50, and you've spent £743.80 with us in total this year so far.
 ```
 
 The trace is the part worth checking, since the code that joined it is
@@ -194,10 +194,10 @@ filter @logStream = "spans" and `attributes.session.id` = "<session id>"
 
 ```
 traceId                           spans
-6b015f451fa5d85d54880d7d4466490b     46
-6b015f5b17f98a264b2eb19c67e4ca3c     29
-6b015f444a7d8c596a6017e17a676515      1
-6b015f4301387ac35efa0cfa34dc6593      1
+6b01627036507ced237502267b61cf9f     39
+6b0162845c93c80e455326066fd8860a     29
+6b01626f756f1300794326274ca3a66c      1
+6b01626e48d0bbb548e8dd7f02797579      1
 ```
 
 The first two are the conversation's two turns, each one trace. A second

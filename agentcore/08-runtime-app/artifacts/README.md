@@ -12,8 +12,9 @@ from demo 07.
 - Image `d82d5a1` replaced it after the review below, the commit the
   agent's code was last changed in. It pins `starlette==1.10.0` and
   `uvicorn==0.54.0`, the versions `pip freeze` showed in `63fdeeb`. The
-  same apply replaced the exchange's service user password. The run and
-  the video below are on this image.
+  same apply replaced the exchange's service user password.
+- Image `ab16cfa` replaced that after the confirming review, with the
+  body deadline fix. The run and the video below are on this image.
 - Runtime `demos_agentcore_08_runtime_app-7z6lIhGqpQ`, log group
   `/aws/bedrock-agentcore/runtimes/demos_agentcore_08_runtime_app-7z6lIhGqpQ-DEFAULT`.
 
@@ -28,10 +29,11 @@ question, after three requests that should be refused.
 | No token | 401 from the runtime, `Missing Authentication Token`. It never reaches the container |
 | Blank prompt, valid token | The agent's 400, returned to the client as the runtime's 424 `Received error (400) from runtime` |
 | Body that is not JSON, valid token | The SDK's 400, returned the same way |
-| Spending by month | 200. Trail `orders___list_orders`, `run_python`, restated once by the figure check. January £250.00, February £310.50, June £70.00, July £113.30, total £743.80 |
+| Spending by month | 200. Trail `orders___list_orders`, `run_python`. January £250.00, February £310.50, June £70.00, July £113.30, total £743.80 |
 | Most used carrier | 200. Trail `run_python`. DPD 6 orders, Royal Mail 3 |
 
-The same five requests on `63fdeeb` gave the same statuses and figures.
+The same five requests on `63fdeeb` and on `d82d5a1` gave the same
+statuses and figures.
 
 ## What the traces showed
 
@@ -40,10 +42,10 @@ conversation's session id.
 
 | Trace | Spans | What it is |
 |---|---|---|
-| `6b015f451fa5d85d54880d7d4466490b` | 46 | Turn 1 |
-| `6b015f5b17f98a264b2eb19c67e4ca3c` | 29 | Turn 2 |
-| `6b015f444a7d8c596a6017e17a676515` | 1 | Refused request, 400 |
-| `6b015f4301387ac35efa0cfa34dc6593` | 1 | Refused request, 400 |
+| `6b01627036507ced237502267b61cf9f` | 39 | Turn 1 |
+| `6b0162845c93c80e455326066fd8860a` | 29 | Turn 2 |
+| `6b01626f756f1300794326274ca3a66c` | 1 | Refused request, 400 |
+| `6b01626e48d0bbb548e8dd7f02797579` | 1 | Refused request, 400 |
 
 - No span in those traces is without `attributes.session.id`. A second
   query, `traceId in [...] and not ispresent(attributes.session.id)`,
@@ -115,3 +117,34 @@ Recorded, not acted on:
   05's design, described there, and not changed by this post.
 - Production scope the reader pass listed: fleet-wide admission control, a
   defined error envelope and retry policy, graceful shutdown, streaming.
+
+## Review round 2, confirming
+
+Both passes again, on `d82d5a1`. The reader pass found no material
+technical errors.
+
+Acted on:
+
+- `timely()` gave every read of the body a fresh 30 seconds, so a body
+  sent a little at a time could hold a slot for as long as it liked. It is
+  one deadline for the whole body now, with a test that sends a byte at a
+  time.
+- "The SDK does not bound a request" is now that it adds no bounds of its
+  own below the runtime's 100 MB payload limit, and the health check
+  sentence claims less.
+
+Recorded, not acted on:
+
+- The two demo 05 design points above, raised again.
+- The agent relies on the runtime sending `session.id` in the baggage,
+  which the post says is observed and not documented. A production agent
+  that needs the attribute whatever the platform does should set it from
+  `context.session_id`.
+- The middleware requires `Content-Length`, which the runtime sends. The
+  runtime's contract does not promise it.
+- A caller of the deployed agent sees 424 for every refusal, so retrying
+  on overload needs its own rule. No turn-level deadline, admission
+  metrics or streaming path, all out of this post's scope.
+
+No further round. The fix above was redeployed and the run and video
+repeated on it.
