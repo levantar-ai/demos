@@ -246,10 +246,14 @@ class Admitted:
 
 
 def timely(receive):
-    """The request's receive, with each read of the body given BODY_READ_SECONDS."""
+    """The request's receive, with BODY_READ_SECONDS for the whole body. One
+    deadline from the first read, so a body sent a little at a time cannot
+    keep starting the clock again."""
+    deadline = asyncio.get_running_loop().time() + BODY_READ_SECONDS
+
     async def read():
         try:
-            return await asyncio.wait_for(receive(), BODY_READ_SECONDS)
+            return await asyncio.wait_for(receive(), max(deadline - asyncio.get_running_loop().time(), 0))
         except asyncio.TimeoutError:
             raise HTTPException(408, "request body timed out") from None
     return read

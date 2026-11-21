@@ -1,53 +1,42 @@
 # reader pass, gpt-5.6-sol
 
-I checked the post against AWS documentation, the pinned `bedrock-agentcore` 1.24.0 source implied by post 07, OpenTelemetry, and Uvicorn documentation.
-
 ## 1. Claims that are wrong
 
-- **Application status codes are not preserved for normal Runtime invocations.** The post says returning a Starlette response is how `401`, `413`, `503`, and `502` refusals reach the client. Through `InvokeAgentRuntime`, however, any container `4xx` or `5xx` becomes **HTTP 424 `RuntimeClientError`**. This also means the proposed busy `503` does not retain its normal retry semantics. Application status/body pass-through applies to session endpoints, not the ordinary invocation API. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html))
+**No material technical errors found.** The main claims match the pinned SDK behavior:
 
-- **The middleware is not a reliable 2 MiB body limit.** It checks only the declared `Content-Length`, then lets Starlette read the stream. Uvicorn ignores `Content-Length` when `Transfer-Encoding` is present, so a chunked body accompanied by a small `Content-Length` can bypass this check; a legitimate chunked request without `Content-Length` is rejected. A real ASGI limit must count bytes while wrapping `receive()`. ([github.com](https://github.com/Kludex/uvicorn/blob/main/docs/server-behavior.md?utm_source=openai))
+- `BedrockAgentCoreApp` provides `/invocations` and `/ping`, requires the second parameter to be named `context`, passes through Starlette responses, and defaults to loopback outside detected containers. ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/v1.24.0/src/bedrock_agentcore/runtime/app.py))
+- Synchronous handlers run in a thread pool with copied context; asynchronous handlers use a worker event loop with restored context. ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/v1.24.0/src/bedrock_agentcore/runtime/app.py))
+- Escaped non-streaming exceptions are logged with a traceback and returned with `str(exception)` in a 500 response. ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/main/src/bedrock_agentcore/runtime/app.py))
+- Runtime converts container 4xx/5xx responses to `424 RuntimeClientError`, and microVM runtimes isolate sessions in dedicated environments. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html?trk=article-ssr-frontend-pulse_little-text-block))
 
-- **“Two things the hand-written server did” omits its read timeout.** Post 07’s server sets a 30-second socket timeout specifically so an incomplete body cannot occupy an admitted slot indefinitely. The replacement shown has no corresponding body-read timeout; Uvicorn’s documented default timeout is only for idle keep-alive periods between requests. ([raw.githubusercontent.com](https://raw.githubusercontent.com/levantar-ai/demos/main/agentcore/07-observability/agent/main.py))
+## 2. Claims stronger than the shown evidence supports
 
-- **The plain-`python main.py` tracing note is misleading.** Without `opentelemetry-instrument`, auto-instrumentation does not load the distro, configurators, or instrumentors. Unless some other code configures an OTel provider/exporter, Strands’ tracer is a no-op—not merely a separate trace. ([github.com](https://github.com/open-telemetry/opentelemetry-python-contrib/blob/main/opentelemetry-instrumentation/src/opentelemetry/instrumentation/auto_instrumentation/__init__.py))
+- **“The SDK does not bound a request” needs qualification.** The SDK adds no application-specific body, concurrency or body-read timeout, and Uvicorn’s concurrency limit defaults to unset. But AgentCore Runtime still imposes a 100 MB payload ceiling and a 15-minute synchronous request timeout. Better: “The SDK adds no lower application-level bounds by default.” ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/main/src/bedrock_agentcore/runtime/app.py))
+- **“The session id needs no code” is demonstrated, not contractual.** AWS’s documented method is to put `session.id` in OTel baggage; ADOT then promotes that baggage key to span attributes. The post correctly labels Runtime’s apparent injection as undocumented, but deleting the explicit setter makes the result dependent on observed platform behavior. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-configure.html))
+- **Health-check responsiveness is not absolute.** Thread offloading prevents ordinary blocking I/O from occupying Starlette’s event loop, but CPU saturation, GIL-heavy work or thread-pool exhaustion can still delay `/ping`. ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/v1.24.0/src/bedrock_agentcore/runtime/app.py))
+- **The query output does not prove all the tracing conclusions stated.** It proves trace counts grouped by `session.id`; it does not, as printed, establish the `POST /invocations` span’s parent, identify downstream resources, or show that Gateway, Lambda and Memory share the trace. Those require fields such as `parentSpanId`, span name and resource attributes.
 
-## 2. Claims stronger than the post’s evidence supports
+## 3. What a reproducing reader may trip over
 
-- **“The runtime sends the session id in baggage” is not a documented contract.** AWS documents `runtimeSessionId` and `baggage` as separate invocation inputs and instructs callers to put `session.id` into baggage when they need it propagated. The live observation may be valid for this deployment, but the post should either capture the incoming baggage header or retain a fallback that derives it from `context.session_id`. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/APIReference/API_InvokeAgentRuntime.html?utm_source=openai))
+- **`Content-Length` is now mandatory for this middleware, not for the AgentCore contract.** The documented contract requires JSON but does not promise that Runtime or another compliant caller supplies `Content-Length`. Streaming/chunked clients are deliberately rejected. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html?trk=article-ssr-frontend-pulse_little-text-block))
+- **`timely()` needs an absolute deadline.** If it applies a fresh 30-second timeout to every `receive()`, a sender can keep the request alive indefinitely by supplying periodic chunks. Also, the SDK catches only JSON and Unicode errors during `request.json()`; a timeout raised there bypasses its normal invocation exception handler unless the middleware translates it into a response. ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/v1.24.0/src/bedrock_agentcore/runtime/app.py))
+- **Local curl tests will not reproduce the deployed trace automatically.** They must supply representative session, `traceparent` and baggage headers; otherwise there is no Runtime parent span or undocumented session baggage.
+- **The custom status codes are container-local.** A deployed caller sees 424 rather than 401, 413, 502 or 503, so tests must inspect the Runtime exception and CloudWatch rather than expect the locally observed status. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html?trk=article-ssr-frontend-pulse_little-text-block))
+- **The result is version-sensitive.** Context-name detection, response pass-through and explicit context copying are implementation details of the pinned SDK; upgrading without regression tests could alter the behavior. ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/main/src/bedrock_agentcore/runtime/app.py))
 
-- **The Logs Insights query cannot prove that no span lacks `session.id`.** It filters to spans already having that value and then counts them. To prove completeness, first identify the trace IDs, then query *all* spans in those traces and count missing or mismatched attributes. It also examines only the runtime’s `spans` stream, not the spans stored for downstream services.
+## 4. Production-reader gaps — scope, not defects
 
-- **“Nothing the agent does changes” is only shown for the happy path.** Invalid JSON, exception responses, admission errors, slow uploads, and client-visible status handling all change. The demonstrated answer establishes business-output equivalence, not HTTP-contract equivalence.
+- **Scope:** The eight-turn semaphore is per process and, on this deployment, per session microVM. It does not manage account-wide active-session capacity or Runtime’s much larger per-session connection quota. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/bedrock-agentcore-limits.html?utm_source=openai))
+- **Scope:** No operational policy is shown for retries and idempotency. In particular, overload is externally surfaced as 424 rather than 503, so clients need an explicit retry classification.
+- **Scope:** There are no admission metrics—rejected-body count, body timeout count, in-flight gauge or saturation duration—only logs and traces.
+- **Scope:** There is no turn-level deadline or cancellation propagation into model, Gateway, Memory and sandbox calls; only request-body arrival is bounded.
+- **Scope:** A production implementation should explicitly set `session.id` baggage rather than depend on the acknowledged undocumented Runtime behavior.
+- **Scope:** If streaming is introduced later, the SDK’s streaming error path also includes `str(exception)` in the SSE event, outside this non-streaming entrypoint’s catch. ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/v1.24.0/src/bedrock_agentcore/runtime/app.py))
 
-- **Port 8080 and `/invocations` are defaults, not the immutable Runtime contract.** Runtime now permits a configurable serving port and invocation path. The statement is correct for this Terraform configuration but too general as written. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html))
+## 5. Drift or unnecessary explanation
 
-## 3. Reproduction traps
+- The worked order answer and description of Gateway, Cedar, Lambda, sandbox and Memory are mostly recap. One sentence confirming unchanged behavior would suffice.
+- The trace section is otherwise on-topic because it validates the main reason for removing `traced()`.
+- The low-level list of deleted HTTP mechanics is useful but could be compressed to “body parsing, routing and response serialization.”
 
-- **The second parameter must literally be named `context`.** SDK 1.24.0 decides whether to pass context by inspecting whether parameter two is named `"context"`. Renaming it to `ctx` causes the handler to be called with only the payload. This non-obvious requirement should be stated. ([raw.githubusercontent.com](https://raw.githubusercontent.com/aws/bedrock-agentcore-sdk-python/v1.24.0/src/bedrock_agentcore/runtime/app.py))
-
-- Tests made directly against port 8080 will observe `401/413/503/502`; deployed tests through `InvokeAgentRuntime` will instead observe `424 RuntimeClientError`.
-
-- Chunked local requests will receive `413`, and a slow/incomplete upload can hold one of the eight semaphore slots until the client, proxy, or Runtime timeout intervenes.
-
-- The tracing result depends on exact package/startup configuration. Post 07 pins `bedrock-agentcore==1.24.0`; the current release is newer, while the package still identifies itself as alpha. Reproducers should use the repository lock/pins rather than an unconstrained install. ([pypi.org](https://pypi.org/project/bedrock-agentcore/1.24.0/?utm_source=openai))
-
-## 4. Production gaps — scope, not defects
-
-- **Scope:** The semaphore is process-local and effectively session-local because Runtime sessions use isolated microVMs. It is not fleet-wide admission control; production still needs caller-side throttling, account-quota handling, and load shedding. Runtime V2 can accept hundreds of concurrent connections per session. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/bedrock-agentcore-limits.html?utm_source=openai))
-
-- **Scope:** Production error handling needs a defined external error envelope, correlation ID, retry policy, idempotency rules, and separation of retryable upstream failures from permanent client errors. Collapsing everything into an application `502`, which becomes Runtime `424`, removes that distinction. AWS treats `424` as non-retryable while platform `429/503` errors are retry candidates. ([docs.aws.amazon.com](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/disaster-recovery-operate.html?utm_source=openai))
-
-- **Scope:** No discussion of graceful shutdown/resource cleanup, cancellation, dependency timeouts, streaming responses, or background tasks.
-
-- **Scope:** Trace-content redaction, access control, retention, sampling cost, and secret handling are inherited from post 07 rather than revisited.
-
-- **Scope:** A production migration would regression-test both the direct ASGI server and the managed invocation surface, especially malformed bodies, overload, timeouts, and trace continuity.
-
-## 5. Drift or unnecessary detail
-
-- The full order answer and tool trail in section 4 are longer than needed for a server migration; a compact smoke response plus the trace relationship would suffice.
-- The class-replacement/subclassing explanation of Starlette instrumentation is technically relevant but too implementation-specific and brittle for the main narrative. It could be reduced to: auto-instrumentation wraps Starlette before the application is imported.
-- The conclusion largely repeats the TL;DR and section 3.
-
-**Verdict: Sound SDK migration and tracing demonstration, but the client-visible error semantics, body-limit implementation, and lost read timeout need correction before publication.**
+**Verdict: Technically sound and reproducible with its pinned stack, but it should narrow the no-bounds and health-check claims and treat automatic session baggage as an observed convenience, not a production contract.**

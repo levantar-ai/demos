@@ -15,11 +15,15 @@ What changes is `agent/main.py`.
   joins the runtime's trace before the agent's code runs. Demo 07's
   `traced()` is deleted.
 - What the SDK leaves to the application stays. That is the caller check,
-  the request validation, the body and concurrency bounds (now a small ASGI
-  middleware) and the generic error a client is given when a turn fails.
+  the request validation, the bounds on the body and on concurrency (now a
+  small ASGI middleware) and catching every failure of a turn, so that its
+  message is neither logged nor returned.
 
-The pinned packages are demo 07's. The SDK was already in the image for
-the memory session manager, so the `pip install` line does not change.
+The SDK was already in the image for the memory session manager. Starlette
+and uvicorn came with it, and the image now pins them at the versions demo
+07's build resolved, since the agent imports one and is served by the
+other. The six named packages are pinned by version, not by hash, and
+their own dependencies are resolved at build time.
 
 Each demo in the series is independently deployable and carries the previous
 one forward. The parts that are not this post's topic are not re-explained;
@@ -227,9 +231,19 @@ conversation's turns as traces from the same spans.
 - The SDK parses the body before the agent's function runs, so invalid
   JSON is answered by the SDK, a 400 that includes the parser's message.
   Behind the runtime that request has already passed the authorizer. An
-  exception that escapes the function is answered by the SDK as a 500
-  carrying the exception's text, which is why the function catches
-  everything and answers with its own generic 502.
+  exception that escapes the function is logged by the SDK with its
+  traceback and answered as a 500 carrying the exception's text, which is
+  why the function catches everything and answers with its own generic 502.
+- The middleware refuses any request with a `Transfer-Encoding` header.
+  Sent with a `Content-Length` as well, the server frames the body by the
+  encoding, so the declared length would bound nothing. The runtime sends
+  a `Content-Length`. A read of the body is given 30 seconds, as demo 07's
+  socket timeout did, and a stalled one is answered 408.
+- The bound of eight turns is per process, and the runtime gives each
+  session its own microVM, so it limits one session's concurrency. It is
+  not admission control for the agent as a whole.
+- `@app.entrypoint` passes the request context only when the function's
+  second parameter is named `context`.
 - `app.run()` binds to localhost unless it finds `/.dockerenv` or
   `DOCKER_CONTAINER`, so `main.py` names the host.
 - The runtime sends its trace context in X-Ray's `X-Amzn-Trace-Id` header,

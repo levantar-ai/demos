@@ -12,7 +12,7 @@ The agent now runs on BedrockAgentCoreApp, the server in AWS's bedrock-agentcore
 
 The tracing code from post 07 goes as well. The SDK's app is a Starlette application, which the AWS Distro for OpenTelemetry instruments, and AgentCore Runtime sends the session id in the request's baggage. Each turn is still one trace in CloudWatch with the session id on every span, with no code of the agent's doing it.
 
-The SDK does not do everything for you. It puts no limit on a request body or on the turns in flight, and an exception that escapes your function goes back to the client with its message. The post shows the small piece of middleware and the catch that keep both in the agent's hands.
+The SDK does not do everything for you. It puts no limit on a request body or on the turns in flight, and an exception that escapes your function is logged with its message. The post shows the small piece of middleware and the catch that keep both in the agent's hands.
 
 https://levantar.ai/insights/agentcore-08-runtime-app.html
 

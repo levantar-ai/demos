@@ -440,6 +440,19 @@ def test_a_body_that_stalls_is_cut_off_and_gives_its_slot_back(server_url, monke
     with socket.create_connection((host, int(port)), timeout=5) as sock:
         sock.sendall(b"POST /invocations HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{")
         assert sock.recv(64).startswith(b"HTTP/1.1 408")
+    # The time is for the whole body, so one sent a byte at a time, each
+    # well inside the limit, is cut off as well.
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        sock.sendall(b"POST /invocations HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n")
+        sock.setblocking(False)
+        started, reply = time.monotonic(), b""
+        while not reply and time.monotonic() - started < 2:
+            try:
+                reply = sock.recv(64)
+            except BlockingIOError:
+                sock.send(b" ")
+                time.sleep(0.05)
+        assert reply.startswith(b"HTTP/1.1 408") and time.monotonic() - started < 1
     # The limit is on reading the body, not on the turn, which may take longer.
     monkeypatch.setattr(main, "respond", lambda *a: time.sleep(0.5) or stub_respond(*a))
     assert post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("after-stall")})[0] == 200

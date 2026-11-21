@@ -256,7 +256,8 @@
     "Noto",
     "uvicorn",
     "ASGI",
-    "isdigit"
+    "isdigit",
+    "ispresent"
   ],
   "ignorePaths": [
     "node_modules/**",
