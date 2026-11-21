@@ -26,3 +26,4 @@ notes/
 agentcore/05-identity/terraform/.build/
 agentcore/06-model-in-the-loop/terraform/.build/
 agentcore/07-observability/terraform/.build/
+agentcore/08-runtime-app/terraform/.build/

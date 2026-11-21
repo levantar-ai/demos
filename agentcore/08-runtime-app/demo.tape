@@ -1,5 +1,5 @@
-# VHS tape for the post 07 demo video: one turn of the agent, then the
-# trace CloudWatch stored for it.
+# VHS tape for the post 08 demo video: one turn of the agent on the SDK's
+# server, then the trace CloudWatch stored for it.
 #
 # The slow terraform reads are done BEFORE the capture, not inside it, or the
 # hidden setup can still be on screen when Show fires. Export these first,
@@ -37,7 +37,7 @@ Enter
 Sleep 2s
 Show
 
-Type "# the order agent from post 06, now started under ADOT. every turn becomes one trace in CloudWatch"
+Type "# the order agent from post 07, now served by the SDK's BedrockAgentCoreApp. the agent is one function"
 Enter
 Sleep 1.5s
 
@@ -50,7 +50,7 @@ Enter
 Wait
 Sleep 1s
 
-Type "# one turn. the response tells the caller which tools the model chose"
+Type "# one turn. the agent does what it did before, the model chooses the tools"
 Enter
 Sleep 1s
 
@@ -65,7 +65,7 @@ Hide
 Sleep 90s
 Show
 
-Type "# the trace tells the operator the rest: every model call, the gateway's Cedar check, the sandbox and the memory, found by the session id"
+Type "# the tracing code is gone and the turn is still one trace, found by its session id"
 Enter
 Sleep 1s
 

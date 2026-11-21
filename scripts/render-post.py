@@ -37,6 +37,7 @@ SERIES = [
     ("agentcore-05-identity", "Knowing who your agent is acting for, with AgentCore Identity"),
     ("agentcore-06-model-in-the-loop", "Letting the model choose, with the tools the series built"),
     ("agentcore-07-observability", "Tracing an AgentCore agent, one turn at a time"),
+    ("agentcore-08-runtime-app", "Moving an AgentCore agent onto the SDK's server"),
 ]
 
 LINKEDIN_ICON = (

@@ -255,7 +255,8 @@
     "tokenx",
     "Noto",
     "uvicorn",
-    "ASGI"
+    "ASGI",
+    "isdigit"
   ],
   "ignorePaths": [
     "node_modules/**",

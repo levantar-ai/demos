@@ -23,6 +23,7 @@ is, what a valid request is, how many turns run at once, and what a client
 is told when a turn fails.
 """
 
+import asyncio
 import base64
 import json
 import re
@@ -32,11 +33,15 @@ from contextlib import contextmanager
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from identity import orders_token
 from model import answer
+from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 from starlette.responses import JSONResponse
 from trail import BudgetExceeded, describe
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
+# A read of the body that stalls this long ends the request, so a declared
+# body that never arrives cannot hold an admitted slot.
+BODY_READ_SECONDS = 30
 # A question for an order agent is a sentence or a paragraph. Anything
 # larger is a cost rather than a question, and is refused before the model.
 MAX_PROMPT_CHARS = 4_000
@@ -213,10 +218,10 @@ def bounded(turn):
 
 
 class Admitted:
-    """The two bounds the SDK leaves to the application, as ASGI middleware
-    so they are applied before the SDK reads and parses the body: a request
-    must declare a body of at most MAX_BODY_BYTES, and the process admits
-    MAX_TURNS_IN_FLIGHT turns at once."""
+    """The bounds the SDK leaves to the application, as ASGI middleware so
+    they are applied before the SDK reads and parses the body: a request
+    must declare a body of at most MAX_BODY_BYTES, the process admits
+    MAX_TURNS_IN_FLIGHT turns at once, and a body that stalls is cut off."""
 
     def __init__(self, app):
         self.app = app
@@ -224,16 +229,30 @@ class Admitted:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope["method"] != "POST":
             return await self.app(scope, receive, send)
-        length = dict(scope["headers"]).get(b"content-length", b"")
-        if not length.isdigit() or not 0 < int(length) <= MAX_BODY_BYTES:
+        headers = dict(scope["headers"])
+        length = headers.get(b"content-length", b"")
+        # A chunked body is refused whatever length it declares. The server
+        # frames by Transfer-Encoding when both are sent, so the declared
+        # length would bound nothing.
+        if b"transfer-encoding" in headers or not length.isdigit() or not 0 < int(length) <= MAX_BODY_BYTES:
             return await refused(413, "request body must be 1..2MB")(scope, receive, send)
         if not _turns_in_flight.acquire(blocking=False):
             busy = f"the agent is serving {MAX_TURNS_IN_FLIGHT} turns already; try again"
             return await refused(503, busy)(scope, receive, send)
         try:
-            await self.app(scope, receive, send)
+            await self.app(scope, timely(receive), send)
         finally:
             _turns_in_flight.release()
+
+
+def timely(receive):
+    """The request's receive, with each read of the body given BODY_READ_SECONDS."""
+    async def read():
+        try:
+            return await asyncio.wait_for(receive(), BODY_READ_SECONDS)
+        except asyncio.TimeoutError:
+            raise HTTPException(408, "request body timed out") from None
+    return read
 
 
 def refused(status, error):

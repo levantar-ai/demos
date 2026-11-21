@@ -88,6 +88,12 @@ resource "aws_cognito_user_pool_client" "orders" {
 resource "random_password" "service_user" {
   length  = 32
   special = true
+  # One of each class, which the pool's password policy requires and a
+  # random draw does not guarantee.
+  min_lower   = 1
+  min_upper   = 1
+  min_numeric = 1
+  min_special = 1
 }
 
 resource "aws_cognito_user" "orders_agent" {

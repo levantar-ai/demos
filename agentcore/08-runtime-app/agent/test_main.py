@@ -418,6 +418,33 @@ def test_an_oversized_or_undeclared_body_is_refused_before_it_is_read(server_url
     assert exc.value.code == 413
 
 
+def test_a_chunked_body_is_refused_whatever_length_it_declares(server_url):
+    """Sent both headers the server frames by Transfer-Encoding, so a small
+    declared length would let any body through."""
+    import http.client
+    host, port = server_url.removeprefix("http://").split(":")
+    conn = http.client.HTTPConnection(host, int(port), timeout=5)
+    conn.putrequest("POST", "/invocations")
+    for name, value in dict(headers_for(), **{"Content-Length": "16", "Transfer-Encoding": "chunked"}).items():
+        conn.putheader(name, value)
+    conn.endheaders()
+    assert conn.getresponse().status == 413
+    conn.close()
+
+
+def test_a_body_that_stalls_is_cut_off_and_gives_its_slot_back(server_url, monkeypatch):
+    import socket
+    monkeypatch.setattr(main, "BODY_READ_SECONDS", 0.2)
+    monkeypatch.setattr(main, "_turns_in_flight", threading.BoundedSemaphore(1))
+    host, port = server_url.removeprefix("http://").split(":")
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        sock.sendall(b"POST /invocations HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{")
+        assert sock.recv(64).startswith(b"HTTP/1.1 408")
+    # The limit is on reading the body, not on the turn, which may take longer.
+    monkeypatch.setattr(main, "respond", lambda *a: time.sleep(0.5) or stub_respond(*a))
+    assert post(f"{server_url}/invocations", {"prompt": "hi", "session": sid("after-stall")})[0] == 200
+
+
 def test_a_failure_the_handler_did_not_expect_is_still_a_generic_502(server_url, monkeypatch):
     """An exception that reached the SDK would be a 500 carrying its message."""
     monkeypatch.setattr(main, "bounded", lambda turn: 1 / 0)

@@ -11,9 +11,11 @@ ENV PYTHONUNBUFFERED=1
 # memory session manager and, from this post, the server (BedrockAgentCoreApp,
 # on Starlette and uvicorn, which it installs); aws-opentelemetry-distro
 # (ADOT) is what sends the spans Strands and botocore emit to CloudWatch.
-# All pinned, as everything else in the series. The line is post 07's,
-# unchanged: the SDK was already in the image.
-RUN pip install --no-cache-dir boto3==1.43.108 strands-agents==1.57.2 bedrock-agentcore==1.24.0 aws-opentelemetry-distro==0.22.0
+# The SDK was already in the image. Starlette and uvicorn came with it;
+# they are pinned here now that the agent imports one and is served by the
+# other, at the versions post 07's build resolved. The dependencies of
+# these six are resolved at build time, not locked.
+RUN pip install --no-cache-dir boto3==1.43.108 strands-agents==1.57.2 bedrock-agentcore==1.24.0 aws-opentelemetry-distro==0.22.0 starlette==1.10.0 uvicorn==0.54.0
 
 WORKDIR /app
 COPY main.py model.py gateway.py identity.py memory.py sandbox.py trail.py handoff.py ./

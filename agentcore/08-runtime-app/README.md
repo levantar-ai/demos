@@ -28,7 +28,7 @@ identity chain.
 
 ## What gets created
 
-- Everything from demo 06, namespaced `demos-agentcore-08-runtime-app-*`
+- Everything from demo 07, unchanged apart from the names, namespaced `demos-agentcore-08-runtime-app-*`
   and `demos_agentcore_08_*`. The Cedar policies are named after the demo
   too, because policy names are unique in the account rather than in their
   policy engine
@@ -215,8 +215,8 @@ filter @logStream = "spans" and status.code = "ERROR"
 ```
 
 The same data is in the CloudWatch console under GenAI Observability,
-AgentCore, as sessions, traces and spans. `trace.py` draws one turn's trace
-from `artifacts/trace-turn-1.json`, the spans the live run recorded.
+AgentCore, as sessions, traces and spans. `show_trace.py` prints a
+conversation's turns as traces from the same spans.
 
 ## Notes kept out of the post
 
@@ -232,6 +232,17 @@ from `artifacts/trace-turn-1.json`, the spans the live run recorded.
   everything and answers with its own generic 502.
 - `app.run()` binds to localhost unless it finds `/.dockerenv` or
   `DOCKER_CONTAINER`, so `main.py` names the host.
+- The runtime sends its trace context in X-Ray's `X-Amzn-Trace-Id` header,
+  not W3C `traceparent`, and a `baggage` header carrying `session.id`.
+  ADOT's propagators read both, and its span processor copies `session.id`
+  from the baggage onto each span.
+- A 4xx from the container reaches the client as the runtime's 424,
+  `Received error (400) from runtime`, so the agent's own error text is in
+  the runtime's logs rather than the response. A 401 for a missing token
+  is the runtime's own and never reaches the container.
+- The contract tests serve the app with uvicorn on a real socket and call
+  it with `urllib`, as demo 07's did with the standard library's server,
+  so they need nothing the image does not already install.
 - The SDK also registers a `/ws` WebSocket route. With no handler
   registered it closes the connection.
 - With `AGENT_OBSERVABILITY_ENABLED`, ADOT exports every span the agent
