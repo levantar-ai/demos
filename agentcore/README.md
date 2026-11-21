@@ -31,12 +31,13 @@ same data and the same customer ids.
 | 03 | [`03-memory/`](03-memory/) | [read →](03-memory/POST.md) | Short- and long-term memory |
 | 04 | [`04-builtin-tools/`](04-builtin-tools/) | [read →](04-builtin-tools/POST.md) | Code Interpreter sandbox |
 | 05 | [`05-identity/`](05-identity/) | [read →](05-identity/POST.md) | Who is calling, and the agent's own credentials in the token vault |
-| 06 | `06-model-in-the-loop/` *(planned)* | | A model given the tools, choosing how to answer |
-| 07 | `07-observability/` *(planned)* | | Tracing and debugging |
-| 08 | `08-evals/` *(planned)* | | Evals: testing agent behaviour as a quality gate |
-| 09 | `09-multi-agent/` *(planned)* | | Supervisor/worker topologies |
-| 10 | `10-cost/` *(planned)* | | Cost modelling |
-| 11 | `11-case-study/` *(planned)* | | The finished system |
+| 06 | [`06-model-in-the-loop/`](06-model-in-the-loop/) | [read →](06-model-in-the-loop/POST.md) | A model given the tools, choosing how to answer |
+| 07 | [`07-observability/`](07-observability/) | [read →](07-observability/POST.md) | Tracing an agent, one turn at a time |
+| 08 | [`08-runtime-app/`](08-runtime-app/) | [read →](08-runtime-app/POST.md) | The SDK's `BedrockAgentCoreApp` in place of the hand-written server |
+| 09 | `09-evals/` *(planned)* | | Evals: testing agent behaviour as a quality gate |
+| 10 | `10-multi-agent/` *(planned)* | | Supervisor/worker topologies |
+| 11 | `11-cost/` *(planned)* | | Cost modelling |
+| 12 | `12-case-study/` *(planned)* | | The finished system |
 
 ## Conventions (namespacing)
 

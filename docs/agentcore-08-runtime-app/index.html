@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moving an AgentCore agent onto the SDK's server — Levantar Demos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The order support agent from post 07 now serves its requests with `BedrockAgentCoreApp`, the server in AWS's `bedrock-agentcore` Python SDK, in place of the hand-written one the series has carried since post 01. The agent becomes one function, the SDK serves the runtime's contract around it, and the">
+<link rel="canonical" href="https://levantar-ai.github.io/demos/agentcore-08-runtime-app/">
+<meta name="author" content="Andy Rea">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Levantar">
+<meta property="og:locale" content="en_GB">
+<meta property="og:title" content="Moving an AgentCore agent onto the SDK's server">
+<meta property="og:description" content="The order support agent from post 07 now serves its requests with `BedrockAgentCoreApp`, the server in AWS's `bedrock-agentcore` Python SDK, in place of the hand-written one the series has carried since post 01. The agent becomes one function, the SDK serves the runtime's contract around it, and the">
+<meta property="og:image" content="https://levantar-ai.github.io/demos/agentcore-08-runtime-app/social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Moving an AgentCore agent onto the SDK's server">
+<meta property="og:url" content="https://levantar-ai.github.io/demos/agentcore-08-runtime-app/">
+<meta property="article:published_time" content="2026-11-21">
+<meta property="article:author" content="Andy Rea">
+<meta property="article:section" content="Engineering">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Moving an AgentCore agent onto the SDK's server">
+<meta name="twitter:description" content="The order support agent from post 07 now serves its requests with `BedrockAgentCoreApp`, the server in AWS's `bedrock-agentcore` Python SDK, in place of the hand-written one the series has carried since post 01. The agent becomes one function, the SDK serves the runtime's contract around it, and the">
+<meta name="twitter:image" content="https://levantar-ai.github.io/demos/agentcore-08-runtime-app/social.png">
+<meta name="twitter:image:alt" content="Moving an AgentCore agent onto the SDK's server">
+<link rel="icon" type="image/png" href="../favicon.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Moving an AgentCore agent onto the SDK's server",
+  "description": "The order support agent from post 07 now serves its requests with `BedrockAgentCoreApp`, the server in AWS's `bedrock-agentcore` Python SDK, in place of the hand-written one the series has carried since post 01. The agent becomes one function, the SDK serves the runtime's contract around it, and the",
+  "image": "https://levantar-ai.github.io/demos/agentcore-08-runtime-app/social.png",
+  "datePublished": "2026-11-21",
+  "dateModified": "2026-11-21",
+  "wordCount": 1200,
+  "inLanguage": "en-GB",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://levantar-ai.github.io/demos/agentcore-08-runtime-app/"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "Andy Rea",
+    "jobTitle": "Co-Founder & CTO",
+    "worksFor": {
+      "@type": "Organization",
+      "name": "Levantar",
+      "url": "https://levantar.ai"
+    }
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Levantar",
+    "url": "https://levantar.ai",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://levantar-ai.github.io/demos/levantar-logo-white.png"
+    }
+  },
+  "isPartOf": {
+    "@type": "CreativeWorkSeries",
+    "name": "AgentCore series"
+  }
+}
+</script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7C1NXQ0H0E"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-7C1NXQ0H0E');
+</script>
+<style>
+  :root {
+    --bg: #0b1120; --card: #152037; --line: #243352; --fg: #e7edf7;
+    --muted: #93a4c3; --accent: #22d3ee; --hl: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 24px 80px; color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: radial-gradient(1100px 500px at 75% -10%, #1b2a4a 0%, #0b1120 55%) var(--bg);
+    line-height: 1.7; overflow-wrap: break-word;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+  .top a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  .top a:hover { color: var(--accent); }
+  .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--fg) !important; font-weight: 600; font-size: 15px; }
+  .brand img { height: 32px; }
+  article h1 { font-size: 30px; letter-spacing: -0.02em; line-height: 1.25; margin: 0 0 6px; }
+  article h2 { font-size: 21px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  article p, article li { color: #c6d2e6; font-size: 16px; }
+  article a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+  article a:hover { text-decoration: underline; }
+  article img { max-width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 10px; margin: 10px 0; }
+  article code { background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; overflow-wrap: anywhere; }
+  article pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  article pre code { background: none; border: none; padding: 0; font-size: 13.5px; line-height: 1.6; color: #d8e2f3; overflow-wrap: normal; }
+  .table-wrap { max-width: 100%; margin: 14px 0; overflow-x: auto; overscroll-behavior-x: contain; }
+  article table { border-collapse: collapse; width: 100%; margin: 0; font-size: 14.5px; }
+  article th, article td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  article th { background: var(--card); }
+  article blockquote { border-left: 3px solid var(--accent); margin: 0; padding: 2px 18px; color: var(--muted); }
+  .post-meta {
+    display: flex; align-items: center; gap: 14px;
+    margin: 16px 0 34px; padding-bottom: 22px; border-bottom: 1px solid var(--line);
+  }
+  .post-meta .avatar {
+    width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%;
+    object-fit: cover; border: 1px solid var(--line); background: var(--card);
+  }
+  .post-meta .who { min-width: 0; line-height: 1.45; }
+  .post-meta .name {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--fg); font-weight: 600; font-size: 15px; text-decoration: none;
+  }
+  .post-meta a.name:hover { color: var(--accent); text-decoration: none; }
+  .post-meta a.name:hover svg { color: var(--accent); }
+  .post-meta .name svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
+  .post-meta .role { color: var(--muted); font-size: 13.5px; }
+  .post-meta .role a.org { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .post-meta .role a.org:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .post-meta .facts { color: var(--muted); font-size: 13px; }
+  .post-meta .facts .sep { padding: 0 5px; opacity: 0.45; }
+  .series-nav a {
+    display: block; padding: 13px 17px; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--card); text-decoration: none;
+    transition: border-color 0.15s ease;
+  }
+  .series-nav a:hover { border-color: var(--accent); text-decoration: none; }
+  .series-nav .label {
+    display: block; font-size: 11.5px; color: var(--muted);
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .series-nav .title {
+    display: block; margin-top: 3px; font-size: 15px;
+    color: var(--fg); font-weight: 600; line-height: 1.4;
+  }
+  .series-nav.prev { margin: 0 0 32px; }
+  .series-nav.next { margin: 44px 0 0; }
+  @media (max-width: 640px) {
+    body { padding: 32px 16px 64px; }
+    .top { margin-bottom: 28px; }
+    article h1 { font-size: 25px; }
+    article h2 { font-size: 19px; margin: 32px 0 10px; }
+    article p, article li { font-size: 15.5px; }
+    article pre { padding: 14px 15px; border-radius: 10px; }
+    article pre code { font-size: 12.5px; }
+    .post-meta { gap: 12px; margin-bottom: 28px; }
+    .post-meta .avatar { width: 46px; height: 46px; flex-basis: 46px; }
+  }
+  /* Image lightbox, the same behaviour as levantar.ai: a magnifier chip on each
+     content image, the image as a modal on click, a close control. */
+  .zoomable { display: block; position: relative; width: 100%; margin: 10px 0; padding: 0; border: 0; background: none; cursor: zoom-in; font: inherit; text-align: inherit; }
+  .zoomable img { margin: 0; }
+  .zoomable:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .zoomable-hint { position: absolute; right: 18px; bottom: 18px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: rgba(11, 17, 32, 0.78); color: #e7edf7; opacity: 0.85; transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
+  .zoomable-hint svg { width: 18px; height: 18px; }
+  .zoomable:hover .zoomable-hint, .zoomable:focus-visible .zoomable-hint { opacity: 1; transform: scale(1.06); }
+  .lightbox { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 56px 24px 24px; background: rgba(5, 9, 18, 0.94); opacity: 0; transition: opacity 180ms ease; }
+  .lightbox[hidden] { display: none; }
+  .lightbox.is-open { opacity: 1; }
+  .lightbox img { display: block; max-width: min(96vw, 1800px); max-height: calc(100vh - 80px); width: auto; height: auto; margin: 0; padding: 10px; border: 0; border-radius: 14px; background: #fff; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
+  .lightbox-close { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(231, 237, 247, 0.35); border-radius: 999px; background: rgba(11, 17, 32, 0.6); color: #e7edf7; cursor: pointer; padding: 0; }
+  .lightbox-close svg { width: 19px; height: 19px; }
+  .lightbox-close:hover, .lightbox-close:focus-visible { background: var(--accent); border-color: var(--accent); color: #0b1120; outline: none; }
+  .lightbox-caption { position: absolute; left: 24px; right: 72px; bottom: 20px; margin: 0; color: rgba(231, 237, 247, 0.8); font-size: 14px; line-height: 1.4; }
+  body.lightbox-open { overflow: hidden; }
+  @media (prefers-reduced-motion: reduce) { .lightbox, .zoomable-hint { transition: none; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="https://levantar.ai" target="_blank" rel="noopener">
+        <img src="../levantar-logo-white.png" alt="Levantar"><span>Levantar</span>
+      </a>
+      <a href="../">← All demos</a>
+    </div>
+    <article>
+      <h1>Moving an AgentCore agent onto the SDK's server</h1>
+      <div class="post-meta">
+        <img class="avatar" src="../avatar.jpg" alt="Andy Rea" width="52" height="52">
+        <div class="who">
+          <div><span class="name">Andy Rea</span></div>
+          <div class="role">Co-Founder &amp; CTO, <a class="org" href="https://levantar.ai" target="_blank" rel="noopener">Levantar</a></div>
+          <div class="facts"><time datetime="2026-11-21">21 November 2026</time><span class="sep">·</span>6 min read<span class="sep">·</span>AgentCore series</div>
+        </div>
+      </div>
+      <nav class="series-nav prev">
+        <a href="../agentcore-07-observability/">
+          <span class="label">Previous in this series</span>
+          <span class="title">Tracing an AgentCore agent, one turn at a time</span>
+        </a>
+      </nav>
+<h2>TL;DR;</h2>
+<p>The order support agent from post 07 now serves its requests with
+<code>BedrockAgentCoreApp</code>, the server in AWS's <code>bedrock-agentcore</code> Python SDK,
+in place of the hand-written one the series has carried since post 01. The
+agent becomes one function, the SDK serves the runtime's contract around
+it, and the tracing code post 07 added is deleted, because a turn now joins
+the runtime's trace without it. The SDK adds no bounds of its own to a
+request, and it logs and returns the message of any exception it is handed,
+so that part stays in the agent.</p>
+<blockquote>
+<p>SOURCE CODE - All code for this post is available at:
+<a href="https://github.com/levantar-ai/demos/tree/main/agentcore/08-runtime-app">https://github.com/levantar-ai/demos/tree/main/agentcore/08-runtime-app</a></p>
+</blockquote>
+<h2>Longer version</h2>
+<p>This series is building one thing, the order support agent for Brightwell,
+a small online retailer of outdoor kit. Post 01 wrote the agent's HTTP
+server by hand on Python's standard library, to show how little AgentCore
+Runtime asks of a container, which by default is <code>POST /invocations</code> and
+<code>GET /ping</code> on port 8080. Seven posts later that server is still there, and post 07 had
+to add tracing code to it that a web framework would have made unnecessary.</p>
+<p>AWS ships a server for this contract in the <code>bedrock-agentcore</code> SDK,
+<code>BedrockAgentCoreApp</code>. It is where the SDK's own quick start begins, so
+expect to meet it in other people's agents. This post moves the agent onto
+it and the rest of the series builds on that. What the agent does for a
+customer does not change, and the infrastructure is post 07's.</p>
+<p><img alt="The agent of post 07 on the SDK's server, one function behind the runtime's contract" src="architecture.png" /></p>
+<video controls muted playsinline preload="metadata" style="width:100%;border-radius:14px;border:1px solid var(--line);margin:10px 0;"><source src="demo.mp4" type="video/mp4"></video>
+<h2>1 - The agent as one function</h2>
+<p>The SDK has been in the image since post 06, where the agent took its
+memory session manager from it, and Starlette and uvicorn came with it. The
+image now pins those two as well, since they serve the agent. The server is
+one import, and the function that handles a turn is registered with a
+decorator:</p>
+<pre><code class="language-python">from bedrock_agentcore.runtime import BedrockAgentCoreApp
+
+app = BedrockAgentCoreApp(middleware=[Middleware(Admitted)])
+
+
+@app.entrypoint
+def invoke(payload, context):
+    headers = context.request_headers or {}
+    customer = customer_from(headers)
+    subject = subject_from(headers)
+    if customer is None or subject is None:
+        return refused(401, &quot;no verified caller&quot;)
+    ...
+    session = session_from(context.session_id, payload)
+    ...
+    with one_turn(subject, session):
+        gateway_token = exchange(bearer_from(headers))
+        turn = respond(prompt, customer, session, gateway_token, subject)
+    return bounded(turn)
+
+
+if __name__ == &quot;__main__&quot;:
+    app.run(host=&quot;0.0.0.0&quot;)
+</code></pre>
+<p>The SDK parses the JSON body and passes it in as <code>payload</code>. <code>context</code> holds
+what the runtime sent with the request, the session id from the runtime's
+session header and the headers the runtime is configured to forward, which
+for this agent is <code>Authorization</code>, as post 05 set up. The function returns
+a dict and the SDK sends it as JSON, or it returns a Starlette response
+when it wants a status code of its own, which is how the refusals are sent.
+AgentCore Runtime reports any error status from the container to its own
+caller as a 424, so those codes are read in the logs and the trace.</p>
+<blockquote>
+<p>NOTE: the second parameter has to be called <code>context</code>. The SDK looks for
+that name to decide whether to pass the context at all.</p>
+</blockquote>
+<p>The SDK also answers <code>/ping</code>, and it runs the function on a worker thread,
+so a turn waiting on the model does not stop the health check being
+answered.</p>
+<p>What is deleted is everything that was only there to be a server, the
+routing, reading and parsing the body, and writing each response.</p>
+<blockquote>
+<p>NOTE: <code>app.run()</code> listens on localhost unless it finds Docker's
+<code>/.dockerenv</code> file or a <code>DOCKER_CONTAINER</code> environment variable. The
+runtime has to reach the port, so name the host as above rather than
+leave it to the detection.</p>
+</blockquote>
+<h2>2 - The trace joins itself</h2>
+<p>Post 07 added a function, <code>traced()</code>, that read the trace context from the
+request headers, put the session id in the baggage and attached both for
+the length of the turn. It was needed
+because ADOT, the AWS Distro for OpenTelemetry, instruments web frameworks
+and the standard library's server is not one.</p>
+<p><code>BedrockAgentCoreApp</code> is a Starlette application, and Starlette is one of
+the frameworks ADOT instruments. So <code>traced()</code> is deleted and nothing
+replaces it. The start command from post 07 is what makes that work, and it
+has not changed either:</p>
+<pre><code class="language-dockerfile">CMD [&quot;opentelemetry-instrument&quot;, &quot;python&quot;, &quot;main.py&quot;]
+</code></pre>
+<p><code>opentelemetry-instrument</code> loads ADOT before any of the agent's code is
+imported, so the SDK's app is built on a Starlette that is already
+instrumented. ADOT's middleware reads the runtime's headers and starts a
+span for the request, and the SDK carries that context onto the worker
+thread the function runs on.</p>
+<p>The session id needs no code either. On this deployment the runtime sends
+it in each request's baggage, which is not something AWS documents, and
+ADOT copies it from there onto every span. The query in section 4 is how to
+check it.</p>
+<h2>3 - What stays in the agent</h2>
+<p>The SDK passes the payload to the function unchanged, and the decorator's
+own documentation says to validate it. The caller check, the prompt check and
+the session check are the same lines as before.</p>
+<p>The hand-written server also bounded what it would take on. The SDK adds
+no bounds of its own below the runtime's, which allow a 100 MB payload. It
+reads whatever body it is sent, waits as long as the body takes to arrive
+and has no limit on the turns in flight. The
+app's constructor accepts ASGI middleware, so the agent's bounds, a 2 MB
+body that arrives within 30 seconds and eight turns at once, are applied
+before the SDK reads anything:</p>
+<pre><code class="language-python">class Admitted:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope[&quot;type&quot;] != &quot;http&quot; or scope[&quot;method&quot;] != &quot;POST&quot;:
+            return await self.app(scope, receive, send)
+        headers = dict(scope[&quot;headers&quot;])
+        length = headers.get(b&quot;content-length&quot;, b&quot;&quot;)
+        if b&quot;transfer-encoding&quot; in headers or not length.isdigit() or not 0 &lt; int(length) &lt;= MAX_BODY_BYTES:
+            return await refused(413, &quot;request body must be 1..2MB&quot;)(scope, receive, send)
+        if not _turns_in_flight.acquire(blocking=False):
+            busy = f&quot;the agent is serving {MAX_TURNS_IN_FLIGHT} turns already; try again&quot;
+            return await refused(503, busy)(scope, receive, send)
+        try:
+            await self.app(scope, timely(receive), send)
+        finally:
+            _turns_in_flight.release()
+</code></pre>
+<p><code>timely()</code> is the 30 seconds, a wrapper that gives up on a body that has
+not all arrived by then. The bound on turns is this process's own, and the
+runtime gives each session its own microVM, so it limits one session and
+not the whole agent.</p>
+<p>The other thing that stays is what happens to an exception. One that
+escapes the function is logged by the SDK with its traceback and answered
+with a 500 whose body is its message, and a message can carry a token, a
+response body or the model's code. So the function catches everything,
+logs the exception's class and answers with the same generic error as
+before:</p>
+<pre><code class="language-python">    except Exception as exc:
+        print(f&quot;turn failed for {customer}: {describe(exc)}&quot;)
+        return refused(502, &quot;request failed&quot;)
+</code></pre>
+<h2>4 - The same turn, the same trace</h2>
+<p>Deployed, the agent answers as it did in post 07. The model lists the
+customer's orders through the gateway and works the figures out in the
+sandbox, and the response carries the trail and the answer, which ends:</p>
+<pre><code>  1. orders___list_orders  [success]
+  2. run_python  [success]
+
+February was your biggest month at £310.50, and you've spent £743.80 with us in total this year so far.
+</code></pre>
+<p>The trace is the part worth checking, since the code that joined it is
+gone. One Logs Insights query over the runtime's <code>spans</code> stream finds the
+conversation by its session id and counts the spans of each trace:</p>
+<pre><code>filter @logStream = &quot;spans&quot; and `attributes.session.id` = &quot;&lt;session id&gt;&quot;
+| stats count(*) as spans by traceId
+</code></pre>
+<pre><code>traceId                           spans
+6b01627036507ced237502267b61cf9f     39
+6b0162845c93c80e455326066fd8860a     29
+6b01626f756f1300794326274ca3a66c      1
+6b01626e48d0bbb548e8dd7f02797579      1
+</code></pre>
+<p>The first two are the conversation's two turns, each one trace. A second
+query, for spans in those traces without the session id, finds none. The
+first span in the container is now the request itself, <code>POST /invocations</code>,
+and its parent is the runtime's span, so the turn sits under the runtime's
+trace as it did before. The gateway's Cedar check, the orders Lambda and
+the memory join the same trace, as in post 07.</p>
+<p>The last two are requests that were refused with a 400, one by the agent
+for a blank prompt and one by the SDK for a body that was not JSON. A
+refusal is a trace of one span now, because the span starts before the
+agent's function is called.</p>
+<h2>Conclusion</h2>
+<p>Moving onto <code>BedrockAgentCoreApp</code> removes the code that was only there to
+be a server, and with ADOT it removes the tracing code as well. What it
+leaves is what was always the agent's to decide, who the caller is, what a
+valid request is, how much the process takes on and what is said when a
+turn fails.</p>
+<p>The series now runs on the SDK's server, which is where the next post
+starts, evaluations as a quality gate.</p>
+<p>References:</p>
+<ul>
+<li><a href="https://github.com/levantar-ai/demos/tree/main/agentcore/08-runtime-app">https://github.com/levantar-ai/demos/tree/main/agentcore/08-runtime-app</a></li>
+<li><a href="https://github.com/aws/bedrock-agentcore-sdk-python">https://github.com/aws/bedrock-agentcore-sdk-python</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html</a></li>
+<li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-header-allowlist.html">https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-header-allowlist.html</a></li>
+<li><a href="https://aws-otel.github.io/docs/getting-started/python-sdk">https://aws-otel.github.io/docs/getting-started/python-sdk</a></li>
+</ul>
+
+    </article>
+  </div>
+  <script>
+  (function () {
+    'use strict';
+    var zoomable_images = document.querySelectorAll('article p > img');
+    if (!zoomable_images.length) return;
+    var MAGNIFIER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg>';
+    var CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    var box = document.createElement('div');
+    box.className = 'lightbox';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.hidden = true;
+    box.innerHTML = '<button type="button" class="lightbox-close" aria-label="Close">' + CLOSE + '</button><img alt=""><p class="lightbox-caption"></p>';
+    document.body.appendChild(box);
+    var boxImg = box.querySelector('img');
+    var boxCaption = box.querySelector('.lightbox-caption');
+    var closeButton = box.querySelector('.lightbox-close');
+    var opener = null;
+    var close = function () {
+      if (box.hidden) return;
+      box.classList.remove('is-open');
+      box.hidden = true;
+      document.body.classList.remove('lightbox-open');
+      boxImg.removeAttribute('src');
+      if (opener) opener.focus();
+      opener = null;
+    };
+    var open = function (img, trigger) {
+      opener = trigger;
+      boxImg.src = img.currentSrc || img.src;
+      boxImg.alt = img.alt || '';
+      boxCaption.textContent = img.alt || '';
+      box.setAttribute('aria-label', img.alt || 'Image');
+      box.hidden = false;
+      document.body.classList.add('lightbox-open');
+      void box.offsetWidth;
+      box.classList.add('is-open');
+      closeButton.focus();
+    };
+    closeButton.addEventListener('click', close);
+    box.addEventListener('click', function (event) { if (event.target === box) close(); });
+    document.addEventListener('keydown', function (event) { if (event.key === 'Escape') close(); });
+    Array.prototype.forEach.call(zoomable_images, function (img) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'zoomable';
+      button.setAttribute('aria-label', 'Enlarge image' + (img.alt ? ': ' + img.alt : ''));
+      img.parentNode.insertBefore(button, img);
+      button.appendChild(img);
+      var hint = document.createElement('span');
+      hint.className = 'zoomable-hint';
+      hint.innerHTML = MAGNIFIER;
+      button.appendChild(hint);
+      button.addEventListener('click', function () { open(img, button); });
+    });
+  })();
+  </script>
+</body>
+</html>

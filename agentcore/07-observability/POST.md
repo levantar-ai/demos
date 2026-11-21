@@ -242,7 +242,7 @@ agent's rules say it must compute. Neither was visible in a response that
 was right.
 
 A trace shows what the agent did, not whether it should have. Testing that
-is the next post, evaluations as a quality gate.
+comes later in the series, with evaluations as a quality gate.
 
 References:
 
