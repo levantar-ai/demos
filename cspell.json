@@ -253,7 +253,9 @@
     "unsampled",
     "redactions",
     "tokenx",
-    "Noto"
+    "Noto",
+    "uvicorn",
+    "ASGI"
   ],
   "ignorePaths": [
     "node_modules/**",
